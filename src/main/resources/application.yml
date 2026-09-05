@@ -1,0 +1,16 @@
+server:
+  port: 8081
+spring:
+  servlet:
+    multipart:
+      location: /tmp
+      max-file-size: 10MB
+      max-request-size: 10MB
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+ghost:
+  markdown:
+    storage-directory: ${GHOST_MARKDOWN_STORAGE_DIRECTORY:${java.io.tmpdir}/ghost-pdf5/markdown}

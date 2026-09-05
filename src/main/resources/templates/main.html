@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+	<meta charset="utf-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<meta name="robots" content="noindex,nofollow">
+	<meta name="format-detection" content="telephone=no, email=no, address=no">
+	<meta name="viewport" content="width=device-width,initial-scale=1.0">
+	<title>Ghost PDF5</title>
+	<script src="https://use.fontawesome.com/releases/v5.3.1/js/all.js" defer></script>
+	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+	<link rel="stylesheet" href="/css/main.css">
+</head>
+
+<body>
+	<div id="app">
+		<the-header></the-header>
+		<div class="dotted">
+			<p>広告</p>
+		</div>
+		<main class="main">
+			<modal :messages="errorMessages" v-if="isShowModal" @close-modal="hideMessageModal()"></modal>
+			<original-pdf-form
+				:original-file="originalFile"
+				:pdf-metadata="pdfMetadata"
+				:is-processing="isProcessing"
+				@file-change="handlePdfFileChange($event, -1)"
+				@request-delete-pdf="requestDeletePdf"
+					@request-extract-pdf="requestExtractPdf"
+					@request-markdown-draft-pdf="requestMarkdownDraftPdf"
+					@request-metadata-pdf="requestMetadataPdf"
+				@request-text-pdf="requestTextPdf"
+				@request-split-pdf="requestSplitPdf"
+				@clear-all="clearAll">
+			</original-pdf-form>
+			<br />
+			<span>差し替え、結合ファイル(PDFのみ)</span>
+			<button type="button" @click="addInsertFileRow">行の追加</button>
+			<div>
+				<draggable v-model="insertFiles" item-key="fileNo" @change="handleInsertFileOrderChange">
+					<template #item="{ element }">
+						<insert-pdf-row
+							:insert-file="element"
+							:insert-page-pulldown="insertPagePulldown"
+							@file-change="handlePdfFileChange"
+							@clear-insert-file-row="clearInsertFileRow"
+							@remove-insert-file-row="removeInsertFileRow">
+						</insert-pdf-row>
+					</template>
+				</draggable>
+			</div>
+			<button type="button" :disabled="isProcessing" @click="requestInsertPdf">PDF差込み</button>
+			<button type="button" :disabled="isProcessing" @click="requestMergePdf">PDF結合</button>
+			<article class="pdf-card markdown-panel">
+				<header>Markdownメモ</header>
+				<div class="pdf-card__body markdown-panel__body">
+					<div class="markdown-panel__toolbar">
+						<input type="text" v-model="markdownFileName" placeholder="design-note.md"
+							aria-label="Markdownファイル名">
+						<button type="button" :disabled="isProcessing" @click="requestSaveMarkdown">保存</button>
+						<button type="button" :disabled="isProcessing" @click="requestListMarkdownFiles">一覧</button>
+						<button type="button" :disabled="isProcessing" @click="requestLoadMarkdownFile">読込</button>
+						<button type="button" :disabled="isProcessing" @click="requestPreviewMarkdownContent">プレビュー</button>
+						<button type="button" :disabled="isProcessing" @click="requestUpdateMarkdownFile">更新</button>
+						<button type="button" :disabled="isProcessing" @click="requestDeleteMarkdownFile">削除</button>
+					</div>
+					<p class="markdown-panel__message" v-if="markdownMessage">{{ markdownMessage }}</p>
+					<textarea class="markdown-panel__editor" v-model="markdownContent"
+						placeholder="# 設計メモ"></textarea>
+					<div class="markdown-panel__columns">
+						<section class="markdown-panel__file-list" aria-label="保存済みMarkdown一覧">
+							<ul v-if="markdownFiles.length > 0">
+								<li v-for="fileInfo in markdownFiles" :key="fileInfo.fileName">
+									<button type="button" :disabled="isProcessing" @click="selectMarkdownFile(fileInfo.fileName)">
+										{{ fileInfo.fileName }}
+									</button>
+									<span>{{ formatMarkdownFileInfo(fileInfo) }}</span>
+								</li>
+							</ul>
+							<p v-if="isMarkdownFileListLoaded && markdownFiles.length === 0">保存済みMarkdownはありません。</p>
+						</section>
+						<section class="markdown-panel__preview" v-if="markdownPreviewHtml"
+							aria-label="Markdownプレビュー" v-html="markdownPreviewHtml"></section>
+					</div>
+				</div>
+			</article>
+		</main>
+		<the-footer></the-footer>
+	</div>
+	<script src="/webjars/vue/3.2.37/dist/vue.global.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.10.2/Sortable.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/vuedraggable@4.0.2/dist/vuedraggable.umd.min.js"></script>
+	<script type="module" src="/js/util.js"></script>
+	<script type="module" src="/js/main.js"></script>
+</body>
+
+</html>
