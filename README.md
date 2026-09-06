@@ -12,6 +12,7 @@ PDFの結合、分割、ページ操作、テキスト抽出、Markdown下書き
 - [Service / Logic構成判断](docs/service-logic-structure.md)
 - [将来拡張メモ: Markdown / AI / CSV / Utils 利用方針](docs/future-document-ai-roadmap.md)
 - [ページ単位Markdown下書きAPI設計](docs/page-markdown-draft-api-design.md)
+- [画像Markdown下書きAPI設計（vision）](docs/image-markdown-draft-design.md)
 - [Spring Boot 4移行事前監査](docs/spring-boot-4-migration-readiness.md)
 - [Jackson 3段階移行設計](docs/jackson-3-migration-design.md)
 - [同梱サンプル素材の由来](docs/sample-assets.md)
@@ -308,6 +309,9 @@ Markdown保存を含むJava 25の全286テストが成功しています。
 
 ### 今後の候補
 
+- 画像Markdown下書き `POST /markdownDraftImage`（vision実装、既定無効）。
+  - 画像PDFの下書き（`markdownDraftPdf` の文字レイヤーが無いページ）へのvision適用や、Tesseractによるオフライン/バッチ用の第2実装は、需要が具体化した段階で同じ変換interfaceの裏へ足す。
+  - 設計は [画像Markdown下書きAPI設計](docs/image-markdown-draft-design.md) を参照。
 - package renameは `pdfcontent` / `pdfcontent.dto` / `common.validation` / `common.utils` / `common.exceptions` の責務別構成へ整理済み。
   - 今後のpackage変更は、Boot upgradeやServiceImpl化とは混ぜず、必要になった責務境界だけを小さく扱う。
 - Spring Bootは4.0.7、Springdocは3.0.3まで更新済み。
@@ -351,6 +355,7 @@ Markdown保存を含むJava 25の全286テストが成功しています。
 
 現在はlocal development / portfolio用途を前提としています。
 信頼できないnetworkへそのままdeployせず、uploadするPDFやMarkdownに機密情報を含めないでください。
+`POST /markdownDraftImage` の外部vision送信は任意機能で、既定は無効です。有効化すると画像が外部AIへ送信されるため、機密画像には使わず、APIキーは環境変数で扱います。詳細は [画像Markdown下書きAPI設計](docs/image-markdown-draft-design.md) と [SECURITY.md](SECURITY.md) を参照してください。
 既知の制約と報告方法は [SECURITY.md](SECURITY.md) を参照してください。
 
 ## ライセンス
