@@ -59,6 +59,16 @@ public class VisionImageToMarkdownConverter implements ImageToMarkdownConverter 
 	}
 
 	/**
+	 * provider識別子 {@code anthropic} を返す。
+	 *
+	 * @return provider識別子
+	 */
+	@Override
+	public String provider() {
+		return "anthropic";
+	}
+
+	/**
 	 * 画像バイト列をvisionモデルでMarkdownへ文字起こしする。
 	 *
 	 * @param imageBytes 画像のバイト列

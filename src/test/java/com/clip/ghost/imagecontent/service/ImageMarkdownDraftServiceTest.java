@@ -27,10 +27,13 @@ import com.clip.ghost.imagecontent.dto.ImageMarkdownDraftResponse;
 import com.clip.ghost.imagecontent.exception.ImageInputException;
 import com.clip.ghost.imagecontent.exception.ImageProcessingException;
 import com.clip.ghost.imagecontent.exception.OcrUnavailableException;
+import com.clip.ghost.imagecontent.logic.ImageConverterResolver;
 import com.clip.ghost.imagecontent.logic.ImageToMarkdownConverter;
 
 /**
  * {@link ImageMarkdownDraftService} の有効性確認、画像形式検証、正規化、DTO組み立てを検証するテスト。
+ * <p>
+ * provider選択は {@link ImageConverterResolver} をmockし、選択済み変換器の挙動だけを扱う。
  */
 @ExtendWith(MockitoExtension.class)
 class ImageMarkdownDraftServiceTest {
@@ -39,17 +42,20 @@ class ImageMarkdownDraftServiceTest {
 	private ImageMarkdownDraftService service;
 
 	@Mock
+	private ImageConverterResolver converterResolver;
+
+	@Mock
 	private ImageToMarkdownConverter converter;
 
 	@Test
 	@DisplayName("有効時は変換結果を正規化してレスポンスへ組み立てる")
 	void generateMarkdownDraftNormalizesConverterResultWhenEnabled() {
 		MockMultipartFile imageFile = createImageFile("shot.png", MediaType.IMAGE_PNG_VALUE, new byte[] { 1, 2, 3 });
+		when(converterResolver.resolve()).thenReturn(converter);
 		when(converter.isEnabled()).thenReturn(true);
 		doReturn("first\r\nline  \r\n").when(converter).convert(any(byte[].class), eq(MediaType.IMAGE_PNG_VALUE));
 
-		ResponseEntity<ImageMarkdownDraftResponse> result = service
-				.generateMarkdownDraft(createRequest(imageFile));
+		ResponseEntity<ImageMarkdownDraftResponse> result = service.generateMarkdownDraft(createRequest(imageFile));
 
 		ImageMarkdownDraftResponse response = result.getBody();
 		assertNotNull(response);
@@ -60,9 +66,10 @@ class ImageMarkdownDraftServiceTest {
 	}
 
 	@Test
-	@DisplayName("機能無効時は503相当の例外を投げ、変換を呼ばない")
+	@DisplayName("選択された変換器が無効時は503相当の例外を投げ、変換を呼ばない")
 	void generateMarkdownDraftThrowsWhenDisabled() {
 		MockMultipartFile imageFile = createImageFile("shot.png", MediaType.IMAGE_PNG_VALUE, new byte[] { 1 });
+		when(converterResolver.resolve()).thenReturn(converter);
 		when(converter.isEnabled()).thenReturn(false);
 
 		assertThrows(OcrUnavailableException.class, () -> service.generateMarkdownDraft(createRequest(imageFile)));
@@ -74,6 +81,7 @@ class ImageMarkdownDraftServiceTest {
 	@DisplayName("対応していない画像形式は400相当の例外を投げ、変換を呼ばない")
 	void generateMarkdownDraftRejectsUnsupportedMediaType() {
 		MockMultipartFile imageFile = createImageFile("note.txt", MediaType.TEXT_PLAIN_VALUE, new byte[] { 1 });
+		when(converterResolver.resolve()).thenReturn(converter);
 		when(converter.isEnabled()).thenReturn(true);
 
 		assertThrows(ImageInputException.class, () -> service.generateMarkdownDraft(createRequest(imageFile)));
@@ -85,6 +93,7 @@ class ImageMarkdownDraftServiceTest {
 	@DisplayName("変換失敗の例外はそのまま伝播する")
 	void generateMarkdownDraftPropagatesConversionFailure() {
 		MockMultipartFile imageFile = createImageFile("shot.png", MediaType.IMAGE_PNG_VALUE, new byte[] { 1 });
+		when(converterResolver.resolve()).thenReturn(converter);
 		when(converter.isEnabled()).thenReturn(true);
 		doThrow(new ImageProcessingException("失敗")).when(converter).convert(any(byte[].class), any());
 

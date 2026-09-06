@@ -13,6 +13,7 @@ import com.clip.ghost.imagecontent.dto.ImageMarkdownDraftResponse;
 import com.clip.ghost.imagecontent.exception.ImageInputException;
 import com.clip.ghost.imagecontent.exception.ImageProcessingException;
 import com.clip.ghost.imagecontent.exception.OcrUnavailableException;
+import com.clip.ghost.imagecontent.logic.ImageConverterResolver;
 import com.clip.ghost.imagecontent.logic.ImageToMarkdownConverter;
 
 import lombok.RequiredArgsConstructor;
@@ -29,7 +30,7 @@ public class ImageMarkdownDraftService {
 	private static final Set<String> SUPPORTED_MEDIA_TYPES = Set.of("image/png", "image/jpeg", "image/jpg", "image/gif",
 			"image/webp");
 
-	private final ImageToMarkdownConverter converter;
+	private final ImageConverterResolver converterResolver;
 
 	/**
 	 * アップロードされた画像からMarkdown下書きを生成する。
@@ -41,6 +42,7 @@ public class ImageMarkdownDraftService {
 	 * @throws ImageProcessingException 画像読み込みまたは変換に失敗した場合
 	 */
 	public ResponseEntity<ImageMarkdownDraftResponse> generateMarkdownDraft(ImageMarkdownDraftRequest form) {
+		ImageToMarkdownConverter converter = converterResolver.resolve();
 		if (!converter.isEnabled()) {
 			throw new OcrUnavailableException("画像Markdown下書き機能は無効です。");
 		}

@@ -1,5 +1,6 @@
 package com.clip.ghost.imagecontent.logic;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -36,5 +37,13 @@ class VisionImageToMarkdownConverterTest {
 		String description = converter.describe();
 
 		assertTrue(description.contains("claude-opus-5"));
+	}
+
+	@Test
+	@DisplayName("providerはanthropic")
+	void providerIsAnthropic() {
+		VisionImageToMarkdownConverter converter = new VisionImageToMarkdownConverter(new VisionProperties());
+
+		assertEquals("anthropic", converter.provider());
 	}
 }

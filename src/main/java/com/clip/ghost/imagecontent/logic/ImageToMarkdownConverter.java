@@ -32,4 +32,11 @@ public interface ImageToMarkdownConverter {
 	 * @return 文字起こし結果のMarkdown
 	 */
 	String convert(byte[] imageBytes, String mediaType);
+
+	/**
+	 * この変換器のprovider識別子を返す。設定 {@code ghost.ocr.provider} と突き合わせて選択に使う。
+	 *
+	 * @return provider識別子（例: {@code anthropic} / {@code openai}）
+	 */
+	String provider();
 }

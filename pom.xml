@@ -149,6 +149,12 @@
             <version>2.34.0</version>
         </dependency>
         <dependency>
+            <!-- 画像Markdown下書きのOpenAI(ChatGPT系)provider用。既定無効で、有効時のみ使用する。 -->
+            <groupId>com.openai</groupId>
+            <artifactId>openai-java</artifactId>
+            <version>4.58.0</version>
+        </dependency>
+        <dependency>
             <groupId>com.tngtech.archunit</groupId>
             <artifactId>archunit-junit5</artifactId>
             <version>1.4.2</version>

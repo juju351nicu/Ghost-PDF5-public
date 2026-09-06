@@ -59,11 +59,15 @@ DTO `ImageMarkdownDraftResponse { String fileName; Long fileSize; String markdow
   - `boolean isEnabled()`
   - `String describe()`（ログ用。モデル名等。キーは含めない）
   - `String convert(byte[] imageBytes, String mediaType)`
-- 第1実装 `VisionImageToMarkdownConverter`。Anthropic 公式 Java SDK（`com.anthropic:anthropic-java`）を使い、
-  画像を base64 の image content block としてユーザーメッセージに載せ、system で「画像を Markdown へ文字起こしする。
-  表は Markdown 表、コードはコードフェンス、推測で補完した箇所は明示する」旨を指示する。
-- 将来の第2実装 `TesseractImageToMarkdownConverter`（オフライン/バッチ用）を同じ interface の裏へ足せるようにする。
-- Controller / Service は converter を interface 越しに使い、単体テストでは mock する。
+- interface には `String provider()` を持たせ、providerで実装を選べるようにする。
+- 実装1 `VisionImageToMarkdownConverter`（`provider=anthropic`）。Anthropic 公式 Java SDK（`com.anthropic:anthropic-java`）で
+  画像を base64 の image content block として送る。
+- 実装2 `OpenAiImageToMarkdownConverter`（`provider=openai`）。OpenAI 公式 Java SDK（`com.openai:openai-java`）で
+  画像を data URI の image_url として chat completions へ送る。
+- `ImageConverterResolver` が設定 `ghost.ocr.provider` に一致する実装を選ぶ。一致が無ければ 503。
+- 将来の実装3 `TesseractImageToMarkdownConverter`（オフライン/バッチ用）を同じ interface の裏へ足せるようにする。
+- system で「画像を Markdown へ文字起こしする。表は Markdown 表、コードはコードフェンス、推測で補完した箇所は明示する」旨を指示する。
+- Controller / Service は resolver と interface 越しに使い、単体テストでは mock する。
 
 ## 7. 設定
 
@@ -79,7 +83,10 @@ DTO `ImageMarkdownDraftResponse { String fileName; Long fileSize; String markdow
 | `max-image-pixels` | `40000000` | 画素数上限（400） |
 | `max-output-tokens` | `8000` | 応答上限 |
 
-API キーはコード・`application.yml`・ログに出さない。SDK は環境変数から読む。`enabled=true` かつキー未設定なら 503。
+provider は `ghost.ocr.provider`（既定 `anthropic`、他に `openai`）で選ぶ。OpenAI provider は `ghost.ocr.openai.*` に
+同じ形の設定（`enabled` 既定 `false`、`model` 既定 `gpt-4o`、`api-key-env` 既定 `OPENAI_API_KEY`、timeout・上限・`max-output-tokens`）を持つ。
+
+API キーはコード・`application.yml`・ログに出さない。SDK は環境変数から読む。選択した provider が無効、またはキー未設定なら 503。
 
 ## 8. HTTP status
 
@@ -100,11 +107,13 @@ API キーはコード・`application.yml`・ログに出さない。SDK は環�
 com.clip.ghost.imagecontent
   controller.ImageMarkdownDraftController  -> multipart受付, token検証, サイズ検証, OpenAPI, Service委譲
   service.ImageMarkdownDraftService        -> 有効性確認(503), 画像検証, converter呼び出し, 正規化, DTO組み立て(build〇〇)
-  logic.ImageToMarkdownConverter (if)      -> 画像→Markdown の抽象
-  logic.VisionImageToMarkdownConverter     -> Anthropic SDK呼び出し(外部依存をここに閉じ込める)
+  logic.ImageToMarkdownConverter (if)      -> 画像→Markdown の抽象(provider()を持つ)
+  logic.VisionImageToMarkdownConverter     -> Anthropic SDK呼び出し(provider=anthropic)
+  logic.OpenAiImageToMarkdownConverter     -> OpenAI SDK呼び出し(provider=openai)
+  logic.ImageConverterResolver             -> ghost.ocr.provider で実装を選択
   dto.ImageMarkdownDraftRequest / ImageMarkdownDraftResponse
-  exception.ImageProcessingException(500) / OcrUnavailableException(503)
-  config.VisionProperties
+  exception.ImageInputException(400) / ImageProcessingException(500) / OcrUnavailableException(503)
+  config.ImageOcrProperties(provider) / VisionProperties(anthropic) / OpenAiProperties(openai)
 ```
 
 依存方向は既存と同じ Controller → Service → Logic。外部 AI SDK の詳細は `VisionImageToMarkdownConverter` に閉じ込める。
