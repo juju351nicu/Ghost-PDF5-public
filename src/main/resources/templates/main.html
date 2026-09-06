@@ -69,6 +69,7 @@
 						<button type="button" :disabled="isProcessing" @click="requestListMarkdownFiles">一覧</button>
 						<button type="button" :disabled="isProcessing" @click="requestLoadMarkdownFile">読込</button>
 						<button type="button" :disabled="isProcessing" @click="requestPreviewMarkdownContent">プレビュー</button>
+						<button type="button" :disabled="isProcessing" @click="copyMarkdownContent">コピー</button>
 						<button type="button" :disabled="isProcessing" @click="requestUpdateMarkdownFile">更新</button>
 						<button type="button" :disabled="isProcessing" @click="requestDeleteMarkdownFile">削除</button>
 					</div>

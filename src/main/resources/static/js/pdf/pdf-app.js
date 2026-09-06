@@ -499,6 +499,33 @@ const pdfApp = {
       this.markdownPreviewHtml = "";
     },
     /**
+     * Markdown編集欄の内容をクリップボードにコピーする。
+     *
+     * 手動で範囲選択しなくても、文字起こし結果をそのまま他のツールへ貼り付けられるようにする。
+     *
+     * @returns {Promise<void>} コピー処理の完了Promise
+     */
+    copyMarkdownContent() {
+      if (Util.isEmpty(this.markdownContent)) {
+        this.markdownMessage = "コピーする内容がありません。";
+        return Promise.resolve();
+      }
+      if (Util.isEmpty(navigator.clipboard)) {
+        this.errorMessages = ["この環境ではクリップボードコピーを利用できません。"];
+        this.showMessageModal();
+        return Promise.resolve();
+      }
+      return navigator.clipboard
+        .writeText(this.markdownContent)
+        .then(() => {
+          this.markdownMessage = "Markdownをクリップボードにコピーしました。";
+        })
+        .catch(() => {
+          this.errorMessages = ["クリップボードへのコピーに失敗しました。"];
+          this.showMessageModal();
+        });
+    },
+    /**
      * 保存/更新後のMarkdownファイル情報を一覧へ反映する。
      *
      * @param {Object} fileInfo Markdownファイル情報
