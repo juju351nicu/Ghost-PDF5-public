@@ -143,6 +143,12 @@
             <version>3.0.3</version>
         </dependency>
         <dependency>
+            <!-- 画像Markdown下書きの外部vision呼び出し用。既定無効で、有効時のみ使用する。 -->
+            <groupId>com.anthropic</groupId>
+            <artifactId>anthropic-java</artifactId>
+            <version>2.34.0</version>
+        </dependency>
+        <dependency>
             <groupId>com.tngtech.archunit</groupId>
             <artifactId>archunit-junit5</artifactId>
             <version>1.4.2</version>

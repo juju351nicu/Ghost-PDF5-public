@@ -29,6 +29,8 @@ import com.clip.ghost.common.security.AccessTokenValidator;
 import com.clip.ghost.markdowncontent.controller.MarkdownController;
 import com.clip.ghost.markdowncontent.service.MarkdownDocumentService;
 import com.clip.ghost.pdfcontent.service.GhostPdfService;
+import com.clip.ghost.imagecontent.controller.ImageMarkdownDraftController;
+import com.clip.ghost.imagecontent.service.ImageMarkdownDraftService;
 import com.clip.ghost.pdfcontent.service.PdfMarkdownDraftService;
 
 import tools.jackson.databind.JsonNode;
@@ -42,8 +44,8 @@ import tools.jackson.databind.ObjectMapper;
  */
 @Tag("context")
 @Tag("openapi")
-@WebMvcTest({ GhostPdfController.class, PdfMarkdownDraftController.class, MarkdownController.class,
-		CsvController.class, SampleController.class })
+@WebMvcTest({ GhostPdfController.class, PdfMarkdownDraftController.class, ImageMarkdownDraftController.class,
+		MarkdownController.class, CsvController.class, SampleController.class })
 @ImportAutoConfiguration({ SpringDocConfiguration.class, SpringDocConfigProperties.class,
 		SpringDocWebMvcConfiguration.class })
 @TestPropertySource(properties = "springdoc.api-docs.enabled=true")
@@ -53,6 +55,7 @@ class OpenApiDocumentationTest {
 	private static final String PATH_METADATA_PDF = "/metadataPdf";
 	private static final String PATH_TEXT_PDF = "/textPdf";
 	private static final String PATH_MARKDOWN_DRAFT_PDF = "/markdownDraftPdf";
+	private static final String PATH_MARKDOWN_DRAFT_IMAGE = "/markdownDraftImage";
 	private static final String PATH_SAVE_MARKDOWN = "/saveMarkdown";
 	private static final String PATH_MARKDOWN_FILES = "/markdownFiles";
 	private static final String PATH_MARKDOWN_FILE = "/markdownFile";
@@ -77,6 +80,7 @@ class OpenApiDocumentationTest {
 	private static final String HTTP_STATUS_NOT_FOUND = "404";
 	private static final String HTTP_STATUS_PAYLOAD_TOO_LARGE = "413";
 	private static final String HTTP_STATUS_INTERNAL_SERVER_ERROR = "500";
+	private static final String HTTP_STATUS_SERVICE_UNAVAILABLE = "503";
 	private static final String SCHEMA_ORIGINAL_PDF_REQUEST = "OriginalPdfRequest";
 	private static final String SCHEMA_EXTRACT_PDF_REQUEST = "ExtractPdfRequest";
 	private static final String SCHEMA_MERGE_PDF_REQUEST = "MergePdfRequest";
@@ -87,6 +91,8 @@ class OpenApiDocumentationTest {
 	private static final String SCHEMA_PDF_MARKDOWN_DRAFT_REQUEST = "PdfMarkdownDraftRequest";
 	private static final String SCHEMA_PDF_MARKDOWN_DRAFT_RESPONSE = "PdfMarkdownDraftResponse";
 	private static final String SCHEMA_PDF_MARKDOWN_DRAFT_PAGE_RESPONSE = "PdfMarkdownDraftPageResponse";
+	private static final String SCHEMA_IMAGE_MARKDOWN_DRAFT_REQUEST = "ImageMarkdownDraftRequest";
+	private static final String SCHEMA_IMAGE_MARKDOWN_DRAFT_RESPONSE = "ImageMarkdownDraftResponse";
 	private static final String SCHEMA_MARKDOWN_SAVE_REQUEST = "MarkdownSaveRequest";
 	private static final String SCHEMA_MARKDOWN_UPDATE_REQUEST = "MarkdownUpdateRequest";
 	private static final String SCHEMA_MARKDOWN_PREVIEW_REQUEST = "MarkdownPreviewRequest";
@@ -110,6 +116,9 @@ class OpenApiDocumentationTest {
 	private PdfMarkdownDraftService pdfMarkdownDraftService;
 
 	@MockitoBean
+	private ImageMarkdownDraftService imageMarkdownDraftService;
+
+	@MockitoBean
 	private MarkdownDocumentService markdownDocumentService;
 
 	@MockitoBean
@@ -130,6 +139,7 @@ class OpenApiDocumentationTest {
 		assertAll(() -> assertPdfPathVisibility(openApi), () -> assertPdfEndpoint(openApi, PATH_SHOW_PDF),
 				() -> assertMetadataEndpoint(openApi), () -> assertTextEndpoint(openApi),
 				() -> assertMarkdownDraftEndpoint(openApi),
+				() -> assertMarkdownDraftImageEndpoint(openApi),
 				() -> assertMarkdownEndpoint(openApi), () -> assertMarkdownFilesEndpoint(openApi),
 				() -> assertMarkdownFileEndpoint(openApi), () -> assertMarkdownFileUpdateEndpoint(openApi),
 				() -> assertMarkdownFileDeleteEndpoint(openApi), () -> assertMarkdownPreviewEndpoint(openApi),
@@ -138,7 +148,7 @@ class OpenApiDocumentationTest {
 				() -> assertPdfEndpoint(openApi, PATH_DELETE_PDF), () -> assertPdfEndpoint(openApi, PATH_INSERT_PDF),
 				() -> assertPdfRequestSchemas(openApi), () -> assertMetadataResponseSchema(openApi),
 				() -> assertTextResponseSchema(openApi), () -> assertMarkdownDraftSchemas(openApi),
-				() -> assertMarkdownSchemas(openApi),
+				() -> assertImageMarkdownDraftSchemas(openApi), () -> assertMarkdownSchemas(openApi),
 				() -> assertErrorResponseSchemas(openApi));
 	}
 
@@ -154,6 +164,8 @@ class OpenApiDocumentationTest {
 				() -> assertTrue(paths.has(PATH_METADATA_PDF), PATH_METADATA_PDF + " should be published."),
 				() -> assertTrue(paths.has(PATH_TEXT_PDF), PATH_TEXT_PDF + " should be published."),
 				() -> assertTrue(paths.has(PATH_MARKDOWN_DRAFT_PDF), PATH_MARKDOWN_DRAFT_PDF + " should be published."),
+					() -> assertTrue(paths.has(PATH_MARKDOWN_DRAFT_IMAGE),
+							PATH_MARKDOWN_DRAFT_IMAGE + " should be published."),
 				() -> assertTrue(paths.has(PATH_SAVE_MARKDOWN), PATH_SAVE_MARKDOWN + " should be published."),
 				() -> assertTrue(paths.has(PATH_MARKDOWN_FILES), PATH_MARKDOWN_FILES + " should be published."),
 				() -> assertTrue(paths.has(PATH_MARKDOWN_FILE), PATH_MARKDOWN_FILE + " should be published."),
@@ -271,6 +283,56 @@ class OpenApiDocumentationTest {
 						HTTP_STATUS_PAYLOAD_TOO_LARGE),
 				() -> assertJsonErrorResponse(operation, PATH_MARKDOWN_DRAFT_PDF,
 						HTTP_STATUS_INTERNAL_SERVER_ERROR));
+	}
+
+	/**
+	 * 画像Markdown下書きAPIのtoken、multipart request、JSON/HTTP status契約を確認する。
+	 *
+	 * @param openApi OpenAPI JSON
+	 */
+	private void assertMarkdownDraftImageEndpoint(JsonNode openApi) {
+		JsonNode operation = openApi.path("paths").path(PATH_MARKDOWN_DRAFT_IMAGE).path(HTTP_METHOD_POST);
+		JsonNode responseSchema = operation.path("responses").path(HTTP_STATUS_OK).path("content")
+				.path(MediaType.APPLICATION_JSON_VALUE).path("schema");
+
+		assertAll(
+				() -> assertFalse(operation.isMissingNode(),
+						PATH_MARKDOWN_DRAFT_IMAGE + " post operation should exist."),
+				() -> assertAccessTokenHeader(operation, PATH_MARKDOWN_DRAFT_IMAGE),
+				() -> assertMultipartRequestBody(operation, PATH_MARKDOWN_DRAFT_IMAGE),
+				() -> assertJsonOkResponse(operation, PATH_MARKDOWN_DRAFT_IMAGE),
+				() -> assertEquals("#/components/schemas/" + SCHEMA_IMAGE_MARKDOWN_DRAFT_RESPONSE,
+						responseSchema.path("$ref").asString()),
+				() -> assertJsonErrorResponse(operation, PATH_MARKDOWN_DRAFT_IMAGE, HTTP_STATUS_BAD_REQUEST),
+				() -> assertTrue(operation.path("responses").has(HTTP_STATUS_FORBIDDEN),
+						PATH_MARKDOWN_DRAFT_IMAGE + " should define 403 response."),
+				() -> assertJsonErrorResponse(operation, PATH_MARKDOWN_DRAFT_IMAGE, HTTP_STATUS_PAYLOAD_TOO_LARGE),
+				() -> assertJsonErrorResponse(operation, PATH_MARKDOWN_DRAFT_IMAGE, HTTP_STATUS_INTERNAL_SERVER_ERROR),
+				() -> assertJsonErrorResponse(operation, PATH_MARKDOWN_DRAFT_IMAGE, HTTP_STATUS_SERVICE_UNAVAILABLE));
+	}
+
+	/**
+	 * 画像Markdown下書きAPIのrequest/response schemaに公開項目と型が定義されることを確認する。
+	 *
+	 * @param openApi OpenAPI JSON
+	 */
+	private void assertImageMarkdownDraftSchemas(JsonNode openApi) {
+		JsonNode schemas = openApi.path("components").path("schemas");
+		JsonNode requestSchema = schemas.path(SCHEMA_IMAGE_MARKDOWN_DRAFT_REQUEST);
+		JsonNode requestProperties = requestSchema.path("properties");
+		JsonNode imageFile = requestProperties.path("imageFile");
+		JsonNode responseProperties = schemas.path(SCHEMA_IMAGE_MARKDOWN_DRAFT_RESPONSE).path("properties");
+
+		assertAll(() -> assertTrue(schemas.has(SCHEMA_IMAGE_MARKDOWN_DRAFT_REQUEST)),
+				() -> assertTrue(requestProperties.has("imageFile")),
+				() -> assertRequiredProperty(requestSchema, SCHEMA_IMAGE_MARKDOWN_DRAFT_REQUEST, "imageFile"),
+				() -> assertEquals("string", imageFile.path("type").asString()),
+				() -> assertEquals("binary", imageFile.path("format").asString()),
+				() -> assertTrue(schemas.has(SCHEMA_IMAGE_MARKDOWN_DRAFT_RESPONSE)),
+				() -> assertTrue(responseProperties.has("fileName")),
+				() -> assertTrue(responseProperties.has("fileSize")),
+				() -> assertTrue(responseProperties.has("markdown")),
+				() -> assertEquals("string", responseProperties.path("markdown").path("type").asString()));
 	}
 
 	/**

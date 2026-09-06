@@ -16,6 +16,9 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 
 import com.clip.ghost.common.exceptions.CustomFieldError;
 import com.clip.ghost.common.exceptions.ErrorResponse;
+import com.clip.ghost.imagecontent.exception.ImageInputException;
+import com.clip.ghost.imagecontent.exception.ImageProcessingException;
+import com.clip.ghost.imagecontent.exception.OcrUnavailableException;
 import com.clip.ghost.pdfcontent.exception.PdfProcessingException;
 
 /**
@@ -31,6 +34,12 @@ public class GlobalExceptionErrorHandler extends ResponseEntityExceptionHandler 
 	private static final String PDF_PROCESSING_ERROR_CODE = "pdfProcessingError";
 	private static final String MULTIPART_ERROR_MESSAGE = "許可されないサイズのファイルが入っております。";
 	private static final String PDF_PROCESSING_ERROR_MESSAGE = "PDF処理に失敗しました。入力ファイルを確認してください。";
+	private static final String IMAGE_INPUT_ERROR_CODE = "imageInputError";
+	private static final String IMAGE_PROCESSING_ERROR_CODE = "imageProcessingError";
+	private static final String OCR_UNAVAILABLE_ERROR_CODE = "ocrUnavailable";
+	private static final String IMAGE_INPUT_ERROR_MESSAGE = "画像として扱えないファイルです。PNG / JPEG / GIF / WEBPを指定してください。";
+	private static final String IMAGE_PROCESSING_ERROR_MESSAGE = "画像Markdown下書き生成に失敗しました。";
+	private static final String OCR_UNAVAILABLE_ERROR_MESSAGE = "画像Markdown下書き機能は無効です。";
 
 	/**
 	 * MultipartExceptionがスローされた場合、レスポンスステータスを413にする。<br>
@@ -61,6 +70,50 @@ public class GlobalExceptionErrorHandler extends ResponseEntityExceptionHandler 
 		LOGGER.debug("PDF処理例外の詳細です。", ex);
 		return createErrorResponse(PDF_PROCESSING_ERROR_CODE, PDF_PROCESSING_ERROR_MESSAGE,
 				HttpStatus.INTERNAL_SERVER_ERROR);
+	}
+
+	/**
+	 * 画像入力が不正な場合、レスポンスステータスを400にする。
+	 *
+	 * @param ex 画像入力例外
+	 * @return 画像入力エラーのレスポンス
+	 */
+	@ResponseStatus(HttpStatus.BAD_REQUEST)
+	@ExceptionHandler(ImageInputException.class)
+	protected ResponseEntity<ErrorResponse> handleImageInput(ImageInputException ex) {
+		LOGGER.warn("画像入力が不正です。message={}", ex.getMessage());
+		return createErrorResponse(IMAGE_INPUT_ERROR_CODE, IMAGE_INPUT_ERROR_MESSAGE, HttpStatus.BAD_REQUEST);
+	}
+
+	/**
+	 * 画像Markdown下書き生成に失敗した場合、レスポンスステータスを500にする。
+	 * <p>
+	 * フロントエンドが既存のエラー表示で扱えるよう、fieldErrors形式で返却する。APIキーや画像内容はメッセージへ含めない。
+	 *
+	 * @param ex 画像処理例外
+	 * @return 画像処理エラーのレスポンス
+	 */
+	@ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+	@ExceptionHandler(ImageProcessingException.class)
+	protected ResponseEntity<ErrorResponse> handleImageProcessing(ImageProcessingException ex) {
+		LOGGER.error("画像Markdown下書き生成に失敗しました。message={}", ex.getMessage());
+		LOGGER.debug("画像処理例外の詳細です。", ex);
+		return createErrorResponse(IMAGE_PROCESSING_ERROR_CODE, IMAGE_PROCESSING_ERROR_MESSAGE,
+				HttpStatus.INTERNAL_SERVER_ERROR);
+	}
+
+	/**
+	 * 画像Markdown下書き機能が無効な場合、レスポンスステータスを503にする。
+	 *
+	 * @param ex 機能無効例外
+	 * @return 機能無効エラーのレスポンス
+	 */
+	@ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)
+	@ExceptionHandler(OcrUnavailableException.class)
+	protected ResponseEntity<ErrorResponse> handleOcrUnavailable(OcrUnavailableException ex) {
+		LOGGER.warn("画像Markdown下書き機能が無効です。message={}", ex.getMessage());
+		return createErrorResponse(OCR_UNAVAILABLE_ERROR_CODE, OCR_UNAVAILABLE_ERROR_MESSAGE,
+				HttpStatus.SERVICE_UNAVAILABLE);
 	}
 
 	/**

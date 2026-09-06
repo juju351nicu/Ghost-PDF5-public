@@ -355,6 +355,16 @@ class CodingConventionTest {
 	}
 
 	@Test
+	void imageControllerServiceLogicDependenciesKeepDirection() {
+		Architectures.layeredArchitecture().consideringAllDependencies().layer("Controller")
+				.definedBy("..imagecontent.controller..").layer("Service").definedBy("..imagecontent.service..")
+				.layer("Logic").definedBy("..imagecontent.logic..").whereLayer("Controller").mayNotBeAccessedByAnyLayer()
+				.whereLayer("Service").mayOnlyBeAccessedByLayers("Controller").whereLayer("Logic")
+				.mayOnlyBeAccessedByLayers("Service")
+				.because("画像Markdown下書きはController -> Service -> Logicの順に依存させます。").check(PRODUCTION_CLASSES);
+	}
+
+	@Test
 	void serviceDtoCreationIsHiddenBehindBuildMethods() throws IOException {
 		List<String> violations = new ArrayList<>();
 		for (Path serviceFile : javaFiles(MAIN_SOURCE)) {

@@ -14,3 +14,12 @@ springdoc:
 ghost:
   markdown:
     storage-directory: ${GHOST_MARKDOWN_STORAGE_DIRECTORY:${java.io.tmpdir}/ghost-pdf5/markdown}
+  ocr:
+    vision:
+      enabled: ${GHOST_OCR_VISION_ENABLED:false}
+      model: ${GHOST_OCR_VISION_MODEL:claude-opus-5}
+      api-key-env: ${GHOST_OCR_VISION_API_KEY_ENV:ANTHROPIC_API_KEY}
+      timeout-seconds: 60
+      max-image-file-size: 20559957
+      max-image-pixels: 40000000
+      max-output-tokens: 8000
