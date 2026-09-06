@@ -413,6 +413,29 @@ class MarkdownDocumentServiceTest {
 	}
 
 	@Test
+	@DisplayName("Markdown本文プレビューはGFMの表を表要素へ変換し、sanitizeを維持する")
+	void previewMarkdownContentRendersGfmTable() {
+		MarkdownDocumentService service = new MarkdownDocumentService(tempDir.toString());
+		MarkdownPreviewRequest request = createPreviewRequest(
+				"| 項目 | 判定 |\n| --- | :---: |\n| A-1 | OK |\n\n<script>alert('x')</script>");
+
+		ResponseEntity<MarkdownPreviewContentResponse> response = service.previewMarkdownContent(request);
+
+		MarkdownPreviewContentResponse body = response.getBody();
+		assertEquals(HttpStatus.OK, response.getStatusCode());
+		assertNotNull(body);
+		String html = body.getHtml();
+		// 表拡張が有効なら段落ではなく表要素になる。
+		assertTrue(html.contains("<table>"), html);
+		assertTrue(html.contains("<th"), html);
+		assertTrue(html.contains("<td"), html);
+		assertTrue(html.contains("項目"), html);
+		assertTrue(html.contains("A-1"), html);
+		// 表拡張を足してもescapeHtml + sanitizeは維持され、scriptは除去される。
+		assertFalse(html.contains("<script>"), html);
+	}
+
+	@Test
 	@DisplayName("Markdown本文プレビューは本文未指定時に空HTMLを返す")
 	void previewMarkdownContentReturnsEmptyHtmlWhenContentIsNull() {
 		MarkdownDocumentService service = new MarkdownDocumentService(tempDir.toString());

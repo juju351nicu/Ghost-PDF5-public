@@ -373,3 +373,54 @@ body > #app {
 		grid-template-columns: 1fr;
 	}
 }
+
+/*
+ * 印刷用スタイル。
+ * Markdownプレビュー領域だけを紙へ出す。クラス名を個別に列挙して隠すと、
+ * 画面要素が増えたときに漏れるため、いったん全要素を隠してからプレビューだけ表示する。
+ */
+@media print {
+	body * {
+		visibility: hidden;
+	}
+
+	.markdown-panel__preview,
+	.markdown-panel__preview * {
+		visibility: visible;
+	}
+
+	.markdown-panel__preview {
+		position: absolute;
+		left: 0;
+		top: 0;
+		width: 100%;
+		border: none;
+		border-radius: 0;
+		padding: 0;
+	}
+
+	.markdown-panel__preview table {
+		width: 100%;
+		border-collapse: collapse;
+	}
+
+	.markdown-panel__preview th,
+	.markdown-panel__preview td {
+		border: 1px solid #333333;
+		padding: 4px 8px;
+	}
+
+	/* 行とヘッダは改ページで割らない。表が改ページをまたぐ場合はヘッダ行を各ページの先頭へ繰り返す。 */
+	.markdown-panel__preview tr {
+		break-inside: avoid;
+	}
+
+	.markdown-panel__preview thead {
+		display: table-header-group;
+		break-inside: avoid;
+	}
+}
+
+@page {
+	margin: 15mm;
+}

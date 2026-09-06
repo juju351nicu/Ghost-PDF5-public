@@ -14,6 +14,8 @@ import java.util.regex.Pattern;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.Strings;
+import org.commonmark.Extension;
+import org.commonmark.ext.gfm.tables.TablesExtension;
 import org.commonmark.node.Node;
 import org.commonmark.parser.Parser;
 import org.commonmark.renderer.html.HtmlRenderer;
@@ -48,7 +50,10 @@ public class MarkdownDocumentService {
 	private static final String DEFAULT_MARKDOWN_FILE_BASE_NAME = "document";
 	private static final String MARKDOWN_FILE_EXTENSION = "md";
 	private static final String MARKDOWN_FILE_SUFFIX = "." + MARKDOWN_FILE_EXTENSION;
-	private static final Safelist MARKDOWN_PREVIEW_SAFELIST = Safelist.relaxed();
+	// GFM表拡張はセルの列揃えを th/td の align 属性として出力するが、Safelist.relaxed() は align を
+	// 許可しないため、列揃えを保つ目的でこの2属性だけ明示的に許可する。他の属性の許可範囲は変えない。
+	private static final Safelist MARKDOWN_PREVIEW_SAFELIST = Safelist.relaxed().addAttributes("th", "align")
+			.addAttributes("td", "align");
 
 	private final Path storageDirectory;
 	private final Parser markdownParser;
@@ -62,8 +67,11 @@ public class MarkdownDocumentService {
 	public MarkdownDocumentService(
 			@Value("${ghost.markdown.storage-directory:${java.io.tmpdir}/ghost-pdf5/markdown}") String storageDirectory) {
 		this.storageDirectory = Paths.get(storageDirectory).toAbsolutePath().normalize();
-		this.markdownParser = Parser.builder().build();
-		this.htmlRenderer = HtmlRenderer.builder().escapeHtml(true).build();
+		// commonmarkの素のParserはGFMの表を解釈しないため、表拡張をParserとHtmlRendererの両方へ渡す。
+		// 片方だけに渡すと表として描画されない。生HTMLはescapeHtml(true)でエスケープし、その後jsoupでsanitizeする。
+		List<Extension> extensions = List.of(TablesExtension.create());
+		this.markdownParser = Parser.builder().extensions(extensions).build();
+		this.htmlRenderer = HtmlRenderer.builder().extensions(extensions).escapeHtml(true).build();
 	}
 
 	/**
