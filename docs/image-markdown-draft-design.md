@@ -64,8 +64,9 @@ DTO `ImageMarkdownDraftResponse { String fileName; Long fileSize; String markdow
   画像を base64 の image content block として送る。
 - 実装2 `OpenAiImageToMarkdownConverter`（`provider=openai`）。OpenAI 公式 Java SDK（`com.openai:openai-java`）で
   画像を data URI の image_url として chat completions へ送る。
+- 実装3 `TesseractImageToMarkdownConverter`（`provider=tesseract`）。ローカルのTesseract CLIを
+  `ProcessBuilder`（専用の `ProcessCommandRunner` に限定）で実行し、外部送信なしで文字起こしする。オフライン/バッチ用。
 - `ImageConverterResolver` が設定 `ghost.ocr.provider` に一致する実装を選ぶ。一致が無ければ 503。
-- 将来の実装3 `TesseractImageToMarkdownConverter`（オフライン/バッチ用）を同じ interface の裏へ足せるようにする。
 - system で「画像を Markdown へ文字起こしする。表は Markdown 表、コードはコードフェンス、推測で補完した箇所は明示する」旨を指示する。
 - Controller / Service は resolver と interface 越しに使い、単体テストでは mock する。
 
@@ -83,8 +84,10 @@ DTO `ImageMarkdownDraftResponse { String fileName; Long fileSize; String markdow
 | `max-image-pixels` | `40000000` | 画素数上限（400） |
 | `max-output-tokens` | `8000` | 応答上限 |
 
-provider は `ghost.ocr.provider`（既定 `anthropic`、他に `openai`）で選ぶ。OpenAI provider は `ghost.ocr.openai.*` に
+provider は `ghost.ocr.provider`（既定 `anthropic`、他に `openai` / `tesseract`）で選ぶ。OpenAI provider は `ghost.ocr.openai.*` に
 同じ形の設定（`enabled` 既定 `false`、`model` 既定 `gpt-4o`、`api-key-env` 既定 `OPENAI_API_KEY`、timeout・上限・`max-output-tokens`）を持つ。
+Tesseract provider は `ghost.ocr.tesseract.*`（`enabled` 既定 `false`、`command` 既定 `tesseract`、`tessdata-directory`、
+`languages` 既定 `jpn+eng`、`psm` 既定 `6`、`preserve-interword-spaces` 既定 `true`、`timeout-seconds`）を持ち、APIキーは不要。
 
 API キーはコード・`application.yml`・ログに出さない。SDK は環境変数から読む。選択した provider が無効、またはキー未設定なら 503。
 

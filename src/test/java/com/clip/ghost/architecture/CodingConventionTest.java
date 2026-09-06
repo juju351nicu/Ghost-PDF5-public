@@ -369,6 +369,15 @@ class CodingConventionTest {
 	}
 
 	@Test
+	void processExecutionIsLimitedToCommandRunner() throws IOException {
+		// 外部プロセス起動はProcessCommandRunnerだけに限定する。他クラスへのProcessBuilder/exec混入を検出する。
+		List<Path> targetFiles = new ArrayList<>(javaFiles(MAIN_SOURCE));
+		targetFiles.remove(MAIN_SOURCE.resolve("com/clip/ghost/imagecontent/logic/ProcessCommandRunner.java"));
+
+		assertNoToken(targetFiles, List.of("ProcessBuilder", "Runtime.getRuntime().exec"));
+	}
+
+	@Test
 	void serviceDtoCreationIsHiddenBehindBuildMethods() throws IOException {
 		List<String> violations = new ArrayList<>();
 		for (Path serviceFile : javaFiles(MAIN_SOURCE)) {

@@ -197,7 +197,7 @@
         <profile>
             <id>fast-test</id>
             <properties>
-                <excludedGroups>context,openapi</excludedGroups>
+                <excludedGroups>context,openapi,ocr</excludedGroups>
             </properties>
         </profile>
     </profiles>

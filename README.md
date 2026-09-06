@@ -311,7 +311,7 @@ Markdown保存を含むJava 25の全286テストが成功しています。
 
 - 画像Markdown下書き `POST /markdownDraftImage`（vision / OpenAI provider、既定無効）を追加済み。
   - `POST /markdownDraftPdf` に `mode=AUTO` を追加済み。文字レイヤーが無いページを画像化し、共有の画像変換器（OCR/vision）で補完する。`mode` 省略時は従来動作。
-  - Tesseractによるオフライン/バッチ用の第2実装は、同じ変換interfaceの裏へ足す。
+  - provider `anthropic` / `openai` / `tesseract` を `ghost.ocr.provider` で切替。Tesseractはオフライン/バッチ用のローカル実装で、既定無効。
   - 設計は [画像Markdown下書きAPI設計](docs/image-markdown-draft-design.md) を参照。
 - package renameは `pdfcontent` / `pdfcontent.dto` / `common.validation` / `common.utils` / `common.exceptions` の責務別構成へ整理済み。
   - 今後のpackage変更は、Boot upgradeやServiceImpl化とは混ぜず、必要になった責務境界だけを小さく扱う。

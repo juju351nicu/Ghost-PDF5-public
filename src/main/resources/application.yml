@@ -32,3 +32,11 @@ ghost:
       max-image-file-size: 20559957
       max-image-pixels: 40000000
       max-output-tokens: 8000
+    tesseract:
+      enabled: ${GHOST_OCR_TESSERACT_ENABLED:false}
+      command: ${GHOST_OCR_TESSERACT_COMMAND:tesseract}
+      tessdata-directory: ${GHOST_OCR_TESSDATA_DIRECTORY:}
+      languages: ${GHOST_OCR_TESSERACT_LANGUAGES:jpn+eng}
+      psm: 6
+      preserve-interword-spaces: true
+      timeout-seconds: 60
