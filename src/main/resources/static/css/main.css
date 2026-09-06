@@ -424,3 +424,68 @@ body > #app {
 @page {
 	margin: 15mm;
 }
+
+.image-ocr-card {
+	margin-top: 28px;
+}
+
+.image-ocr-card__body {
+	gap: 12px;
+}
+
+.image-ocr-card__paste {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 64px;
+	padding: 12px;
+	border: 2px dashed var(--ghost-color-border);
+	border-radius: 6px;
+	background: var(--ghost-color-surface);
+	color: #59636e;
+	text-align: center;
+	cursor: pointer;
+}
+
+.image-ocr-card__paste:focus {
+	outline: 2px solid var(--pico-primary);
+	outline-offset: 2px;
+}
+
+.image-ocr-card__preview {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.image-ocr-card__preview img {
+	max-height: 220px;
+	width: auto;
+	border: 1px solid var(--ghost-color-border);
+	border-radius: 6px;
+	background: var(--ghost-color-surface);
+}
+
+.image-ocr-card__preview span {
+	font-size: .875rem;
+	color: #59636e;
+	overflow-wrap: anywhere;
+}
+
+.image-ocr-card__actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+}
+
+.image-ocr-card__actions button {
+	width: auto;
+	margin-bottom: 0;
+	white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+	.image-ocr-card__actions button {
+		width: 100%;
+	}
+}

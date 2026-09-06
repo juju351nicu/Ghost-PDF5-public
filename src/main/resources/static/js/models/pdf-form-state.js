@@ -172,7 +172,19 @@ const calculateNextInsertFileNo = (insertFiles, currentNewNo) => {
   return Math.max(currentNewNo, maxFileNo + 1);
 };
 
+/**
+ * 画像Markdown下書きの初期状態を生成する。
+ *
+ * @returns {{fileObject: File|null, fileName: string, previewUrl: string}} 画像下書きの画面状態
+ */
+const createImageDraftState = () => ({
+  fileObject: null,
+  fileName: "",
+  previewUrl: "",
+});
+
 export default {
+  createImageDraftState,
   createOriginalFileState,
   createPdfMetadataState,
   createLoadedPdfMetadataState,

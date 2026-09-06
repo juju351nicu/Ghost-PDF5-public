@@ -52,6 +52,13 @@
 			</div>
 			<button type="button" :disabled="isProcessing" @click="requestInsertPdf">PDF差込み</button>
 			<button type="button" :disabled="isProcessing" @click="requestMergePdf">PDF結合</button>
+			<image-ocr-form
+				:image-state="imageDraft"
+				:is-processing="isProcessing"
+				@image-selected="handleImageSelected"
+				@request-image-draft="requestImageDraft"
+				@clear-image="clearImageDraft">
+			</image-ocr-form>
 			<article class="pdf-card markdown-panel">
 				<header>Markdownメモ</header>
 				<div class="pdf-card__body markdown-panel__body">

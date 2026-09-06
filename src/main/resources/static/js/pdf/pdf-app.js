@@ -5,9 +5,12 @@ import TheHeader from "../components/theheader.js";
 import TheFooter from "../components/thefooter.js";
 import OriginalPdfForm from "../components/original-pdf-form.js";
 import InsertPdfRow from "../components/insert-pdf-row.js";
+import ImageOcrForm from "../components/image-ocr-form.js";
 import PdfApiClient from "../api/pdf-api-client.js";
+import ImageApiClient from "../api/image-api-client.js";
 import MarkdownApiClient from "../api/markdown-api-client.js";
 import PdfPayload from "../api/pdf-payload.js";
+import ImagePayload from "../api/image-payload.js";
 import PdfFormState from "../models/pdf-form-state.js";
 import PageNumberValidator from "../validation/page-number-validator.js";
 
@@ -27,6 +30,7 @@ const pdfApp = {
     "the-footer": TheFooter,
     "original-pdf-form": OriginalPdfForm,
     "insert-pdf-row": InsertPdfRow,
+    "image-ocr-form": ImageOcrForm,
   },
   data() {
     return {
@@ -38,6 +42,7 @@ const pdfApp = {
       isShowModal: false,
       errorMessages: [],
       isProcessing: false,
+      imageDraft: PdfFormState.createImageDraftState(),
       markdownFileName: "design-note.md",
       markdownContent: "",
       markdownFiles: [],
@@ -298,6 +303,92 @@ const pdfApp = {
       return this.requestPdfMarkdownDraft(
         PdfPayload.buildMarkdownDraftPayload(originalFileData.fileObject)
       );
+    },
+    /**
+     * 画像OCRカードで選択・貼り付けされた画像を画面状態へ反映し、プレビューを更新する。
+     *
+     * @param {File} file 選択またはクリップボードから受け取った画像
+     */
+    handleImageSelected(file) {
+      if (Util.isEmpty(file)) {
+        return;
+      }
+      this.revokeImagePreview();
+      this.imageDraft.fileObject = file;
+      this.imageDraft.fileName = file.name;
+      this.imageDraft.previewUrl = URL.createObjectURL(file);
+    },
+    /**
+     * 画像プレビュー用に作成したObject URLを解放する。
+     */
+    revokeImagePreview() {
+      if (!Util.isEmpty(this.imageDraft.previewUrl)) {
+        URL.revokeObjectURL(this.imageDraft.previewUrl);
+        this.imageDraft.previewUrl = "";
+      }
+    },
+    /**
+     * 画像OCRカードの選択状態を初期化する。
+     */
+    clearImageDraft() {
+      this.revokeImagePreview();
+      this.imageDraft = PdfFormState.createImageDraftState();
+    },
+    /**
+     * 選択画像から文字起こしを実行し、結果をMarkdown編集欄へ反映する。
+     *
+     * @returns {Promise<void>} 文字起こし処理の完了Promise
+     */
+    requestImageDraft() {
+      if (Util.isEmpty(this.imageDraft.fileObject)) {
+        this.markdownMessage = "画像が選択されておりません。";
+        return Promise.resolve();
+      }
+      return this.requestImageMarkdownDraft(
+        ImagePayload.buildImageDraftPayload(this.imageDraft.fileObject)
+      );
+    },
+    /**
+     * 画像Markdown下書きAPIを実行し、成功時は既存Markdown編集欄へ反映する。
+     *
+     * @param {{key: string, value: unknown}[]} payload multipart formとして送信する値
+     * @returns {Promise<void>} 文字起こし処理の完了Promise
+     */
+    requestImageMarkdownDraft(payload) {
+      if (this.isProcessing) {
+        return Promise.resolve();
+      }
+      this.isProcessing = true;
+      this.errorMessages = [];
+      this.markdownMessage = "";
+      return ImageApiClient.requestImageMarkdownDraft(
+        CONST.REST_PATH.MARKDOWN_DRAFT_IMAGE,
+        payload
+      )
+        .then((result) => {
+          if (!Util.isEmpty(result.errorMessages)) {
+            this.errorMessages = result.errorMessages;
+            this.showMessageModal();
+            return;
+          }
+          const draftResponse = result.imageDraftResponse;
+          this.markdownFileName = this.buildMarkdownFileNameFromPdf(
+            draftResponse.fileName
+          );
+          this.markdownContent = draftResponse.markdown || "";
+          this.clearMarkdownPreview();
+          this.markdownMessage =
+            draftResponse.fileName + " の文字起こしをMarkdown欄へ反映しました。";
+        })
+        .catch((error) => {
+          this.errorMessages = [
+            ImageApiClient.buildUnexpectedErrorMessage(error),
+          ];
+          this.showMessageModal();
+        })
+        .finally(() => {
+          this.isProcessing = false;
+        });
     },
     /**
      * 編集元PDFを1ページずつ分割し、生成されたZIPをダウンロードする。
