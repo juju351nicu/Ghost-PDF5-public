@@ -33,7 +33,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class AnthropicImageToMarkdownConverter implements ImageToMarkdownConverter {
 	private static final Logger LOGGER = LoggerFactory.getLogger(AnthropicImageToMarkdownConverter.class);
-	private static final String SYSTEM_PROMPT = "あなたは画像内のテキストを忠実にMarkdownへ文字起こしします。表はMarkdownの表、コードはコードフェンスで囲みます。読み取れない箇所や推測で補った箇所は明示します。説明や前置きは書かず、文字起こし結果のMarkdownだけを返します。";
+	private static final String SYSTEM_PROMPT = "あなたは画像内のテキストを忠実にMarkdownへ文字起こしします。表はMarkdownの表、コードはコードフェンスで囲みます。読み取れない箇所や推測で補った箇所は明示します。説明や前置きは書かず、文字起こし結果のMarkdownだけを返します。出力全体をコードフェンスで囲まないでください。コードフェンスは、画像内にソースコードが写っている部分にだけ使います。";
 	private static final String USER_PROMPT = "この画像を文字起こししてMarkdownで返してください。";
 
 	private final AnthropicProperties properties;
@@ -87,8 +87,8 @@ public class AnthropicImageToMarkdownConverter implements ImageToMarkdownConvert
 			AnthropicClient client = AnthropicOkHttpClient.builder().apiKey(apiKey).build();
 			MessageCreateParams params = buildParams(imageBytes, mediaType);
 			Message response = client.messages().create(params);
-			String markdown = response.content().stream().flatMap(block -> block.text().stream()).map(TextBlock::text)
-					.collect(Collectors.joining());
+			String markdown = MarkdownFenceUnwrapper.unwrap(response.content().stream()
+					.flatMap(block -> block.text().stream()).map(TextBlock::text).collect(Collectors.joining()));
 			if (StringUtils.isBlank(markdown)) {
 				throw new ImageProcessingException("Anthropicから空の応答が返りました。");
 			}
