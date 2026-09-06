@@ -60,7 +60,7 @@ DTO `ImageMarkdownDraftResponse { String fileName; Long fileSize; String markdow
   - `String describe()`（ログ用。モデル名等。キーは含めない）
   - `String convert(byte[] imageBytes, String mediaType)`
 - interface には `String provider()` を持たせ、providerで実装を選べるようにする。
-- 実装1 `VisionImageToMarkdownConverter`（`provider=anthropic`）。Anthropic 公式 Java SDK（`com.anthropic:anthropic-java`）で
+- 実装1 `AnthropicImageToMarkdownConverter`（`provider=anthropic`）。Anthropic 公式 Java SDK（`com.anthropic:anthropic-java`）で
   画像を base64 の image content block として送る。
 - 実装2 `OpenAiImageToMarkdownConverter`（`provider=openai`）。OpenAI 公式 Java SDK（`com.openai:openai-java`）で
   画像を data URI の image_url として chat completions へ送る。
@@ -72,7 +72,7 @@ DTO `ImageMarkdownDraftResponse { String fileName; Long fileSize; String markdow
 
 ## 7. 設定
 
-`ghost.ocr.vision.*`（`@ConfigurationProperties`）。
+`ghost.ocr.anthropic.*`（`@ConfigurationProperties`）。
 
 | キー | 既定 | 用途 |
 | --- | --- | --- |
@@ -111,15 +111,15 @@ com.clip.ghost.imagecontent
   controller.ImageMarkdownDraftController  -> multipart受付, token検証, サイズ検証, OpenAPI, Service委譲
   service.ImageMarkdownDraftService        -> 有効性確認(503), 画像検証, converter呼び出し, 正規化, DTO組み立て(build〇〇)
   logic.ImageToMarkdownConverter (if)      -> 画像→Markdown の抽象(provider()を持つ)
-  logic.VisionImageToMarkdownConverter     -> Anthropic SDK呼び出し(provider=anthropic)
+  logic.AnthropicImageToMarkdownConverter     -> Anthropic SDK呼び出し(provider=anthropic)
   logic.OpenAiImageToMarkdownConverter     -> OpenAI SDK呼び出し(provider=openai)
   logic.ImageConverterResolver             -> ghost.ocr.provider で実装を選択
   dto.ImageMarkdownDraftRequest / ImageMarkdownDraftResponse
   exception.ImageInputException(400) / ImageProcessingException(500) / OcrUnavailableException(503)
-  config.ImageOcrProperties(provider) / VisionProperties(anthropic) / OpenAiProperties(openai)
+  config.ImageOcrProperties(provider) / AnthropicProperties(anthropic) / OpenAiProperties(openai)
 ```
 
-依存方向は既存と同じ Controller → Service → Logic。外部 AI SDK の詳細は `VisionImageToMarkdownConverter` に閉じ込める。
+依存方向は既存と同じ Controller → Service → Logic。外部 AI SDK の詳細は `AnthropicImageToMarkdownConverter` に閉じ込める。
 
 ## 10. セキュリティ
 
@@ -141,6 +141,6 @@ com.clip.ghost.imagecontent
 
 - 既存 API（`/markdownDraftPdf` 等）の契約・挙動が変わらない。
 - 既定無効で、有効化には設定が必要。キーがコード・ログに出ない。
-- 変換の外部依存が `VisionImageToMarkdownConverter` に閉じている。
+- 変換の外部依存が `AnthropicImageToMarkdownConverter` に閉じている。
 - 400 / 403 / 413 / 500 / 503 が OpenAPI に現れる。
 - `mvn test` が緑（vision 統合テストはキー未設定環境で skip）。

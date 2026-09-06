@@ -6,16 +6,16 @@ import lombok.Getter;
 import lombok.Setter;
 
 /**
- * 画像Markdown下書きの外部vision呼び出しに関する設定。
+ * 画像Markdown下書きのAnthropic（Claude）providerに関する設定。
  * <p>
  * 既定は無効で、有効化した場合のみ外部AIへ画像を送信する。APIキーはこのクラスには持たず、
  * {@code apiKeyEnv} で指定した環境変数から実行時に読み取る。
  */
-@ConfigurationProperties(prefix = "ghost.ocr.vision")
+@ConfigurationProperties(prefix = "ghost.ocr.anthropic")
 @Getter
 @Setter
-public class VisionProperties {
-	/** 機能全体の有効化フラグ。falseの間は画像Markdown下書きAPIが503を返す。 */
+public class AnthropicProperties {
+	/** Anthropic providerの有効化フラグ。falseの間は選択時に画像Markdown下書きAPIが503を返す。 */
 	private boolean enabled = false;
 
 	/** 使用するvision対応モデルID。 */

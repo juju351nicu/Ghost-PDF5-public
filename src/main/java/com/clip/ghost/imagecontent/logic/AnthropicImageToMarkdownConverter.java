@@ -18,25 +18,25 @@ import com.anthropic.models.messages.Message;
 import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.TextBlock;
 import com.anthropic.models.messages.TextBlockParam;
-import com.clip.ghost.imagecontent.config.VisionProperties;
+import com.clip.ghost.imagecontent.config.AnthropicProperties;
 import com.clip.ghost.imagecontent.exception.ImageProcessingException;
 
 import lombok.RequiredArgsConstructor;
 
 /**
- * 外部visionモデルを使って画像をMarkdownへ文字起こしする変換器。
+ * Anthropic（Claude）のvision対応モデルを使って画像をMarkdownへ文字起こしする変換器。
  * <p>
  * Anthropic公式Java SDKを利用し、画像をbase64のimageブロックとして送信する。外部AI依存の詳細は
  * このクラスに閉じ込める。APIキーは設定で指定した環境変数から実行時に読み取り、コード・ログに出さない。
  */
 @Component
 @RequiredArgsConstructor
-public class VisionImageToMarkdownConverter implements ImageToMarkdownConverter {
-	private static final Logger LOGGER = LoggerFactory.getLogger(VisionImageToMarkdownConverter.class);
+public class AnthropicImageToMarkdownConverter implements ImageToMarkdownConverter {
+	private static final Logger LOGGER = LoggerFactory.getLogger(AnthropicImageToMarkdownConverter.class);
 	private static final String SYSTEM_PROMPT = "あなたは画像内のテキストを忠実にMarkdownへ文字起こしします。表はMarkdownの表、コードはコードフェンスで囲みます。読み取れない箇所や推測で補った箇所は明示します。説明や前置きは書かず、文字起こし結果のMarkdownだけを返します。";
 	private static final String USER_PROMPT = "この画像を文字起こししてMarkdownで返してください。";
 
-	private final VisionProperties properties;
+	private final AnthropicProperties properties;
 
 	/**
 	 * 機能が有効かつAPIキーが設定されている場合に利用可能と判定する。
@@ -55,7 +55,7 @@ public class VisionImageToMarkdownConverter implements ImageToMarkdownConverter 
 	 */
 	@Override
 	public String describe() {
-		return "vision(model=" + properties.getModel() + ")";
+		return "anthropic(model=" + properties.getModel() + ")";
 	}
 
 	/**
@@ -69,7 +69,7 @@ public class VisionImageToMarkdownConverter implements ImageToMarkdownConverter 
 	}
 
 	/**
-	 * 画像バイト列をvisionモデルでMarkdownへ文字起こしする。
+	 * 画像バイト列をAnthropicのvision対応モデルでMarkdownへ文字起こしする。
 	 *
 	 * @param imageBytes 画像のバイト列
 	 * @param mediaType  画像のMIMEタイプ
@@ -80,9 +80,9 @@ public class VisionImageToMarkdownConverter implements ImageToMarkdownConverter 
 	public String convert(byte[] imageBytes, String mediaType) {
 		String apiKey = resolveApiKey();
 		if (StringUtils.isBlank(apiKey)) {
-			throw new ImageProcessingException("visionのAPIキーが設定されていません。");
+			throw new ImageProcessingException("AnthropicのAPIキーが設定されていません。");
 		}
-		LOGGER.info("visionで画像を文字起こしします。model={}", properties.getModel());
+		LOGGER.info("Anthropicで画像を文字起こしします。model={}", properties.getModel());
 		try {
 			AnthropicClient client = AnthropicOkHttpClient.builder().apiKey(apiKey).build();
 			MessageCreateParams params = buildParams(imageBytes, mediaType);
@@ -90,19 +90,19 @@ public class VisionImageToMarkdownConverter implements ImageToMarkdownConverter 
 			String markdown = response.content().stream().flatMap(block -> block.text().stream()).map(TextBlock::text)
 					.collect(Collectors.joining());
 			if (StringUtils.isBlank(markdown)) {
-				throw new ImageProcessingException("visionから空の応答が返りました。");
+				throw new ImageProcessingException("Anthropicから空の応答が返りました。");
 			}
 			return markdown;
 		} catch (ImageProcessingException e) {
 			throw e;
 		} catch (RuntimeException e) {
 			// SDKやネットワーク由来の例外を、APIキーや画像内容を露出させずに包む。
-			throw new ImageProcessingException("vision文字起こしに失敗しました。", e);
+			throw new ImageProcessingException("Anthropic文字起こしに失敗しました。", e);
 		}
 	}
 
 	/**
-	 * 画像を含むvisionリクエストを組み立てる。
+	 * 画像を含むリクエストを組み立てる。
 	 *
 	 * @param imageBytes 画像バイト列
 	 * @param mediaType  画像のMIMEタイプ

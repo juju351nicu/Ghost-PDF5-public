@@ -7,22 +7,22 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import com.clip.ghost.imagecontent.config.VisionProperties;
+import com.clip.ghost.imagecontent.config.AnthropicProperties;
 
 /**
- * {@link VisionImageToMarkdownConverter} の外部呼び出しを伴わない挙動を検証するテスト。
+ * {@link AnthropicImageToMarkdownConverter} の外部呼び出しを伴わない挙動を検証するテスト。
  * <p>
- * 実際のvision呼び出しは外部API・APIキー・ネットワークに依存するため、自動テストでは行わない。
+ * 実際のAnthropic呼び出しは外部API・APIキー・ネットワークに依存するため、自動テストでは行わない。
  * 実APIを使った確認は手動で行う。ここでは無効時の判定と識別文字列だけを検証する。
  */
-class VisionImageToMarkdownConverterTest {
+class AnthropicImageToMarkdownConverterTest {
 
 	@Test
 	@DisplayName("機能無効時はisEnabledがfalseになり、キー参照や外部呼び出しをしない")
 	void isEnabledIsFalseWhenDisabled() {
-		VisionProperties properties = new VisionProperties();
+		AnthropicProperties properties = new AnthropicProperties();
 		properties.setEnabled(false);
-		VisionImageToMarkdownConverter converter = new VisionImageToMarkdownConverter(properties);
+		AnthropicImageToMarkdownConverter converter = new AnthropicImageToMarkdownConverter(properties);
 
 		assertFalse(converter.isEnabled());
 	}
@@ -30,9 +30,9 @@ class VisionImageToMarkdownConverterTest {
 	@Test
 	@DisplayName("describeはモデル名を含み、APIキーを含まない")
 	void describeContainsModelWithoutApiKey() {
-		VisionProperties properties = new VisionProperties();
+		AnthropicProperties properties = new AnthropicProperties();
 		properties.setModel("claude-opus-5");
-		VisionImageToMarkdownConverter converter = new VisionImageToMarkdownConverter(properties);
+		AnthropicImageToMarkdownConverter converter = new AnthropicImageToMarkdownConverter(properties);
 
 		String description = converter.describe();
 
@@ -42,7 +42,7 @@ class VisionImageToMarkdownConverterTest {
 	@Test
 	@DisplayName("providerはanthropic")
 	void providerIsAnthropic() {
-		VisionImageToMarkdownConverter converter = new VisionImageToMarkdownConverter(new VisionProperties());
+		AnthropicImageToMarkdownConverter converter = new AnthropicImageToMarkdownConverter(new AnthropicProperties());
 
 		assertEquals("anthropic", converter.provider());
 	}

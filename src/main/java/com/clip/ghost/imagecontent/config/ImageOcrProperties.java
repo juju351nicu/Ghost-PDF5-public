@@ -8,7 +8,7 @@ import lombok.Setter;
 /**
  * 画像Markdown下書きで使用する変換providerの選択設定。
  * <p>
- * provider別の詳細設定は {@link VisionProperties}（anthropic）や {@code OpenAiProperties}（openai）が持ち、
+ * provider別の詳細設定は {@link AnthropicProperties}（anthropic）や {@code OpenAiProperties}（openai）が持ち、
  * このクラスはどのproviderを使うかだけを保持する。
  */
 @ConfigurationProperties(prefix = "ghost.ocr")
