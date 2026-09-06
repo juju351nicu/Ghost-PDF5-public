@@ -8,10 +8,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystemException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -35,6 +37,25 @@ class MarkdownDocumentServiceTest {
 
 	@TempDir
 	Path tempDir;
+
+	/**
+	 * シンボリックリンクを作成する。作成できない環境ではテストをskipする。
+	 * <p>
+	 * Windowsでは管理者権限または開発者モードが無いとシンボリックリンクを作成できず、
+	 * {@link java.nio.file.FileSystemException} になる。CIや他マシンでの実行を妨げないよう、
+	 * 権限が無い環境ではこのテストを失敗ではなくskip扱いにする。
+	 *
+	 * @param link   作成するシンボリックリンクのパス
+	 * @param target リンク先のパス
+	 * @throws IOException リンク作成以外のIOエラーが発生した場合
+	 */
+	private static void createSymbolicLinkOrSkip(Path link, Path target) throws IOException {
+		try {
+			Files.createSymbolicLink(link, target);
+		} catch (FileSystemException | UnsupportedOperationException e) {
+			Assumptions.abort("シンボリックリンクを作成できない環境のためskipします。reason=" + e.getMessage());
+		}
+	}
 
 	@Test
 	@DisplayName("Markdown本文をUTF-8で保存し、保存後メタデータを返す")
@@ -167,7 +188,7 @@ class MarkdownDocumentServiceTest {
 		Path storageDirectory = Files.createDirectories(tempDir.resolve("storage"));
 		Path externalPath = tempDir.resolve("external.md");
 		Files.writeString(externalPath, "external", StandardCharsets.UTF_8);
-		Files.createSymbolicLink(storageDirectory.resolve("linked.md"), externalPath);
+		createSymbolicLinkOrSkip(storageDirectory.resolve("linked.md"), externalPath);
 		MarkdownDocumentService service = new MarkdownDocumentService(storageDirectory.toString());
 		MarkdownSaveRequest request = createRequest("linked.md", "overwritten");
 
@@ -187,7 +208,7 @@ class MarkdownDocumentServiceTest {
 		Files.writeString(tempDir.resolve("memo.txt"), "memo", StandardCharsets.UTF_8);
 		Path nestedDir = Files.createDirectories(tempDir.resolve("nested"));
 		Files.writeString(nestedDir.resolve("nested.md"), "nested", StandardCharsets.UTF_8);
-		Files.createSymbolicLink(tempDir.resolve("linked.md"), nestedDir.resolve("nested.md"));
+		createSymbolicLinkOrSkip(tempDir.resolve("linked.md"), nestedDir.resolve("nested.md"));
 
 		ResponseEntity<List<MarkdownFileResponse>> response = service.listMarkdownFiles();
 
@@ -289,7 +310,7 @@ class MarkdownDocumentServiceTest {
 		Path storageDirectory = Files.createDirectories(tempDir.resolve("storage"));
 		Path externalPath = tempDir.resolve("external.md");
 		Files.writeString(externalPath, "external", StandardCharsets.UTF_8);
-		Files.createSymbolicLink(storageDirectory.resolve("linked.md"), externalPath);
+		createSymbolicLinkOrSkip(storageDirectory.resolve("linked.md"), externalPath);
 		MarkdownDocumentService service = new MarkdownDocumentService(storageDirectory.toString());
 
 		ResponseStatusException exception = assertThrows(ResponseStatusException.class,

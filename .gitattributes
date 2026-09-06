@@ -1,0 +1,31 @@
+# 改行コードの正規化設定。
+#
+# 目的:
+#   - repository には LF で格納し、作業ツリーへも LF で checkout する。
+#   - Windows の core.autocrlf=true による checkout 時の CRLF 変換を無効にし、
+#     clone しただけで全ファイルが変更扱いになる状態を防ぐ。
+#   - NUL byte を含まないためテキスト判定される sample PDF が、
+#     CRLF 変換で壊れるのを防ぐ。
+#
+# この設定は core.autocrlf より優先される。利用者側の git 設定変更は不要。
+
+* text=auto eol=lf
+
+# Windows 専用の batch script は CRLF のまま扱う。
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# binary 資産は改行変換の対象外にする。
+# *.pdf はテキストのみで構成される場合があり、
+# 自動判定に任せると CRLF 変換で壊れるため明示する。
+*.pdf  binary
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.jar  binary
+*.zip  binary
+*.ttf  binary
+*.woff binary
+*.woff2 binary
