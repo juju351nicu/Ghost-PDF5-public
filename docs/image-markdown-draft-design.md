@@ -1,7 +1,7 @@
 # 画像Markdown下書きAPI設計（vision）
 
 作成日: 2026-09-06
-状態: 設計。BE実装はこの設計に沿って追加する。
+状態: 実装完了（2026-09-06）。3 provider（anthropic / openai / tesseract）、画像PDFの `mode=AUTO` 補完、最小UI、外側フェンス除去まで実装済み。受け入れ確認（表スクショ → Markdown表 → プレビュー `<table>` → 印刷）も実測済み。実測の詳細は `../成果物/09_OCRエンジン評価結果.md` の実測節を参照。
 
 ## 1. 目的
 
@@ -10,14 +10,14 @@
 
 Excel の表・チャット・ソースコードのスクリーンショットをローカル OCR（Tesseract）で文字起こしする案を先に検証したが、
 日本語スクショに対する精度が実用ラインに達しなかった（`../成果物/09_OCRエンジン評価結果.md` 相当の評価）。
-同じ画像を vision モデルに直接読ませると、表構造も識別子も保持したまま読める。このため第1実装は vision とする。
+同じ画像を vision モデルに直接読ませると、表構造も識別子も保持したまま読める。このため第1実装は vision（anthropic）とし、以降 openai / tesseract を同じ interface で追加した。
 
-## 2. このフェーズで行わないこと
+## 2. スコープと実装状況
 
-- 画像PDFのページ描画への vision 適用（`markdownDraftPdf` の拡張は別フェーズ）。
-- Tesse-based のローカル実装（同じ変換 interface の第2実装として将来追加）。
-- 複数画像の一括処理（初期は1枚。将来拡張）。
-- 変換結果の自動保存・自動プレビュー（既存 Markdown 操作を利用者が明示的に行う）。
+- 画像1枚を対象とする（複数画像の一括処理は将来拡張）。
+- 変換結果の自動保存・自動プレビューは行わず、既存 Markdown 操作を利用者が明示的に行う。
+- provider は anthropic / openai / tesseract を実装済みで、`ghost.ocr.provider` で切り替える。
+- 画像PDFの文字が無いページへの適用は、別途 `POST /markdownDraftPdf` の `mode=AUTO` として実装済み（同じ変換器を共有する）。
 
 ## 3. API概要
 
@@ -68,6 +68,7 @@ DTO `ImageMarkdownDraftResponse { String fileName; Long fileSize; String markdow
   `ProcessBuilder`（専用の `ProcessCommandRunner` に限定）で実行し、外部送信なしで文字起こしする。オフライン/バッチ用。
 - `ImageConverterResolver` が設定 `ghost.ocr.provider` に一致する実装を選ぶ。一致が無ければ 503。
 - system で「画像を Markdown へ文字起こしする。表は Markdown 表、コードはコードフェンス、推測で補完した箇所は明示する」旨を指示する。
+- LLM系（anthropic / openai）は出力全体を ```` ```markdown … ``` ```` で包むことがある。system で「出力全体をフェンスで囲まない。フェンスは画像内のソースコードにだけ使う」旨も指示し、後処理 `MarkdownFenceUnwrapper` で外側フェンスだけを剥がす（```` ```java ```` 等の言語指定フェンスは残す）。
 - Controller / Service は resolver と interface 越しに使い、単体テストでは mock する。
 
 ## 7. 設定
@@ -111,15 +112,19 @@ com.clip.ghost.imagecontent
   controller.ImageMarkdownDraftController  -> multipart受付, token検証, サイズ検証, OpenAPI, Service委譲
   service.ImageMarkdownDraftService        -> 有効性確認(503), 画像検証, converter呼び出し, 正規化, DTO組み立て(build〇〇)
   logic.ImageToMarkdownConverter (if)      -> 画像→Markdown の抽象(provider()を持つ)
-  logic.AnthropicImageToMarkdownConverter     -> Anthropic SDK呼び出し(provider=anthropic)
+  logic.AnthropicImageToMarkdownConverter  -> Anthropic SDK呼び出し(provider=anthropic)
   logic.OpenAiImageToMarkdownConverter     -> OpenAI SDK呼び出し(provider=openai)
+  logic.TesseractImageToMarkdownConverter  -> Tesseract CLI呼び出し(provider=tesseract)
+  logic.ProcessCommandRunner / CommandRunner / CommandResult -> 外部プロセス起動(ProcessBuilderはここだけ)
   logic.ImageConverterResolver             -> ghost.ocr.provider で実装を選択
+  logic.MarkdownFenceUnwrapper             -> 出力全体を包む外側フェンスの除去
   dto.ImageMarkdownDraftRequest / ImageMarkdownDraftResponse
   exception.ImageInputException(400) / ImageProcessingException(500) / OcrUnavailableException(503)
-  config.ImageOcrProperties(provider) / AnthropicProperties(anthropic) / OpenAiProperties(openai)
+  config.ImageOcrProperties(provider) / AnthropicProperties / OpenAiProperties / TesseractProperties
 ```
 
-依存方向は既存と同じ Controller → Service → Logic。外部 AI SDK の詳細は `AnthropicImageToMarkdownConverter` に閉じ込める。
+依存方向は既存と同じ Controller → Service → Logic。外部 AI SDK やOCRエンジンの詳細は各 provider の変換器に閉じ込める。
+画像PDFの `markdownDraftPdf` の `mode=AUTO` は、機能横断で共有の `ImageConverterResolver` を `pdfcontent.service` から使う（`CodingConventionTest` の層ルールでその横断利用だけを許可）。
 
 ## 10. セキュリティ
 
@@ -134,13 +139,18 @@ com.clip.ghost.imagecontent
 - `ImageMarkdownDraftControllerTest`（standalone MockMvc、Mockito）: token 一致/不一致(403)、未指定(400)、サイズ上限(413)、無効時(503)、Content-Type。
 - `ImageMarkdownDraftServiceTest`（converter を mock）: 有効性確認、正規化、DTO 組み立て、変換失敗(500)、無効(503)。
 - `OpenApiDocumentationTest` に `/markdownDraftImage` の path / multipart request / 200 schema / 400 / 403 / 413 / 500 / 503 を追加。
-- 実 API を叩く統合テストは `@Tag("vision")` とし、キー未設定なら `Assumptions` で skip。`fast-test` の `excludedGroups` に `vision` を追加。
-- `CodingConventionTest` に `imagecontent` の Controller → Service → Logic 依存方向ルールを追加。
+- 実 API を叩く vision の自動テストは、コスト事故防止のため設けない（変換器を mock）。実 API 確認は手動運用（実測結果は `../成果物/09_OCRエンジン評価結果.md`）。
+- Tesseract は実行を伴う統合テストを `@Tag("ocr")` とし、未導入環境では `Assumptions` で skip。`fast-test` の `excludedGroups` に `ocr` を追加。
+- `MarkdownFenceUnwrapper` の除去ロジック（```` ```markdown ```` / ```` ```md ```` / 裸の ```` ``` ```` を剥がす、```` ```java ```` は残す、内側フェンス入りの扱い）を単体テスト。
+- `ProcessBuilder` は `ProcessCommandRunner` だけに限定し、`CodingConventionTest` のソーススキャンで検出。
+- `CodingConventionTest` に `imagecontent` の Controller → Service → Logic 依存方向ルールを追加（共有変換器のみ `pdfcontent.service` からの利用を許可）。
 
 ## 12. 実装完了条件
 
 - 既存 API（`/markdownDraftPdf` 等）の契約・挙動が変わらない。
 - 既定無効で、有効化には設定が必要。キーがコード・ログに出ない。
-- 変換の外部依存が `AnthropicImageToMarkdownConverter` に閉じている。
+- 変換の外部依存が各 provider の変換器に閉じている。
 - 400 / 403 / 413 / 500 / 503 が OpenAPI に現れる。
-- `mvn test` が緑（vision 統合テストはキー未設定環境で skip）。
+- `mvn test` が緑（tesseract 統合テストは未導入環境で skip）。
+
+すべて達成済み。受け入れ確認（表 → Markdown表 → プレビュー `<table>` → 印刷）の実測は `../成果物/09_OCRエンジン評価結果.md` の実測節に記録している。
