@@ -356,12 +356,16 @@ class CodingConventionTest {
 
 	@Test
 	void imageControllerServiceLogicDependenciesKeepDirection() {
+		// 画像変換器(imagecontent.logic)は共有機能として、画像PDFのAUTO下書きを行うpdfcontent.serviceからも使う。
+		// この横断利用だけを許可し、それ以外のController/Serviceの依存方向は維持する。
 		Architectures.layeredArchitecture().consideringAllDependencies().layer("Controller")
 				.definedBy("..imagecontent.controller..").layer("Service").definedBy("..imagecontent.service..")
-				.layer("Logic").definedBy("..imagecontent.logic..").whereLayer("Controller").mayNotBeAccessedByAnyLayer()
+				.layer("Logic").definedBy("..imagecontent.logic..").optionalLayer("PdfDraftService")
+				.definedBy("..pdfcontent.service..").whereLayer("Controller").mayNotBeAccessedByAnyLayer()
 				.whereLayer("Service").mayOnlyBeAccessedByLayers("Controller").whereLayer("Logic")
-				.mayOnlyBeAccessedByLayers("Service")
-				.because("画像Markdown下書きはController -> Service -> Logicの順に依存させます。").check(PRODUCTION_CLASSES);
+				.mayOnlyBeAccessedByLayers("Service", "PdfDraftService")
+				.because("画像Markdown下書きはController -> Service -> Logicの順に依存させ、共有の画像変換器のみpdfcontent.serviceからの利用を許可します。")
+				.check(PRODUCTION_CLASSES);
 	}
 
 	@Test

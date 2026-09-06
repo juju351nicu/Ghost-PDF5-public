@@ -25,4 +25,12 @@ public class PdfMarkdownDraftRequest {
 	@JsonProperty("originalFile")
 	@NotNull(message = "ファイルを入れてください。")
 	private MultipartFile originalFile;
+
+	/**
+	 * 変換モード。省略時は文字レイヤーだけを使う従来動作。
+	 * {@code AUTO} を指定すると、文字を取得できないページを画像化して外部変換（OCR/vision）で補完する。
+	 */
+	@Schema(description = "変換モード。省略で従来動作（文字レイヤーのみ）。AUTOで文字が無いページを画像化してOCR/vision補完。", example = "AUTO")
+	@JsonProperty("mode")
+	private String mode;
 }

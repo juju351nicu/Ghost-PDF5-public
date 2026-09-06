@@ -63,7 +63,8 @@ public class PdfMarkdownDraftController {
 			@ApiResponse(responseCode = "400", description = "入力値が不正です。", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
 			@ApiResponse(responseCode = "403", description = "access-tokenが不正です。"),
 			@ApiResponse(responseCode = "413", description = "アップロードファイルサイズが上限を超えています。", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
-			@ApiResponse(responseCode = "500", description = "Markdown下書き生成に失敗しました。", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))) })
+			@ApiResponse(responseCode = "500", description = "Markdown下書き生成に失敗しました。", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+			@ApiResponse(responseCode = "503", description = "AUTOモードで画像変換(OCR/vision)が無効です。", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))) })
 	@PostMapping(value = "/markdownDraftPdf", consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
 	@ResponseBody
 	public ResponseEntity<PdfMarkdownDraftResponse> generateMarkdownDraft(

@@ -12,6 +12,7 @@ import org.springframework.web.multipart.MultipartFile;
 import com.clip.ghost.pdfcontent.exception.PdfProcessingException;
 import com.clip.ghost.pdfcontent.dto.GhostPdfDto;
 import com.clip.ghost.pdfcontent.dto.PdfMetadataResponse;
+import com.clip.ghost.pdfcontent.dto.PdfPageContent;
 import com.clip.ghost.pdfcontent.dto.PdfTextResponse;
 
 import lombok.NoArgsConstructor;
@@ -122,6 +123,24 @@ public class GhostPdfLogic {
 	public List<String> extractPdfPageTexts(Path inputPath) {
 		try {
 			return documentAnalysisLogic.extractPdfPageTexts(inputPath);
+		} finally {
+			temporaryFileStorage().delete(inputPath);
+		}
+	}
+
+	/**
+	 * 一時保存されたPDFからページ単位の内容を抽出し、文字を取得できないページはPNGへ画像化して返す。
+	 * <p>
+	 * 成功・失敗にかかわらず、呼び出し後に入力一時ファイルを削除する。
+	 *
+	 * @param inputPath 読み込むPDFのパス
+	 * @param renderDpi 文字が無いページを画像化する解像度（DPI）
+	 * @return PDF順のページ内容（テキストと、必要なページのPNGバイト列）
+	 * @throws PdfProcessingException PDFの読み込み、テキスト抽出、または画像化に失敗した場合
+	 */
+	public List<PdfPageContent> extractPdfPageContents(Path inputPath, int renderDpi) {
+		try {
+			return documentAnalysisLogic.extractPdfPageContents(inputPath, renderDpi);
 		} finally {
 			temporaryFileStorage().delete(inputPath);
 		}

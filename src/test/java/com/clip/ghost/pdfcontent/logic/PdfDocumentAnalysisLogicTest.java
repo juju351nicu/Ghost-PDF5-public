@@ -2,6 +2,8 @@ package com.clip.ghost.pdfcontent.logic;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -19,6 +21,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import com.clip.ghost.pdfcontent.dto.PdfMetadataResponse;
+import com.clip.ghost.pdfcontent.dto.PdfPageContent;
 import com.clip.ghost.pdfcontent.dto.PdfTextResponse;
 import com.clip.ghost.pdfcontent.exception.PdfProcessingException;
 
@@ -82,6 +85,24 @@ class PdfDocumentAnalysisLogicTest {
 		assertThrows(PdfProcessingException.class, () -> analysisLogic.extractPdfPageTexts(inputPath));
 
 		assertTrue(Files.exists(inputPath));
+	}
+
+	@Test
+	void extractPdfPageContentsRendersBlankPagesToPngAndKeepsSource() throws IOException {
+		Path inputPath = createPdf("contents.pdf", "first page", "");
+		PdfDocumentAnalysisLogic analysisLogic = new PdfDocumentAnalysisLogic();
+
+		List<PdfPageContent> contents = analysisLogic.extractPdfPageContents(inputPath, 100);
+
+		assertTrue(Files.exists(inputPath));
+		assertEquals(2, contents.size());
+		assertTrue(contents.get(0).text().contains("first page"));
+		assertNull(contents.get(0).imageBytes());
+		assertTrue(contents.get(1).text().isBlank());
+		byte[] png = contents.get(1).imageBytes();
+		assertNotNull(png);
+		// PNGシグネチャ（0x89 'P' 'N' 'G'）を確認し、画像化されていることを検証する。
+		assertTrue(png.length > 8 && (png[0] & 0xFF) == 0x89 && png[1] == 'P' && png[2] == 'N' && png[3] == 'G');
 	}
 
 	private Path createPdf(String fileName, String... pageTexts) throws IOException {

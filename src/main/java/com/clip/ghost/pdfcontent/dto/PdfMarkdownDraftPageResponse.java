@@ -25,4 +25,9 @@ public class PdfMarkdownDraftPageResponse {
 	@Schema(description = "PDFBoxで抽出し、改行を正規化したページ本文。", example = "ページ本文です。")
 	@JsonProperty("text")
 	private String text;
+
+	/** 本文の取得元。文字レイヤーからは {@code TEXT}、画像化してOCR/vision変換したページは {@code OCR}。 */
+	@Schema(description = "本文の取得元。TEXT（PDFの文字レイヤー）またはOCR（画像化して外部変換）。", example = "TEXT")
+	@JsonProperty("source")
+	private String source;
 }

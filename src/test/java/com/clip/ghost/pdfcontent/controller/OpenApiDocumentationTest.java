@@ -282,7 +282,9 @@ class OpenApiDocumentationTest {
 				() -> assertJsonErrorResponse(operation, PATH_MARKDOWN_DRAFT_PDF,
 						HTTP_STATUS_PAYLOAD_TOO_LARGE),
 				() -> assertJsonErrorResponse(operation, PATH_MARKDOWN_DRAFT_PDF,
-						HTTP_STATUS_INTERNAL_SERVER_ERROR));
+						HTTP_STATUS_INTERNAL_SERVER_ERROR),
+				() -> assertJsonErrorResponse(operation, PATH_MARKDOWN_DRAFT_PDF,
+						HTTP_STATUS_SERVICE_UNAVAILABLE));
 	}
 
 	/**
@@ -675,6 +677,7 @@ class OpenApiDocumentationTest {
 				() -> assertRequiredProperty(requestSchema, SCHEMA_PDF_MARKDOWN_DRAFT_REQUEST, "originalFile"),
 				() -> assertEquals("string", originalFile.path("type").asString()),
 				() -> assertEquals("binary", originalFile.path("format").asString()),
+				() -> assertTrue(requestProperties.has("mode")),
 				() -> assertTrue(schemas.has(SCHEMA_PDF_MARKDOWN_DRAFT_RESPONSE)),
 				() -> assertTrue(responseProperties.has("fileName")),
 				() -> assertTrue(responseProperties.has("fileSize")),
@@ -689,7 +692,9 @@ class OpenApiDocumentationTest {
 				() -> assertTrue(pageProperties.has("pageNumber")),
 				() -> assertEquals("integer", pageProperties.path("pageNumber").path("type").asString()),
 				() -> assertTrue(pageProperties.has("text")),
-				() -> assertEquals("string", pageProperties.path("text").path("type").asString()));
+				() -> assertEquals("string", pageProperties.path("text").path("type").asString()),
+				() -> assertTrue(pageProperties.has("source")),
+				() -> assertEquals("string", pageProperties.path("source").path("type").asString()));
 	}
 
 	/**
