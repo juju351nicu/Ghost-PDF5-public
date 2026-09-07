@@ -15,6 +15,7 @@ import com.clip.ghost.pdfcontent.exception.PdfProcessingException;
 import com.clip.ghost.pdfcontent.dto.GhostPdfDto;
 import com.clip.ghost.pdfcontent.dto.PdfMetadataResponse;
 import com.clip.ghost.pdfcontent.dto.PdfPageContent;
+import com.clip.ghost.pdfcontent.dto.PdfPageThumbnail;
 import com.clip.ghost.pdfcontent.dto.PdfTextResponse;
 
 import lombok.NoArgsConstructor;
@@ -136,6 +137,26 @@ public class GhostPdfLogic {
 			PdfPageImageConverter pageImageConverter) {
 		try {
 			return documentAnalysisLogic.extractPdfPageContents(inputPath, renderDpi, maxPages, pageImageConverter);
+		} finally {
+			temporaryFileStorage().delete(inputPath);
+		}
+	}
+
+	/**
+	 * 一時保存されたPDFの全ページから、ページ選択UI用のサムネイルを生成する。
+	 * <p>
+	 * 成功・失敗にかかわらず、呼び出し後に入力一時ファイルを削除する。ページ上限を超えて拒否した場合も削除する。
+	 *
+	 * @param inputPath 読み込むPDFのパス
+	 * @param renderDpi 画像化する解像度（DPI）
+	 * @param maxPages  サムネイルを返すページ数の上限
+	 * @return PDF順のページ単位サムネイル
+	 * @throws PdfPageLimitExceededException 総ページ数が上限を超えた場合
+	 * @throws PdfProcessingException        PDFの読み込みまたは画像化に失敗した場合
+	 */
+	public List<PdfPageThumbnail> extractPdfThumbnails(Path inputPath, int renderDpi, int maxPages) {
+		try {
+			return documentAnalysisLogic.extractPdfThumbnails(inputPath, renderDpi, maxPages);
 		} finally {
 			temporaryFileStorage().delete(inputPath);
 		}

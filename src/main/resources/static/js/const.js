@@ -17,6 +17,7 @@ const REST_PATH = {
   EXTRACT_PDF: "/extractPdf",
   MERGE_PDF: "/mergePdf",
   SPLIT_PDF: "/splitPdf",
+  THUMBNAILS_PDF: "/thumbnailsPdf",
   DELETE_PDF: "/deletePdf",
   INSERT_PDF: "/insertPdf",
   SAVE_MARKDOWN: "/saveMarkdown",

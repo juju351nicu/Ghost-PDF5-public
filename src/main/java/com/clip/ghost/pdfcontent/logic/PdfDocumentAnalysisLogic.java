@@ -5,6 +5,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,6 +24,7 @@ import org.slf4j.LoggerFactory;
 import com.clip.ghost.pdfcontent.constant.PdfConstants;
 import com.clip.ghost.pdfcontent.dto.PdfMetadataResponse;
 import com.clip.ghost.pdfcontent.dto.PdfPageContent;
+import com.clip.ghost.pdfcontent.dto.PdfPageThumbnail;
 import com.clip.ghost.pdfcontent.dto.PdfTextResponse;
 import com.clip.ghost.pdfcontent.exception.PdfPageLimitExceededException;
 import com.clip.ghost.pdfcontent.exception.PdfProcessingException;
@@ -170,6 +172,61 @@ final class PdfDocumentAnalysisLogic {
 	}
 
 	/**
+	 * PDFの全ページを低解像度で画像化し、ページ選択UI用のサムネイルを返す。
+	 * <p>
+	 * ページ数が上限を超える場合は1ページも画像化せずに例外で止める。全ページ分を1レスポンスで返すため、
+	 * ページ数がそのままレスポンスサイズに比例するのを防ぐ。
+	 * <p>
+	 * 1ページずつ画像化してdata URIへ変換し、{@code BufferedImage} とPNGバイト列の参照は都度捨てる。
+	 * 同時にメモリへ載る画像を1ページ分に抑えるため。
+	 * <p>
+	 * 画像は {@code ImageType.RGB} で作る。グレースケールにすればサイズは減るが、色で区別している図や
+	 * 見出しがページ選択時に判別しづらくなる。サムネイルは「どのページか」を見分けるためのものなので色を残す。
+	 *
+	 * @param inputPath 読み込むPDFのパス
+	 * @param renderDpi 画像化する解像度（DPI）
+	 * @param maxPages  サムネイルを返すページ数の上限
+	 * @return PDF順のページ単位サムネイル
+	 * @throws PdfPageLimitExceededException 総ページ数が上限を超えた場合
+	 * @throws PdfProcessingException        PDFの読み込みまたは画像化に失敗した場合
+	 */
+	List<PdfPageThumbnail> extractPdfThumbnails(Path inputPath, int renderDpi, int maxPages) {
+		try (PDDocument document = Loader.loadPDF(inputPath.toFile())) {
+			int totalPages = document.getNumberOfPages();
+			if (totalPages > maxPages) {
+				LOGGER.warn("総ページ数が上限を超えたためサムネイルを生成しません。pageCount={}, maxPages={}", totalPages, maxPages);
+				throw new PdfPageLimitExceededException(totalPages, maxPages);
+			}
+			LOGGER.info("サムネイルの生成を開始します。pageCount={}, renderDpi={}", totalPages, renderDpi);
+
+			PDFRenderer renderer = new PDFRenderer(document);
+			List<PdfPageThumbnail> thumbnails = new ArrayList<>(totalPages);
+			for (int pageNumber = PdfConstants.START_PAGE; pageNumber <= totalPages; pageNumber++) {
+				thumbnails.add(renderThumbnail(renderer, pageNumber, renderDpi));
+			}
+			return thumbnails;
+		} catch (IllegalStateException | IOException e) {
+			throw new PdfProcessingException("PDFサムネイルの生成に失敗しました。path=" + inputPath, e);
+		}
+	}
+
+	/**
+	 * 指定ページのサムネイルを生成する。
+	 *
+	 * @param renderer   PDFレンダラー
+	 * @param pageNumber 画面・API仕様の1始まりページ番号
+	 * @param renderDpi  解像度（DPI）
+	 * @return ページ単位サムネイル
+	 * @throws IOException レンダリングまたはPNGエンコードに失敗した場合
+	 */
+	private PdfPageThumbnail renderThumbnail(PDFRenderer renderer, int pageNumber, int renderDpi) throws IOException {
+		// PDFBoxのレンダリングは0始まりのため、1始まりのページ番号から開始ページ番号を引く。
+		BufferedImage image = renderPageImage(renderer, pageNumber - PdfConstants.START_PAGE, renderDpi);
+		String dataUri = PdfConstants.BASE64_PNG + Base64.getEncoder().encodeToString(toPngBytes(image));
+		return new PdfPageThumbnail(pageNumber, dataUri, image.getWidth(), image.getHeight());
+	}
+
+	/**
 	 * 読み込み済みのPDFドキュメントからページ単位のテキストを抽出する。
 	 * <p>
 	 * PDFBoxのページ指定は1始まりのため、開始・終了ページを同じ値に設定してPDF順に抽出する。
@@ -231,7 +288,32 @@ final class PdfDocumentAnalysisLogic {
 	 * @throws IOException レンダリングまたはPNGエンコードに失敗した場合
 	 */
 	private byte[] renderPageToPng(PDFRenderer renderer, int pageIndex, int renderDpi) throws IOException {
-		BufferedImage image = renderer.renderImageWithDPI(pageIndex, renderDpi, ImageType.RGB);
+		return toPngBytes(renderPageImage(renderer, pageIndex, renderDpi));
+	}
+
+	/**
+	 * 指定ページを画像へレンダリングする。
+	 * <p>
+	 * 画像の幅・高さを使う呼び出し元があるため、PNGへのエンコードとは分けている。
+	 *
+	 * @param renderer  PDFレンダラー
+	 * @param pageIndex 0始まりのページインデックス
+	 * @param renderDpi 解像度（DPI）
+	 * @return レンダリングした画像
+	 * @throws IOException レンダリングに失敗した場合
+	 */
+	private BufferedImage renderPageImage(PDFRenderer renderer, int pageIndex, int renderDpi) throws IOException {
+		return renderer.renderImageWithDPI(pageIndex, renderDpi, ImageType.RGB);
+	}
+
+	/**
+	 * 画像をPNGバイト列へエンコードする。
+	 *
+	 * @param image エンコードする画像
+	 * @return PNGバイト列
+	 * @throws IOException PNGエンコードに失敗した場合
+	 */
+	private byte[] toPngBytes(BufferedImage image) throws IOException {
 		ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 		ImageIO.write(image, "png", outputStream);
 		return outputStream.toByteArray();

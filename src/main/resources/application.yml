@@ -20,6 +20,12 @@ springdoc:
   swagger-ui:
     enabled: false
 ghost:
+  pdf:
+    thumbnail:
+      # ページ選択用サムネイルは1リクエストで全ページ分を返すため、解像度とページ数の上限を設定で絞れるようにする。
+      # 40dpiはA4で約331x468px。PNG 1ページ20〜40 KB程度、base64化で約1.33倍のため100ページで概ね3〜5 MB。
+      dpi: ${GHOST_PDF_THUMBNAIL_DPI:40}
+      max-pages: ${GHOST_PDF_THUMBNAIL_MAX_PAGES:100}
   markdown:
     # 保存したMarkdownは利用者の成果物なので、OSが自動削除する一時ディレクトリへ置かない。
     # 個人のパスを公開リポジトリへ書かず、どのPCでも動くようホーム配下を既定にする。

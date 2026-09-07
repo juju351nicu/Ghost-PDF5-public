@@ -92,6 +92,18 @@ const buildSplitPayload = (fileObject, splitRanges) => {
 };
 
 /**
+ * ページ選択用サムネイルAPI用のmultipart payloadを生成する。
+ *
+ * ページ番号は送らない。1リクエストで全ページ分のサムネイルを受け取る設計のため。
+ *
+ * @param {File} fileObject サムネイルの生成元PDF
+ * @returns {{key: string, value: unknown}[]} multipart payload
+ */
+const buildThumbnailPayload = (fileObject) => {
+  return [{ key: "originalFile", value: fileObject }];
+};
+
+/**
  * ページ削除API用のmultipart payloadを生成する。
  *
  * @param {File} originalFile 編集元PDF
@@ -155,6 +167,7 @@ export default {
   buildExtractPayload,
   buildMergePayload,
   buildSplitPayload,
+  buildThumbnailPayload,
   buildDeletePayload,
   buildInsertPayload,
 };

@@ -32,6 +32,7 @@ import com.clip.ghost.pdfcontent.service.GhostPdfService;
 import com.clip.ghost.imagecontent.controller.ImageMarkdownDraftController;
 import com.clip.ghost.imagecontent.service.ImageMarkdownDraftService;
 import com.clip.ghost.pdfcontent.service.PdfMarkdownDraftService;
+import com.clip.ghost.pdfcontent.service.PdfThumbnailService;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -44,8 +45,8 @@ import tools.jackson.databind.ObjectMapper;
  */
 @Tag("context")
 @Tag("openapi")
-@WebMvcTest({ GhostPdfController.class, PdfMarkdownDraftController.class, ImageMarkdownDraftController.class,
-		MarkdownController.class, CsvController.class, SampleController.class })
+@WebMvcTest({ GhostPdfController.class, PdfMarkdownDraftController.class, PdfThumbnailController.class,
+		ImageMarkdownDraftController.class, MarkdownController.class, CsvController.class, SampleController.class })
 @ImportAutoConfiguration({ SpringDocConfiguration.class, SpringDocConfigProperties.class,
 		SpringDocWebMvcConfiguration.class })
 @TestPropertySource(properties = "springdoc.api-docs.enabled=true")
@@ -63,6 +64,7 @@ class OpenApiDocumentationTest {
 	private static final String PATH_EXTRACT_PDF = "/extractPdf";
 	private static final String PATH_MERGE_PDF = "/mergePdf";
 	private static final String PATH_SPLIT_PDF = "/splitPdf";
+	private static final String PATH_THUMBNAILS_PDF = "/thumbnailsPdf";
 	private static final String PATH_DELETE_PDF = "/deletePdf";
 	private static final String PATH_INSERT_PDF = "/insertPdf";
 	private static final String PATH_GET_SAMPLE = "/getSample";
@@ -88,6 +90,9 @@ class OpenApiDocumentationTest {
 	private static final String SCHEMA_INSERT_PDF_REQUEST = "InsertPdfRequest";
 	private static final String SCHEMA_PDF_METADATA_RESPONSE = "PdfMetadataResponse";
 	private static final String SCHEMA_PDF_TEXT_RESPONSE = "PdfTextResponse";
+	private static final String SCHEMA_PDF_THUMBNAIL_REQUEST = "PdfThumbnailRequest";
+	private static final String SCHEMA_PDF_THUMBNAIL_RESPONSE = "PdfThumbnailResponse";
+	private static final String SCHEMA_PDF_THUMBNAIL_PAGE_RESPONSE = "PdfThumbnailPageResponse";
 	private static final String SCHEMA_PDF_MARKDOWN_DRAFT_REQUEST = "PdfMarkdownDraftRequest";
 	private static final String SCHEMA_PDF_MARKDOWN_DRAFT_RESPONSE = "PdfMarkdownDraftResponse";
 	private static final String SCHEMA_PDF_MARKDOWN_DRAFT_PAGE_RESPONSE = "PdfMarkdownDraftPageResponse";
@@ -119,6 +124,9 @@ class OpenApiDocumentationTest {
 	private PdfMarkdownDraftService pdfMarkdownDraftService;
 
 	@MockitoBean
+	private PdfThumbnailService pdfThumbnailService;
+
+	@MockitoBean
 	private ImageMarkdownDraftService imageMarkdownDraftService;
 
 	@MockitoBean
@@ -142,6 +150,7 @@ class OpenApiDocumentationTest {
 		assertAll(() -> assertPdfPathVisibility(openApi), () -> assertPdfEndpoint(openApi, PATH_SHOW_PDF),
 				() -> assertMetadataEndpoint(openApi), () -> assertTextEndpoint(openApi),
 				() -> assertMarkdownDraftEndpoint(openApi),
+				() -> assertThumbnailEndpoint(openApi), () -> assertThumbnailSchemas(openApi),
 				() -> assertMarkdownDraftImageEndpoint(openApi),
 				() -> assertMarkdownEndpoint(openApi), () -> assertMarkdownFilesEndpoint(openApi),
 				() -> assertMarkdownFileEndpoint(openApi), () -> assertMarkdownFileUpdateEndpoint(openApi),
@@ -167,6 +176,7 @@ class OpenApiDocumentationTest {
 				() -> assertTrue(paths.has(PATH_METADATA_PDF), PATH_METADATA_PDF + " should be published."),
 				() -> assertTrue(paths.has(PATH_TEXT_PDF), PATH_TEXT_PDF + " should be published."),
 				() -> assertTrue(paths.has(PATH_MARKDOWN_DRAFT_PDF), PATH_MARKDOWN_DRAFT_PDF + " should be published."),
+				() -> assertTrue(paths.has(PATH_THUMBNAILS_PDF), PATH_THUMBNAILS_PDF + " should be published."),
 					() -> assertTrue(paths.has(PATH_MARKDOWN_DRAFT_IMAGE),
 							PATH_MARKDOWN_DRAFT_IMAGE + " should be published."),
 				() -> assertTrue(paths.has(PATH_SAVE_MARKDOWN), PATH_SAVE_MARKDOWN + " should be published."),
@@ -735,6 +745,65 @@ class OpenApiDocumentationTest {
 		assertAll(() -> assertTrue(schemas.has(SCHEMA_PDF_TEXT_RESPONSE)),
 				() -> assertTrue(textProperties.has("fileName")), () -> assertTrue(textProperties.has("fileSize")),
 				() -> assertTrue(textProperties.has("pageCount")), () -> assertTrue(textProperties.has("text")));
+	}
+
+	/**
+	 * ページ選択用サムネイルAPIのtoken、multipart request、JSON/HTTP status契約を確認する。
+	 *
+	 * @param openApi OpenAPI JSON
+	 */
+	private void assertThumbnailEndpoint(JsonNode openApi) {
+		JsonNode operation = openApi.path("paths").path(PATH_THUMBNAILS_PDF).path(HTTP_METHOD_POST);
+
+		assertAll(() -> assertFalse(operation.isMissingNode(), PATH_THUMBNAILS_PDF + " post operation should exist."),
+				() -> assertAccessTokenHeader(operation, PATH_THUMBNAILS_PDF),
+				() -> assertMultipartRequestBody(operation, PATH_THUMBNAILS_PDF),
+				() -> assertApiResultOkResponse(openApi, operation, PATH_THUMBNAILS_PDF,
+						SCHEMA_PDF_THUMBNAIL_RESPONSE),
+				() -> assertJsonErrorResponse(operation, PATH_THUMBNAILS_PDF, HTTP_STATUS_BAD_REQUEST),
+				() -> assertTrue(operation.path("responses").has(HTTP_STATUS_FORBIDDEN),
+						PATH_THUMBNAILS_PDF + " should define 403 response."),
+				() -> assertJsonErrorResponse(operation, PATH_THUMBNAILS_PDF, HTTP_STATUS_PAYLOAD_TOO_LARGE),
+				() -> assertJsonErrorResponse(operation, PATH_THUMBNAILS_PDF, HTTP_STATUS_INTERNAL_SERVER_ERROR));
+	}
+
+	/**
+	 * ページ選択用サムネイルAPIのrequest/response schemaに公開項目と型が定義されることを確認する。
+	 *
+	 * @param openApi OpenAPI JSON
+	 */
+	private void assertThumbnailSchemas(JsonNode openApi) {
+		JsonNode schemas = openApi.path("components").path("schemas");
+		JsonNode requestSchema = schemas.path(SCHEMA_PDF_THUMBNAIL_REQUEST);
+		JsonNode requestProperties = requestSchema.path("properties");
+		JsonNode originalFile = requestProperties.path("originalFile");
+		JsonNode responseProperties = schemas.path(SCHEMA_PDF_THUMBNAIL_RESPONSE).path("properties");
+		JsonNode pages = responseProperties.path("pages");
+		JsonNode pageProperties = schemas.path(SCHEMA_PDF_THUMBNAIL_PAGE_RESPONSE).path("properties");
+
+		assertAll(() -> assertTrue(schemas.has(SCHEMA_PDF_THUMBNAIL_REQUEST)),
+				() -> assertTrue(requestProperties.has("originalFile")),
+				() -> assertRequiredProperty(requestSchema, SCHEMA_PDF_THUMBNAIL_REQUEST, "originalFile"),
+				() -> assertEquals("string", originalFile.path("type").asString()),
+				() -> assertEquals("binary", originalFile.path("format").asString()),
+				// ページ単位のリクエストは受け付けないため、ページ指定の項目を持たない。
+				() -> assertFalse(requestProperties.has("pageNumber")),
+				() -> assertTrue(schemas.has(SCHEMA_PDF_THUMBNAIL_RESPONSE)),
+				() -> assertTrue(responseProperties.has("fileName")),
+				() -> assertTrue(responseProperties.has("pageCount")),
+				() -> assertTrue(responseProperties.has("pages")),
+				() -> assertEquals("array", pages.path("type").asString()),
+				() -> assertEquals("#/components/schemas/" + SCHEMA_PDF_THUMBNAIL_PAGE_RESPONSE,
+						pages.path("items").path("$ref").asString()),
+				() -> assertTrue(schemas.has(SCHEMA_PDF_THUMBNAIL_PAGE_RESPONSE)),
+				() -> assertTrue(pageProperties.has("pageNumber")),
+				() -> assertEquals("integer", pageProperties.path("pageNumber").path("type").asString()),
+				() -> assertTrue(pageProperties.has("dataUri")),
+				() -> assertEquals("string", pageProperties.path("dataUri").path("type").asString()),
+				() -> assertTrue(pageProperties.has("width")),
+				() -> assertEquals("integer", pageProperties.path("width").path("type").asString()),
+				() -> assertTrue(pageProperties.has("height")),
+				() -> assertEquals("integer", pageProperties.path("height").path("type").asString()));
 	}
 
 	/**

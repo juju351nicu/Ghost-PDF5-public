@@ -163,6 +163,55 @@ const parseSplitRangesText = (rangesText) => {
 };
 
 /**
+ * ページ番号リストを、既存の「ページ指定」入力欄と同じ表記へ変換する。
+ *
+ * 連続したページは範囲へ畳む（`[1,2,3,5]` -> `"1-3,5"`）。区切りに空白を入れないのは、
+ * 既存の `parseDeletePagesText` が空白付きの要素を数値として解釈できないため。
+ * サムネイル選択の結果をそのまま「抽出する」「削除する」へ渡せる形にそろえる。
+ *
+ * @param {number[]} pageNumbers 1始まりのページ番号リスト
+ * @returns {string} ページ指定入力欄へ入れる文字列。空リストの場合は空文字
+ */
+const buildPagesText = (pageNumbers) => {
+  if (Util.isEmpty(pageNumbers)) {
+    return "";
+  }
+  const sortedPageNumbers = Util.uniqArrayBySet(pageNumbers).sort(
+    (leftPage, rightPage) => leftPage - rightPage
+  );
+  const rangeTexts = [];
+  let startPage = sortedPageNumbers[0];
+  let previousPage = sortedPageNumbers[0];
+  for (const pageNumber of sortedPageNumbers.slice(1)) {
+    if (pageNumber === previousPage + 1) {
+      previousPage = pageNumber;
+      continue;
+    }
+    rangeTexts.push(buildRangeText(startPage, previousPage));
+    startPage = pageNumber;
+    previousPage = pageNumber;
+  }
+  rangeTexts.push(buildRangeText(startPage, previousPage));
+  return rangeTexts.join(CONST.DELIMITER.COMMA);
+};
+
+/**
+ * 開始ページと終了ページを1件分のページ指定表記へ変換する。
+ *
+ * 既存の `parseDeletePagesText` は開始と終了が同じ範囲（`3-3`）をエラーにするため、
+ * 1ページだけの場合は範囲にしない。
+ *
+ * @param {number} startPage 開始ページ番号
+ * @param {number} endPage 終了ページ番号
+ * @returns {string} ページ指定表記
+ */
+const buildRangeText = (startPage, endPage) => {
+  return startPage === endPage
+    ? String(startPage)
+    : startPage + CONST.DELIMITER.HYPHEN + endPage;
+};
+
+/**
  * 差し込みページ番号が1つの数値として扱えるか判定する。
  *
  * @param {string} pageText 差し込みページ番号入力
@@ -175,6 +224,7 @@ const isValidInsertPageText = (pageText) => {
 export default {
   isValidDeletePagesText,
   parseDeletePagesText,
+  buildPagesText,
   isValidSplitRangesText,
   parseSplitRangesText,
   isValidInsertPageText,

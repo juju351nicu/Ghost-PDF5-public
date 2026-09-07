@@ -140,12 +140,40 @@ const requestPdfMarkdownDraft = async (url, payload) => {
   };
 };
 
+/**
+ * ページ選択用サムネイルAPIへmultipart requestを送り、成功時はJSONレスポンスを返す。
+ *
+ * @param {string} url サムネイルAPIのURL
+ * @param {{key: string, value: unknown}[]} payload multipart formとして送信する値
+ * @returns {Promise<{thumbnailResponse: Object|null, messages: Object[], errorMessages: string[]}>} サムネイル取得結果
+ */
+const requestPdfThumbnails = async (url, payload) => {
+  const response = await FetchClient.multipartRequest(url, payload);
+  if (!response.ok) {
+    return {
+      thumbnailResponse: null,
+      messages: [],
+      errorMessages: await ApiErrorUtils.extractErrorMessages(
+        response,
+        PDF_ERROR_MESSAGE
+      ),
+    };
+  }
+  const apiResult = await ApiResultUtils.readApiResult(response);
+  return {
+    thumbnailResponse: apiResult.data,
+    messages: apiResult.messages,
+    errorMessages: [],
+  };
+};
+
 export default {
   requestPdfAndOpen,
   requestFileAndDownload,
   requestPdfMetadata,
   requestPdfText,
   requestPdfMarkdownDraft,
+  requestPdfThumbnails,
   buildUnexpectedErrorMessage(error) {
     return ApiErrorUtils.buildUnexpectedErrorMessage(
       error,

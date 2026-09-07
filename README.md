@@ -186,6 +186,16 @@ Public repository化後も、当面はlocal development / portfolio用途を前�
     - 3範囲（1-10 / 11-20 / 21-27）で分割: 1.56 MB（入力の2.7倍）。**1ページずつ分割の約9分の1**
     - 出力サイズは出力ファイル数にほぼ比例するため、範囲分割は分割時のサイズ膨張を緩和する。ただし範囲を細かく切れば1ページずつ分割へ近づくので、`byte[]` を経由しないストリーム化（前フェーズ）は引き続き前提
   - `FrontendSplitRangeContractTest` で「入力欄 → 形式validation → payload → API」の接続を固定
+- サムネイル一覧からのページ選択を追加（`POST /thumbnailsPdf`）
+  - 全ページを低DPIで画像化し、data URI（`data:image/png;base64,...`）で返す。画面はサムネイルをクリックしてページを選び、既存の「ページ指定」欄へ反映する（`1-3,5` のように連続ページは範囲へ畳む）。手入力の欄はそのまま残している
+  - **1リクエストで全ページ分**返す。サーバー側に文書セッションが無く、ページごとに呼ぶと27ページのPDFで20 MBのアップロードが27回発生するため
+  - 解像度とページ数上限を設定で持つ（`ghost.pdf.thumbnail.dpi` 既定40 / `ghost.pdf.thumbnail.max-pages` 既定100）。上限超過は1ページも描画せず400
+  - 1ページずつ画像化してdata URIへ変換し、画像の参照は都度捨てる（`mode=AUTO` と同じ考え方）。同時にメモリへ載るのは1ページ分
+  - **レスポンスサイズ実測**: 27ページ・テキスト中心のPDF（Letterサイズ、40dpiで340x440px）で **79 KB**（1ページあたりdata URI約2.8 KB）
+    - 図や写真が多いページはPNGが大きくなり、1ページ20〜40 KB（base64で約1.33倍）に達しうる。その場合でも既定の100ページ上限で概ね3〜5 MBに収まる見積もり
+    - 既定40dpiはページの見分けには十分で、これ以上下げると文字の並びが判別しづらくなるため据え置く
+  - サムネイルはキャッシュしない。キャッシュにはアップロードしたPDFをサーバー側で保持する設計変更が必要で、別に扱う
+  - `FrontendThumbnailContractTest` で「コンポーネント → payload → API client → app state」の接続と、自動取得しないこと・ページごとに取得しないことを固定
 - `deletePdf` / `insertPdf` のファイルサイズ検証をOpenAPIの413定義と整合させ、Controller単体テストで固定
 - `CodingConventionTest` にDOM直接操作とHTML直接挿入の再混入検知を追加
 - `CodingConventionTest` にfield injection の `@Autowired` 再混入検知を追加
@@ -380,10 +390,10 @@ Markdown保存を含むJava 25の全286テストが成功しています。
   - Markdown管理、履歴、設定、レビューなどで画面が2〜3画面以上に増えたら移行タイミング。
   - TypeScript は API client、入力フォーム、エラー表示を型で守りたくなった段階で導入を検討する。
   - Vuetify などのUIライブラリは、Vite + TypeScript の足場が安定した後に検討する。
-- `pdf.js` 導入は当分先にする。
-  - 編集元PDFはブラウザ標準ビューアをiframeで表示しており、ページ番号とサムネイルはその機能で確認できる。
-  - クリックでページ選択、範囲指定UI、テキストレイヤー、注釈表示が必要になった段階で検討する。
-  - サムネイル一覧からのページ選択は、`PDFRenderer` で低DPIのページ画像を返すendpointでも実装できるため、pdf.jsは必須ではない。
+- `pdf.js` 導入は当分先にする。**サムネイル一覧からのページ選択は実装済みで、pdf.jsは引き続き不要。**
+  - 編集元PDFはブラウザ標準ビューアをiframeで表示しており、ページ番号とサムネイルはその機能でも確認できる。
+  - サムネイル一覧からのページ選択は `POST /thumbnailsPdf`（`PDFRenderer` で低DPIのページ画像をdata URIで返す）で実装した。pdf.jsは必須ではないという判断のとおりに作れている。
+  - テキストレイヤー、注釈表示、ページの並べ替えが必要になった段階で、あらためて検討する。
 - APIが増えた場合、`typingGame/src/utils/fetchClient.ts` / `apiErrorUtils.ts` を参考に、
   `HttpError` の導入を検討する。
   - 現状のGhost-PDF5はPDF API中心のため、`api/fetch-client.js` / `api/pdf-api-client.js` / `api/api-error-utils.js` の分離で十分。

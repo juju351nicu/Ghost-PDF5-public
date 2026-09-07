@@ -78,6 +78,19 @@ const createOriginalFileState = () => ({
 });
 
 /**
+ * ページ選択用サムネイルの初期画面状態を生成する。
+ *
+ * pagesはBEから受け取ったサムネイル、selectedPageNumbersは利用者が選択した1始まりページ番号。
+ *
+ * @returns {{pages: Object[], selectedPageNumbers: number[], message: string}} サムネイルの画面状態
+ */
+const createThumbnailState = () => ({
+  pages: [],
+  selectedPageNumbers: [],
+  message: "",
+});
+
+/**
  * 差し込みPDF行の初期画面状態を生成する。
  *
  * @param {number} fileNo 差し込みPDF行番号
@@ -189,6 +202,7 @@ const createImageDraftState = () => ({
 export default {
   createImageDraftState,
   createOriginalFileState,
+  createThumbnailState,
   createPdfMetadataState,
   createLoadedPdfMetadataState,
   createInsertFileState,

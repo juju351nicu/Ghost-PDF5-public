@@ -41,6 +41,7 @@ const pdfApp = {
     return {
       originalFile: PdfFormState.createOriginalFileState(),
       pdfMetadata: PdfFormState.createPdfMetadataState(),
+      pdfThumbnails: PdfFormState.createThumbnailState(),
       insertFiles: PdfFormState.createInitialInsertFiles(),
       newNo: 3,
       insertPagePulldown: PdfFormState.createInsertOptionItems(),
@@ -157,6 +158,44 @@ const pdfApp = {
       return result.pages;
     },
     /**
+     * サムネイルの選択状態と、ページ指定入力欄への反映を初期化する。
+     */
+    clearThumbnailSelection() {
+      this.pdfThumbnails.selectedPageNumbers = [];
+      this.applySelectedPagesToPageInput();
+    },
+    /**
+     * サムネイル1ページ分の選択・解除を切り替える。
+     *
+     * @param {number} pageNumber 1始まりのページ番号
+     */
+    toggleThumbnailPage(pageNumber) {
+      const selectedPageNumbers = this.pdfThumbnails.selectedPageNumbers;
+      this.pdfThumbnails.selectedPageNumbers = selectedPageNumbers.includes(
+        pageNumber
+      )
+        ? selectedPageNumbers.filter(
+            (selectedPage) => selectedPage !== pageNumber
+          )
+        : selectedPageNumbers.concat(pageNumber);
+      this.applySelectedPagesToPageInput();
+    },
+    /**
+     * 選択したページを既存の「ページ指定」入力欄へ反映する。
+     *
+     * 入力欄は残したまま値だけを書き換える。手入力の操作を壊さず、選択結果をそのまま
+     * 「抽出する」「削除する」へ渡せるようにするため。
+     * 抽出・削除はページ指定チェックがONのときだけ動くため、選択があるかどうかにチェックを合わせる。
+     */
+    applySelectedPagesToPageInput() {
+      const pagesText = PageNumberValidator.buildPagesText(
+        this.pdfThumbnails.selectedPageNumbers
+      );
+      this.originalFile.delPagesText.text = pagesText;
+      this.originalFile.delPagesText.message = "";
+      this.originalFile.delPagesChecked.checked = !Util.isEmpty(pagesText);
+    },
+    /**
      * 分割範囲入力を解析し、エラーメッセージを画面状態へ反映する。
      *
      * @param {string} rangesText 分割範囲入力
@@ -187,6 +226,7 @@ const pdfApp = {
       this.clearOriginalPdfPreview();
       this.originalFile = PdfFormState.createOriginalFileState();
       this.pdfMetadata = PdfFormState.createPdfMetadataState();
+      this.pdfThumbnails = PdfFormState.createThumbnailState();
       // 既存仕様に合わせ、全クリア後は削除ページ入力欄をdisabled扱いに戻す。
       this.originalFile.delPagesText.disabled = "disabled";
       for (let index = 0; index < this.insertFiles.length; index++) {
@@ -1003,6 +1043,55 @@ const pdfApp = {
           this.markdownMessage =
             textResponse.fileName +
             " の抽出テキストをMarkdown欄へ反映しました。";
+        })
+        .catch((error) => {
+          this.errorMessages = [
+            PdfApiClient.buildUnexpectedErrorMessage(error),
+          ];
+          this.showMessageModal();
+        })
+        .finally(() => {
+          this.isProcessing = false;
+        });
+    },
+    /**
+     * ページ選択用サムネイルAPIを実行し、成功時はサムネイル一覧へ反映する。
+     *
+     * サムネイル取得はPDF全体のアップロードを伴うため、利用者がボタンを押したときだけ実行する。
+     * 1リクエストで全ページ分を受け取り、ページごとには呼ばない。
+     *
+     * @returns {Promise<void>} サムネイル取得処理の完了Promise
+     */
+    requestPdfThumbnails() {
+      const originalFileData = this.originalFile;
+      if (Util.isEmpty(originalFileData.fileObject)) {
+        this.pdfThumbnails.message = "ファイル選択されておりません。";
+        return Promise.resolve();
+      }
+      if (this.isProcessing) {
+        return Promise.resolve();
+      }
+      this.isProcessing = true;
+      this.errorMessages = [];
+      this.clearApiMessages();
+      this.pdfThumbnails.message = "";
+      return PdfApiClient.requestPdfThumbnails(
+        CONST.REST_PATH.THUMBNAILS_PDF,
+        PdfPayload.buildThumbnailPayload(originalFileData.fileObject)
+      )
+        .then((result) => {
+          if (!Util.isEmpty(result.errorMessages)) {
+            this.errorMessages = result.errorMessages;
+            this.showMessageModal();
+            return;
+          }
+          this.applyApiMessages(result.messages);
+          const thumbnailResponse = result.thumbnailResponse;
+          this.pdfThumbnails.pages = thumbnailResponse.pages || [];
+          this.pdfThumbnails.selectedPageNumbers = [];
+          this.pdfThumbnails.message =
+            thumbnailResponse.pageCount +
+            "ページのサムネイルを表示しています。ページを選ぶとページ指定へ反映します。";
         })
         .catch((error) => {
           this.errorMessages = [
