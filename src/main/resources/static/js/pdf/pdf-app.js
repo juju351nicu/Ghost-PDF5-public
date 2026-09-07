@@ -13,6 +13,7 @@ import PdfPayload from "../api/pdf-payload.js";
 import ImagePayload from "../api/image-payload.js";
 import PdfFormState from "../models/pdf-form-state.js";
 import PageNumberValidator from "../validation/page-number-validator.js";
+import FileSizeValidator from "../validation/file-size-validator.js";
 
 const draggable = window["vuedraggable"];
 
@@ -183,6 +184,15 @@ const pdfApp = {
       const index = this.findInsertFileIndex(fileNo);
       const fileObject = event.target.files[0];
       if (Util.isEmpty(fileObject)) {
+        return;
+      }
+      if (!FileSizeValidator.isWithinPdfSizeLimit(fileObject)) {
+        // 上限超過はサーバーへ送らずここで止める。送るとTomcatが上限検知時に接続を切るため、
+        // ブラウザには413ではなく理由の分からないネットワークエラーだけが残る。
+        this.errorMessages = [
+          FileSizeValidator.buildPdfSizeLimitMessage(fileObject),
+        ];
+        this.showMessageModal();
         return;
       }
       if (index !== -1) {

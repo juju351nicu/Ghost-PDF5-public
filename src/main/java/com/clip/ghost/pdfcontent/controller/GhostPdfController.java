@@ -21,6 +21,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.clip.ghost.common.exceptions.ErrorResponse;
+import com.clip.ghost.pdfcontent.constant.PdfConstants;
 import com.clip.ghost.common.security.AccessTokenValidator;
 import com.clip.ghost.pdfcontent.dto.ExtractPdfRequest;
 import com.clip.ghost.pdfcontent.dto.InsertPdfRequest;
@@ -68,7 +69,6 @@ public class GhostPdfController {
 	private static final String MEDIA_TYPE_APPLICATION_ZIP_VALUE = "application/zip";
 	private static final int TOKEN_BYTE_LENGTH = 32;
 	private static final int COOKIE_MAX_AGE_SECONDS = 365 * 24 * 60 * 60;
-	private static final long MAX_PDF_FILE_SIZE_BYTES = 20_559_957L;
 
 	private final GhostPdfService pdfService;
 	private final AccessTokenValidator accessTokenValidator;
@@ -381,7 +381,7 @@ public class GhostPdfController {
 	 * @throws MultipartException 許容サイズ以上の場合
 	 */
 	private void validateOriginalPdfFileSize(MultipartFile originalFile) {
-		if (originalFile.getSize() >= MAX_PDF_FILE_SIZE_BYTES) {
+		if (originalFile.getSize() >= PdfConstants.MAX_PDF_FILE_SIZE_BYTES) {
 			throw new MultipartException("サイズの超過");
 		}
 	}

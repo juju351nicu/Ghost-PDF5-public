@@ -1,11 +1,19 @@
 server:
   port: 8081
+  tomcat:
+    # 上限超過時に残りのリクエストボディを読み捨ててから413を返すための余裕。
+    # 既定2MBでは接続が切られ、ブラウザ側は理由の分からないネットワークエラーになる。
+    max-swallow-size: 30MB
 spring:
   servlet:
     multipart:
       location: /tmp
-      max-file-size: 10MB
-      max-request-size: 10MB
+      # アプリ側の上限(PdfConstants.MAX_PDF_FILE_SIZE_BYTES = 20MB)より大きくする。
+      # アプリ側の検証が先に動き、413をJSONで返せるようにするため。
+      max-file-size: 25MB
+      # 編集元1件 + 差し込み最大10件が1ファイル20MBでも通る値。
+      # リクエスト全体の上限には実質到達させず、上限判定を1ファイル20MBへ一本化する。
+      max-request-size: 240MB
 springdoc:
   api-docs:
     enabled: false

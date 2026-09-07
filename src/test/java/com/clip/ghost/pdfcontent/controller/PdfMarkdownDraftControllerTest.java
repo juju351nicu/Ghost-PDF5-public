@@ -26,6 +26,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import com.clip.ghost.common.exceptions.handler.ControllerValidationErrorHandler;
 import com.clip.ghost.common.exceptions.handler.GlobalExceptionErrorHandler;
 import com.clip.ghost.common.security.AccessTokenValidator;
+import com.clip.ghost.pdfcontent.constant.PdfConstants;
 import com.clip.ghost.pdfcontent.dto.PdfMarkdownDraftRequest;
 import com.clip.ghost.pdfcontent.dto.PdfMarkdownDraftResponse;
 import com.clip.ghost.pdfcontent.service.PdfMarkdownDraftService;
@@ -40,7 +41,6 @@ class PdfMarkdownDraftControllerTest {
 	private static final String ACCESS_TOKEN = "test-token";
 	private static final String INVALID_ACCESS_TOKEN = "invalid-token";
 	private static final String ORIGINAL_FILE_PART_NAME = "originalFile";
-	private static final long MAX_PDF_FILE_SIZE_BYTES = 20_559_957L;
 
 	@Mock
 	private PdfMarkdownDraftService markdownDraftService;
@@ -150,7 +150,7 @@ class PdfMarkdownDraftControllerTest {
 				new byte[] { 1 }) {
 			@Override
 			public long getSize() {
-				return MAX_PDF_FILE_SIZE_BYTES;
+				return PdfConstants.MAX_PDF_FILE_SIZE_BYTES;
 			}
 		};
 	}

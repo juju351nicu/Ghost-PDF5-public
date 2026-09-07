@@ -14,6 +14,7 @@ import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.clip.ghost.common.exceptions.ErrorResponse;
+import com.clip.ghost.pdfcontent.constant.PdfConstants;
 import com.clip.ghost.common.security.AccessTokenValidator;
 import com.clip.ghost.pdfcontent.dto.PdfMarkdownDraftRequest;
 import com.clip.ghost.pdfcontent.dto.PdfMarkdownDraftResponse;
@@ -44,7 +45,6 @@ public class PdfMarkdownDraftController {
 	private static final Logger LOGGER = LoggerFactory.getLogger(PdfMarkdownDraftController.class);
 	private static final String ACCESS_TOKEN_HEADER_NAME = "access-token";
 	private static final String ACCESS_TOKEN_HEADER_DESCRIPTION = "トップ画面表示時に発行された一時トークン。Cookieのtoken値と同じ値を送信します。";
-	private static final long MAX_PDF_FILE_SIZE_BYTES = 20_559_957L;
 
 	private final PdfMarkdownDraftService markdownDraftService;
 	private final AccessTokenValidator accessTokenValidator;
@@ -83,7 +83,7 @@ public class PdfMarkdownDraftController {
 	 * @throws MultipartException 許容サイズ以上の場合
 	 */
 	private void validateOriginalPdfFileSize(MultipartFile originalFile) {
-		if (originalFile.getSize() >= MAX_PDF_FILE_SIZE_BYTES) {
+		if (originalFile.getSize() >= PdfConstants.MAX_PDF_FILE_SIZE_BYTES) {
 			throw new MultipartException("サイズの超過");
 		}
 	}
