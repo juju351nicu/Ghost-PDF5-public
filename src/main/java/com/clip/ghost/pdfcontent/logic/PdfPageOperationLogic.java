@@ -16,9 +16,11 @@ import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 
+import com.clip.ghost.common.utils.PageRange;
 import com.clip.ghost.common.utils.PageUtils;
 import com.clip.ghost.pdfcontent.constant.PdfConstants;
 import com.clip.ghost.pdfcontent.exception.PdfProcessingException;
+import com.clip.ghost.pdfcontent.exception.PdfSplitRangeException;
 
 import lombok.NoArgsConstructor;
 
@@ -89,22 +91,83 @@ final class PdfPageOperationLogic {
 	}
 
 	/**
-	 * PDFを1ページずつ分割し、単ページPDFをZIPへ格納する。
+	 * PDFを分割し、分割後PDFをZIPへ格納する。
+	 * <p>
+	 * {@code splitRanges} が空なら従来どおり1ページずつ、指定があれば範囲ごとに1ファイルへ分割する。
+	 * 総ページ数との突き合わせはZIPを書き始める前に行う。書き始めた後に弾くと、中身の無いZIPが一時ファイルとして残る。
 	 *
-	 * @param inputPath  読み込むPDFのパス
-	 * @param outputPath 分割後ZIPの出力先パス
+	 * @param inputPath   読み込むPDFのパス
+	 * @param outputPath  分割後ZIPの出力先パス
+	 * @param splitRanges 範囲ごとに分割する場合の {@code 1-5} 形式のページ範囲。未指定時は1ページずつ分割する
+	 * @throws PdfSplitRangeException 分割範囲がPDFの総ページ数を超えている場合
 	 * @throws PdfProcessingException PDFの読み込み、分割、ZIP保存に失敗した場合
 	 */
-	void splitPdf(Path inputPath, Path outputPath) {
-		try (PDDocument inputDocument = Loader.loadPDF(inputPath.toFile());
-				OutputStream outputStream = Files.newOutputStream(outputPath);
-				ZipOutputStream zipOutputStream = new ZipOutputStream(outputStream)) {
+	void splitPdf(Path inputPath, Path outputPath, List<String> splitRanges) {
+		List<PageRange> pageRanges = PageUtils.parsePageRanges(splitRanges);
+		try (PDDocument inputDocument = Loader.loadPDF(inputPath.toFile())) {
 			int totalPages = inputDocument.getNumberOfPages();
-			for (int pageNumber = PdfConstants.START_PAGE; pageNumber <= totalPages; pageNumber++) {
-				addSplitPageToZip(zipOutputStream, inputDocument.getPage(toPdfBoxPageIndex(pageNumber)), pageNumber);
+			validatePageRangesWithinDocument(pageRanges, totalPages);
+			try (OutputStream outputStream = Files.newOutputStream(outputPath);
+					ZipOutputStream zipOutputStream = new ZipOutputStream(outputStream)) {
+				if (pageRanges.isEmpty()) {
+					addSplitPagesToZip(zipOutputStream, inputDocument, totalPages);
+					return;
+				}
+				addSplitRangesToZip(zipOutputStream, inputDocument, pageRanges);
 			}
 		} catch (IllegalArgumentException | IllegalStateException | IOException e) {
 			throw new PdfProcessingException("PDFの分割に失敗しました。path=" + inputPath, e);
+		}
+	}
+
+	/**
+	 * 分割範囲がPDFの総ページ数の中に収まっているか検証する。
+	 * <p>
+	 * 総ページ数はPDFを開くまで分からないため、この検証はannotation validationでは行えない。
+	 *
+	 * @param pageRanges 分割範囲
+	 * @param totalPages PDFの総ページ数
+	 * @throws PdfSplitRangeException いずれかの範囲がPDFの範囲外の場合
+	 */
+	private void validatePageRangesWithinDocument(List<PageRange> pageRanges, int totalPages) {
+		for (PageRange pageRange : pageRanges) {
+			if (pageRange.endPage() > totalPages) {
+				throw new PdfSplitRangeException(pageRange.toRangeText(), totalPages);
+			}
+		}
+	}
+
+	/**
+	 * PDFを1ページずつ分割してZIPへ追加する。
+	 *
+	 * @param zipOutputStream 追加先ZIP
+	 * @param inputDocument   分割元PDFドキュメント
+	 * @param totalPages      PDFの総ページ数
+	 * @throws IOException PDF生成またはZIP書き込みに失敗した場合
+	 */
+	private void addSplitPagesToZip(ZipOutputStream zipOutputStream, PDDocument inputDocument, int totalPages)
+			throws IOException {
+		for (int pageNumber = PdfConstants.START_PAGE; pageNumber <= totalPages; pageNumber++) {
+			addSplitPageToZip(zipOutputStream, inputDocument.getPage(toPdfBoxPageIndex(pageNumber)), pageNumber);
+		}
+	}
+
+	/**
+	 * 範囲ごとに1つのPDFを作り、ZIPへ追加する。
+	 * <p>
+	 * 出力用ドキュメントは範囲ごとに作って閉じるため、同時にメモリへ載るのは1範囲分に収まる。
+	 *
+	 * @param zipOutputStream 追加先ZIP
+	 * @param inputDocument   分割元PDFドキュメント
+	 * @param pageRanges      分割範囲（利用者の指定順）
+	 * @throws IOException PDF生成またはZIP書き込みに失敗した場合
+	 */
+	private void addSplitRangesToZip(ZipOutputStream zipOutputStream, PDDocument inputDocument,
+			List<PageRange> pageRanges) throws IOException {
+		for (PageRange pageRange : pageRanges) {
+			zipOutputStream.putNextEntry(new ZipEntry(buildSplitRangePdfFileName(pageRange)));
+			zipOutputStream.write(createRangePdf(inputDocument, pageRange));
+			zipOutputStream.closeEntry();
 		}
 	}
 
@@ -140,6 +203,26 @@ final class PdfPageOperationLogic {
 	}
 
 	/**
+	 * 指定範囲のページをまとめた1つのPDFのbyte配列を生成する。
+	 *
+	 * @param inputDocument 分割元PDFドキュメント
+	 * @param pageRange     分割範囲
+	 * @return 範囲PDFのbyte配列
+	 * @throws IOException ページ複製またはPDF保存に失敗した場合
+	 */
+	private byte[] createRangePdf(PDDocument inputDocument, PageRange pageRange) throws IOException {
+		try (PDDocument splitDocument = new PDDocument();
+				ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+			PdfPageCopySupport pageCopySupport = new PdfPageCopySupport(splitDocument);
+			for (Integer pageNumber : pageRange.toPageNumbers()) {
+				pageCopySupport.appendPage(inputDocument.getPage(toPdfBoxPageIndex(pageNumber)));
+			}
+			splitDocument.save(outputStream);
+			return outputStream.toByteArray();
+		}
+	}
+
+	/**
 	 * 分割後PDFのZIP内ファイル名を作成する。
 	 *
 	 * @param pageNumber 画面・API仕様の1始まりページ番号
@@ -147,6 +230,19 @@ final class PdfPageOperationLogic {
 	 */
 	private String buildSplitPdfFileName(int pageNumber) {
 		return String.format("split-%03d.pdf", pageNumber);
+	}
+
+	/**
+	 * 範囲分割後PDFのZIP内ファイル名を作成する。
+	 * <p>
+	 * 1ページずつの分割で使う {@code split-001.pdf} とは別の命名にする。どの範囲のファイルかを名前だけで判別できるようにし、
+	 * 既存の命名も変えないため。
+	 *
+	 * @param pageRange 分割範囲
+	 * @return 範囲を含むZIP内ファイル名
+	 */
+	private String buildSplitRangePdfFileName(PageRange pageRange) {
+		return "pages_" + pageRange.toRangeText() + ".pdf";
 	}
 
 	/**

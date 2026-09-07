@@ -157,6 +157,17 @@ const pdfApp = {
       return result.pages;
     },
     /**
+     * 分割範囲入力を解析し、エラーメッセージを画面状態へ反映する。
+     *
+     * @param {string} rangesText 分割範囲入力
+     * @returns {string[]} 分割範囲リスト。空配列は1ページずつ分割を表す
+     */
+    parseSplitRanges(rangesText) {
+      const result = PageNumberValidator.parseSplitRangesText(rangesText);
+      this.originalFile.splitRangesText.message = result.message;
+      return result.ranges;
+    },
+    /**
      * 差し込みPDF行番号から配列indexを取得する。
      *
      * @param {number} fileNo 差し込みPDF行番号
@@ -461,7 +472,10 @@ const pdfApp = {
         });
     },
     /**
-     * 編集元PDFを1ページずつ分割し、生成されたZIPをダウンロードする。
+     * 編集元PDFを分割し、生成されたZIPをダウンロードする。
+     *
+     * 分割範囲が入力されていれば範囲ごとに、空欄なら従来どおり1ページずつ分割する。
+     * 範囲の形式が不正な場合は、保存先の選択もAPI呼び出しも行わない。
      *
      * 対応ブラウザ（Chrome / Edge）では先に保存先を選ばせる。File System Access APIは
      * 利用者操作の直後しか使えないため、API呼び出しの前に呼ぶ必要がある。
@@ -476,6 +490,12 @@ const pdfApp = {
           "ファイル選択されておりません。";
         return;
       }
+      const splitRanges = this.parseSplitRanges(
+        originalFileData.splitRangesText.text
+      );
+      if (!Util.isEmpty(this.originalFile.splitRangesText.message)) {
+        return;
+      }
       // 保存ダイアログ表示中はブラウザ側がモーダルで操作を止めるため、isProcessingは立てない。
       // ここで立てるとキャンセル時に解除漏れの経路が増える。
       const saveTarget = await this.requestSaveTarget(
@@ -485,7 +505,10 @@ const pdfApp = {
       if (saveTarget.cancelled) {
         return;
       }
-      const payload = PdfPayload.buildSplitPayload(originalFileData.fileObject);
+      const payload = PdfPayload.buildSplitPayload(
+        originalFileData.fileObject,
+        splitRanges
+      );
       await this.requestFileAndDownload(
         CONST.REST_PATH.SPLIT_PDF,
         payload,

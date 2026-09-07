@@ -176,6 +176,16 @@ Public repository化後も、当面はlocal development / portfolio用途を前�
   - 画面表示はモーダルではなくインライン（`components/api-message-list.js`）。Markdownメモパネルの編集欄の上に出し、次の操作で消える
   - 表示側はメッセージを解釈せず並べるだけにし、`WARNING` を返すAPIが増えても画面を触らずに済ませる
   - `FrontendApiMessageContractTest` で「api clientの `messages` → app state → 表示component」の接続を固定
+- `POST /splitPdf` に指定範囲ごとの分割を追加（`splitRanges`、例 `["1-10","11-20","21-27"]`）
+  - 範囲未指定は従来どおり1ページずつ分割。ZIP内の命名も従来の `split-001.pdf` のまま。範囲分割は `pages_1-10.pdf` と別系統にした
+  - 入力形式は `List<String>`。`List<Integer>`（`extractPages` と同じ形式）では「1-5を1ファイル」と「1ページずつ5ファイル」を区別できない
+  - 形式・大小関係・重なり・件数（既定50件）はannotation（`@CheckPageRangeList`）、総ページ数との突き合わせはPDFを開く層で検証。どちらも400で、PDFを加工する前に止まる
+  - 範囲の重複は禁止。同じページが複数ファイルへ入ると、どちらを使うべきか利用者が判断できない
+  - **出力サイズ実測**（27ページ・埋め込みフォント付き583 KBのPDF、同一ファイルで比較）
+    - 1ページずつ分割: 14.0 MB（入力の24.6倍。埋め込みフォントがページごとに複製される）
+    - 3範囲（1-10 / 11-20 / 21-27）で分割: 1.56 MB（入力の2.7倍）。**1ページずつ分割の約9分の1**
+    - 出力サイズは出力ファイル数にほぼ比例するため、範囲分割は分割時のサイズ膨張を緩和する。ただし範囲を細かく切れば1ページずつ分割へ近づくので、`byte[]` を経由しないストリーム化（前フェーズ）は引き続き前提
+  - `FrontendSplitRangeContractTest` で「入力欄 → 形式validation → payload → API」の接続を固定
 - `deletePdf` / `insertPdf` のファイルサイズ検証をOpenAPIの413定義と整合させ、Controller単体テストで固定
 - `CodingConventionTest` にDOM直接操作とHTML直接挿入の再混入検知を追加
 - `CodingConventionTest` にfield injection の `@Autowired` 再混入検知を追加
@@ -383,7 +393,7 @@ Markdown保存を含むJava 25の全286テストが成功しています。
   - PDF/ZIP/CSVなどのバイナリレスポンスは引き続き共通JSONで包まない。
   - `JsonUtils` はJSON文字列変換・parse用の補助であり、APIレスポンス共通化とは責務を分ける。
 - PDF基本API拡張は、資料のPhase 1に沿って `metadataPdf`、ページ抽出、PDF結合、1ページずつのPDF分割を追加済み。
-  - 指定範囲ごとの分割は、画面入力とAPI仕様を整理してから検討する。
+  - 指定範囲ごとの分割も追加済み（`splitRanges`）。入力形式の選定理由と検証の層分けは [コーディング規約](docs/coding-guidelines.md) の「PDF分割範囲の入力形式」を参照。
   - 既存の `/showPdf`、`/deletePdf`、`/insertPdf` は壊さず、新機能を横に追加する。
 - Storage操作やブラウザ判定をさらに増やす場合、`typingGame/src/utils/gameUtils.ts` /
   `authTokenStorage.ts` を参考に、専用モジュールへ責務分離する。

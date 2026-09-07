@@ -52,10 +52,16 @@ export default {
           <button type="button" :disabled="isProcessing" @click="requestMetadataPdf">PDF情報を確認</button>
           <button type="button" :disabled="isProcessing" @click="requestTextPdf">テキスト抽出</button>
           <button type="button" :disabled="isProcessing" @click="requestMarkdownDraftPdf">Markdown下書き</button>
+          <input type="text" class="page-input" ref="splitRangesText"
+            v-model="originalFile.splitRangesText.text"
+            @blur="validateSplitRangesOnBlur"
+            :class="{ 'textbox--error': originalFile.splitRangesText.message }"
+            placeholder="分割範囲  (入力例：1-5, 6-12 / 空欄で1ページずつ)" />
           <button type="button" :disabled="isProcessing" @click="requestSplitPdf">分割する</button>
           <button type="button" @click="clearAll">全クリア</button>
           <br />
           <span class="error_message">{{ originalFile.delPagesText.message }}</span>
+          <span class="error_message">{{ originalFile.splitRangesText.message }}</span>
         </div>
         <dl class="pdf-metadata" v-if="pdfMetadata.loaded">
           <div class="pdf-metadata__row">
@@ -107,6 +113,25 @@ export default {
       this.$nextTick(() => {
         if (this.$refs.deletePagesText) {
           this.$refs.deletePagesText.focus();
+        }
+      });
+    },
+    /**
+     * 分割範囲入力欄からフォーカスが外れた時に入力値を検証する。
+     *
+     * 空欄は「1ページずつ分割」を表す正常な入力のため、エラーにしない。
+     */
+    validateSplitRangesOnBlur() {
+      const rangesText = this.originalFile.splitRangesText.text;
+      if (PageNumberValidator.isValidSplitRangesText(rangesText)) {
+        this.originalFile.splitRangesText.message = "";
+        return;
+      }
+      this.originalFile.splitRangesText.message =
+        "分割範囲の指定が正しくありません。";
+      this.$nextTick(() => {
+        if (this.$refs.splitRangesText) {
+          this.$refs.splitRangesText.focus();
         }
       });
     },

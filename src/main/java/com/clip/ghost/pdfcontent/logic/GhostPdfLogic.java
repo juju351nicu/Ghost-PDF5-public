@@ -192,15 +192,18 @@ public class GhostPdfLogic {
 	}
 
 	/**
-	 * 一時保存されたPDFを1ページずつ分割し、分割後PDFを格納したZIPの一時保存先パスを返却する。
+	 * 一時保存されたPDFを分割し、分割後PDFを格納したZIPの一時保存先パスを返却する。
+	 * <p>
+	 * {@code splitRanges} が未指定なら従来どおり1ページずつ分割する。成功・失敗にかかわらず入力一時ファイルを削除する。
 	 *
-	 * @param inputPath 読み込むPDFのパス
+	 * @param inputPath   読み込むPDFのパス
+	 * @param splitRanges 範囲ごとに分割する場合の {@code 1-5} 形式のページ範囲。未指定時は1ページずつ分割する
 	 * @return 分割後PDFを格納したZIPの一時保存先パス
 	 */
-	public Path splitPdf(Path inputPath) {
+	public Path splitPdf(Path inputPath, List<String> splitRanges) {
 		Path outputPath = temporaryFileStorage().createTemporaryFilePath("split.zip");
 		try {
-			pageOperationLogic.splitPdf(inputPath, outputPath);
+			pageOperationLogic.splitPdf(inputPath, outputPath, splitRanges);
 		} finally {
 			temporaryFileStorage().delete(inputPath);
 		}

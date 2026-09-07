@@ -73,6 +73,7 @@ const createOriginalFileState = () => ({
   previewUrl: "",
   delPagesChecked: { checked: false, disabled: "disabled", message: "" },
   delPagesText: { text: "", disabled: false, message: "" },
+  splitRangesText: { text: "", message: "" },
   fileFlag: false,
 });
 

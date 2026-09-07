@@ -249,11 +249,23 @@ class GhostPdfLogicTest {
 	void splitPdfCreatesZipWithSinglePagePdfsAndDeletesInput() throws IOException {
 		Path inputPath = createPdf("split-input.pdf", page(100, 200, 0), page(200, 300, 90), page(300, 400, 180));
 
-		Path outputPath = pdfLogic.splitPdf(inputPath);
+		Path outputPath = pdfLogic.splitPdf(inputPath, List.of());
 
 		assertFalse(inputPath.toFile().exists());
 		assertTrue(outputPath.toFile().exists());
 		assertSplitZip(outputPath, List.of("split-001.pdf", "split-002.pdf", "split-003.pdf"));
+	}
+
+	@Test
+	void splitPdfCreatesZipWithRangePdfsAndDeletesInput() throws IOException {
+		Path inputPath = createPdf("split-range-input.pdf", page(100, 200, 0), page(200, 300, 90),
+				page(300, 400, 180));
+
+		Path outputPath = pdfLogic.splitPdf(inputPath, List.of("1-2", "3"));
+
+		assertFalse(inputPath.toFile().exists());
+		assertTrue(outputPath.toFile().exists());
+		assertSplitZip(outputPath, List.of("pages_1-2.pdf", "pages_3.pdf"), List.of(2, 1));
 	}
 
 	@Test
@@ -504,19 +516,26 @@ class GhostPdfLogicTest {
 	}
 
 	private void assertSplitZip(Path zipPath, List<String> expectedEntryNames) throws IOException {
+		assertSplitZip(zipPath, expectedEntryNames, Collections.nCopies(expectedEntryNames.size(), 1));
+	}
+
+	private void assertSplitZip(Path zipPath, List<String> expectedEntryNames, List<Integer> expectedPageCounts)
+			throws IOException {
 		List<String> actualEntryNames = new ArrayList<>();
+		List<Integer> actualPageCounts = new ArrayList<>();
 		try (ZipInputStream zipInputStream = new ZipInputStream(Files.newInputStream(zipPath))) {
 			ZipEntry zipEntry = zipInputStream.getNextEntry();
 			while (zipEntry != null) {
 				actualEntryNames.add(zipEntry.getName());
 				try (PDDocument document = Loader.loadPDF(readCurrentZipEntry(zipInputStream))) {
-					assertEquals(1, document.getNumberOfPages());
+					actualPageCounts.add(document.getNumberOfPages());
 				}
 				zipInputStream.closeEntry();
 				zipEntry = zipInputStream.getNextEntry();
 			}
 		}
 		assertEquals(expectedEntryNames, actualEntryNames);
+		assertEquals(expectedPageCounts, actualPageCounts);
 	}
 
 	private byte[] readCurrentZipEntry(ZipInputStream zipInputStream) throws IOException {

@@ -76,11 +76,19 @@ const buildMergePayload = (mergeFiles) => {
 /**
  * PDF分割API用のmultipart payloadを生成する。
  *
+ * 分割範囲が空の場合はkeyを送らない。BE側は未指定を「1ページずつ分割」として扱うため、
+ * 空値を送ると「範囲指定あり」との区別が曖昧になる。
+ *
  * @param {File} fileObject 分割対象PDF
+ * @param {string[]} [splitRanges] `"1-5"` 形式の分割範囲リスト
  * @returns {{key: string, value: unknown}[]} multipart payload
  */
-const buildSplitPayload = (fileObject) => {
-  return [{ key: "originalFile", value: fileObject }];
+const buildSplitPayload = (fileObject, splitRanges) => {
+  const payload = [{ key: "originalFile", value: fileObject }];
+  if (Array.isArray(splitRanges) && splitRanges.length > 0) {
+    payload.push({ key: "splitRanges", value: splitRanges });
+  }
+  return payload;
 };
 
 /**

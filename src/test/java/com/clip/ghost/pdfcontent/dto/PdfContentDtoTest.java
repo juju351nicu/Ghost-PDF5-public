@@ -12,6 +12,8 @@ import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import org.springframework.mock.web.MockMultipartFile;
+
 import com.clip.ghost.pdfcontent.constant.PdfConstants;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -90,6 +92,41 @@ class PdfContentDtoTest {
 
 		assertEquals(1, violations.size());
 		assertTrue(hasViolation(violations, "originalFile", "ファイルを入れてください。"));
+	}
+
+	@Test
+	@DisplayName("PDF分割リクエストは分割範囲未指定を1ページずつ分割として許可する")
+	void splitPdfRequestAllowsMissingSplitRanges() {
+		SplitPdfRequest request = new SplitPdfRequest();
+		request.setOriginalFile(new MockMultipartFile("originalFile", new byte[] { 1 }));
+
+		assertTrue(validate(request).isEmpty());
+	}
+
+	@Test
+	@DisplayName("PDF分割リクエストは分割範囲の形式不正をvalidationエラーにする")
+	void splitPdfRequestValidatesSplitRangeFormat() {
+		SplitPdfRequest request = new SplitPdfRequest();
+		request.setOriginalFile(new MockMultipartFile("originalFile", new byte[] { 1 }));
+		request.setSplitRanges(List.of("1-", "abc"));
+
+		Set<ConstraintViolation<SplitPdfRequest>> violations = validate(request);
+
+		assertEquals(1, violations.size());
+		assertTrue(hasViolation(violations, "splitRanges", "分割範囲は「1-5」「7」の形式で入力してください。"));
+	}
+
+	@Test
+	@DisplayName("PDF分割リクエストは分割範囲の重複をvalidationエラーにする")
+	void splitPdfRequestRejectsOverlappingSplitRanges() {
+		SplitPdfRequest request = new SplitPdfRequest();
+		request.setOriginalFile(new MockMultipartFile("originalFile", new byte[] { 1 }));
+		request.setSplitRanges(List.of("1-5", "3-8"));
+
+		Set<ConstraintViolation<SplitPdfRequest>> violations = validate(request);
+
+		assertEquals(1, violations.size());
+		assertTrue(hasViolation(violations, "splitRanges", "分割範囲が重複しています。同じページを複数の範囲へ含めないでください。"));
 	}
 
 	@Test
