@@ -345,7 +345,14 @@ Jackson利用ルール:
   - `CommonResponse` は意味が広すぎるため採用しない。
   - `ApiResponse<T>` はSpringdocの `io.swagger.v3.oas.annotations.responses.ApiResponse` と紛らわしいため避ける。
 - 包む対象はJSON成功レスポンスだけ。
-  - PDF/ZIP/CSVなどのファイルレスポンスは、`ResponseEntity<byte[]>` や `ResponseEntity<Resource>` でContent-Type / Content-Dispositionを明示し、JSON共通ラッパーで包まない。
+  - PDF/ZIP/CSVなどのファイルレスポンスは、Content-Type / Content-Dispositionを明示し、JSON共通ラッパーで包まない。
+- ファイルレスポンスは `ResponseEntity<Resource>` でストリームとして返し、`byte[]` に載せない。
+  - 出力サイズに比例してヒープを消費するため。27ページ・20.5MBのPDFを1ページずつ分割すると、埋め込みフォントがページごとに複製され出力ZIPは約192MBになる（実測、9.4倍）。これを `byte[]` へ読み込むと、一時ファイルとヒープ上のコピーが同時に存在する。
+  - Content-Lengthは維持する（`Resource#contentLength()`）。付けないとブラウザの進捗表示が消え、FEから見た挙動が変わる。
+  - サイズ取得でストリームを消費しないリソースを使う。`InputStreamResource` はContent-Length取得のために内容を読み切ってしまうため、ファイルベースのリソースを使う。
+  - 一時ファイルの削除はレスポンス送信の完了後に行う。ストリームで返す場合、Serviceのメソッドを抜けた時点ではまだ送信中で、その場で削除するとレスポンスが壊れる。Springは本文を書き終えた後に入力ストリームを閉じるため、削除は `close()` に寄せる（`PdfTemporaryFileResource`）。
+  - `StreamingResponseBody` でも削除位置は明示できるが、レスポンスが非同期になり既存のMockMvcテスト全体に `asyncStarted()` / `asyncDispatch()` が必要になるため採用しない。
+  - エラー経路で `close()` が呼ばれず一時ファイルが残る可能性はゼロにできない。対象は一時ディレクトリ配下であり、稀な残留は許容する（利用者の成果物とは扱いが異なる。「保存先ディレクトリのルール」参照）。
   - エラーは既存の `ErrorResponse`（`fieldErrors` 形式）に任せ、`ApiResult<T>` にERRORを混ぜない。
 - ラップはservice層で行い、controllerでは包まない。DTO生成は `private build〇〇` に集約したまま、`return ResponseEntity.ok(ApiResult.of(build〇〇(...)))` の形で包む。
 - `ApiResult<T>` の構造は次のとおり。

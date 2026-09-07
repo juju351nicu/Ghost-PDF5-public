@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -32,6 +33,7 @@ import org.apache.pdfbox.text.PDFTextStripper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.core.io.Resource;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -60,22 +62,29 @@ class GhostPdfLogicTest {
 	}
 
 	@Test
-	void convertPdfReadsBytesAndDeletesTemporaryFile() throws IOException {
+	void openTemporaryFileForResponseDeletesTemporaryFileAfterStreamIsClosed() throws IOException {
 		Path inputPath = tempDirectory.resolve("convert.pdf");
 		byte[] expectedBytes = "temporary pdf bytes".getBytes(StandardCharsets.UTF_8);
 		Files.write(inputPath, expectedBytes);
 
-		byte[] actualBytes = pdfLogic.convertPdf(inputPath);
+		Resource resource = pdfLogic.openTemporaryFileForResponse(inputPath);
 
-		assertArrayEquals(expectedBytes, actualBytes);
+		// 他のpublicメソッドと違い、このメソッドから戻った時点では削除しない。送信途中で消えるとレスポンスが壊れる。
+		assertTrue(inputPath.toFile().exists());
+		assertEquals(expectedBytes.length, resource.contentLength());
+		try (InputStream inputStream = resource.getInputStream()) {
+			assertArrayEquals(expectedBytes, inputStream.readAllBytes());
+		}
+
+		// レスポンス本文を書き終えた後にSpringがストリームを閉じる。そこで削除される。
 		assertFalse(inputPath.toFile().exists());
 	}
 
 	@Test
-	void convertPdfThrowsExceptionWhenTemporaryFileDoesNotExist() {
+	void openTemporaryFileForResponseThrowsExceptionWhenTemporaryFileDoesNotExist() {
 		Path inputPath = tempDirectory.resolve("missing.pdf");
 
-		assertThrows(PdfProcessingException.class, () -> pdfLogic.convertPdf(inputPath));
+		assertThrows(PdfProcessingException.class, () -> pdfLogic.openTemporaryFileForResponse(inputPath));
 		assertFalse(inputPath.toFile().exists());
 	}
 

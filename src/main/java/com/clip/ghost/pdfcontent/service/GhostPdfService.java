@@ -4,6 +4,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
 import org.apache.commons.collections4.CollectionUtils;
+import org.springframework.core.io.Resource;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -43,9 +44,9 @@ public class GhostPdfService {
 	 * アップロードされたPDFをプレビュー用のレスポンスとして返却する。
 	 *
 	 * @param form 編集元PDFを含むフォーム
-	 * @return PDFのbyte配列レスポンス
+	 * @return PDFのinline表示レスポンス
 	 */
-	public ResponseEntity<byte[]> showPdf(OriginalPdfRequest form) {
+	public ResponseEntity<Resource> showPdf(OriginalPdfRequest form) {
 		Path originalFilePath = pdfLogic.loadPdf(form.getOriginalFile());
 		return buildPdfResponse(originalFilePath);
 	}
@@ -82,9 +83,9 @@ public class GhostPdfService {
 	 * アップロードされたPDFから指定ページだけを抽出し、PDFレスポンスとして返却する。
 	 *
 	 * @param form 編集元PDFと抽出ページ番号を含むフォーム
-	 * @return 抽出後PDFのbyte配列レスポンス
+	 * @return 抽出後PDFのinline表示レスポンス
 	 */
-	public ResponseEntity<byte[]> extractPdfByPages(ExtractPdfRequest form) {
+	public ResponseEntity<Resource> extractPdfByPages(ExtractPdfRequest form) {
 		Path inputPath = pdfLogic.loadPdf(form.getOriginalFile());
 		Path extractPath = pdfLogic.extractPdf(form.getExtractPages(), inputPath);
 		return buildPdfResponse(extractPath);
@@ -94,9 +95,9 @@ public class GhostPdfService {
 	 * アップロードされた複数PDFを結合し、PDFレスポンスとして返却する。
 	 *
 	 * @param form 結合対象PDFを含むフォーム
-	 * @return 結合後PDFのbyte配列レスポンス
+	 * @return 結合後PDFのinline表示レスポンス
 	 */
-	public ResponseEntity<byte[]> mergePdfs(MergePdfRequest form) {
+	public ResponseEntity<Resource> mergePdfs(MergePdfRequest form) {
 		List<Path> inputPaths = CollectionUtils.emptyIfNull(form.getMergeFiles()).stream().map(pdfLogic::loadPdf)
 				.toList();
 		Path mergePath = pdfLogic.mergePdf(inputPaths);
@@ -107,22 +108,22 @@ public class GhostPdfService {
 	 * アップロードされたPDFを1ページずつ分割し、ZIPレスポンスとして返却する。
 	 *
 	 * @param form 分割対象PDFを含むフォーム
-	 * @return 分割後PDFを格納したZIPのbyte配列レスポンス
+	 * @return 分割後PDFを格納したZIPのダウンロードレスポンス
 	 */
-	public ResponseEntity<byte[]> splitPdf(SplitPdfRequest form) {
+	public ResponseEntity<Resource> splitPdf(SplitPdfRequest form) {
 		Path inputPath = pdfLogic.loadPdf(form.getOriginalFile());
 		Path splitZipPath = pdfLogic.splitPdf(inputPath);
-		byte[] contents = pdfLogic.convertTemporaryFile(splitZipPath);
-		return ResponseUtils.downloadZip(SPLIT_ZIP_FILE_NAME, contents);
+		return ResponseUtils.downloadZip(SPLIT_ZIP_FILE_NAME,
+				pdfLogic.openTemporaryFileForResponse(splitZipPath));
 	}
 
 	/**
 	 * アップロードされたPDFから指定ページを削除し、PDFレスポンスとして返却する。
 	 *
 	 * @param form 編集元PDFと削除ページ番号を含むフォーム
-	 * @return 削除後PDFのbyte配列レスポンス
+	 * @return 削除後PDFのinline表示レスポンス
 	 */
-	public ResponseEntity<byte[]> deletePdfByPages(OriginalPdfRequest form) {
+	public ResponseEntity<Resource> deletePdfByPages(OriginalPdfRequest form) {
 		Path inputPath = pdfLogic.loadPdf(form.getOriginalFile());
 		Path deletePath = pdfLogic.deletePdf(form.getOriginalDeletePages(), inputPath);
 		return buildPdfResponse(deletePath);
@@ -132,9 +133,9 @@ public class GhostPdfService {
 	 * アップロードされたPDFに別PDFを差し込み、PDFレスポンスとして返却する。
 	 *
 	 * @param form 編集元PDF、削除ページ番号、差し込みPDF情報を含むフォーム
-	 * @return 差し込み後PDFのbyte配列レスポンス
+	 * @return 差し込み後PDFのinline表示レスポンス
 	 */
-	public ResponseEntity<byte[]> insertPdfs(OriginalPdfRequest form) {
+	public ResponseEntity<Resource> insertPdfs(OriginalPdfRequest form) {
 		Path inputPath = pdfLogic.loadPdf(form.getOriginalFile());
 		inputPath = deleteOriginalPagesIfRequested(form, inputPath);
 
@@ -144,14 +145,16 @@ public class GhostPdfService {
 	}
 
 	/**
-	 * PDFファイルをbyte配列へ変換し、既存のPDFダウンロード用レスポンスを組み立てる。
+	 * PDF一時ファイルをストリームで返すinline表示レスポンスを組み立てる。
+	 * <p>
+	 * byte配列へ読み込まないため、出力サイズに比例したヒープ消費が起きない。
+	 * 一時ファイルはレスポンス送信の完了時に削除される。
 	 *
 	 * @param pdfPath レスポンス化するPDFの一時ファイルパス
-	 * @return PDFのbyte配列レスポンス
+	 * @return PDFのinline表示レスポンス
 	 */
-	private ResponseEntity<byte[]> buildPdfResponse(Path pdfPath) {
-		byte[] contents = pdfLogic.convertPdf(pdfPath);
-		return ResponseUtils.getResponseBytes(contents);
+	private ResponseEntity<Resource> buildPdfResponse(Path pdfPath) {
+		return ResponseUtils.inlinePdf(pdfLogic.openTemporaryFileForResponse(pdfPath));
 	}
 
 	/**

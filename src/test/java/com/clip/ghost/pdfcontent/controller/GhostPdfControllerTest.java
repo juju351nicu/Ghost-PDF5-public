@@ -27,6 +27,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -557,7 +558,7 @@ class GhostPdfControllerTest {
 	 * @param contents PDFレスポンス本文
 	 */
 	private void stubShowPdfResponse(byte[] contents) {
-		doReturn(ResponseUtils.getResponseBytes(contents)).when(pdfService).showPdf(any(OriginalPdfRequest.class));
+		doReturn(ResponseUtils.inlinePdf(new ByteArrayResource(contents))).when(pdfService).showPdf(any(OriginalPdfRequest.class));
 	}
 
 	private void stubMetadataResponse() {
@@ -581,15 +582,15 @@ class GhostPdfControllerTest {
 	}
 
 	private void stubExtractPdfResponse(byte[] contents) {
-		doReturn(ResponseUtils.getResponseBytes(contents)).when(pdfService).extractPdfByPages(any());
+		doReturn(ResponseUtils.inlinePdf(new ByteArrayResource(contents))).when(pdfService).extractPdfByPages(any());
 	}
 
 	private void stubMergePdfResponse(byte[] contents) {
-		doReturn(ResponseUtils.getResponseBytes(contents)).when(pdfService).mergePdfs(any());
+		doReturn(ResponseUtils.inlinePdf(new ByteArrayResource(contents))).when(pdfService).mergePdfs(any());
 	}
 
 	private void stubSplitPdfResponse(byte[] contents) {
-		doReturn(ResponseUtils.downloadZip("split.zip", contents)).when(pdfService).splitPdf(any());
+		doReturn(ResponseUtils.downloadZip("split.zip", new ByteArrayResource(contents))).when(pdfService).splitPdf(any());
 	}
 
 	/**
@@ -598,7 +599,7 @@ class GhostPdfControllerTest {
 	 * @param contents PDFレスポンス本文
 	 */
 	private void stubDeletePdfResponse(byte[] contents) {
-		doReturn(ResponseUtils.getResponseBytes(contents)).when(pdfService)
+		doReturn(ResponseUtils.inlinePdf(new ByteArrayResource(contents))).when(pdfService)
 				.deletePdfByPages(any(OriginalPdfRequest.class));
 	}
 
@@ -608,7 +609,7 @@ class GhostPdfControllerTest {
 	 * @param contents PDFレスポンス本文
 	 */
 	private void stubInsertPdfResponse(byte[] contents) {
-		doReturn(ResponseUtils.getResponseBytes(contents)).when(pdfService).insertPdfs(any(OriginalPdfRequest.class));
+		doReturn(ResponseUtils.inlinePdf(new ByteArrayResource(contents))).when(pdfService).insertPdfs(any(OriginalPdfRequest.class));
 	}
 
 	/**

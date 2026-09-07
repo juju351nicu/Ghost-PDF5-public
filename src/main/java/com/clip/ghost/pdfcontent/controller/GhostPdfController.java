@@ -5,6 +5,7 @@ import java.util.HexFormat;
 import java.util.Objects;
 
 import org.apache.commons.collections4.CollectionUtils;
+import org.springframework.core.io.Resource;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
@@ -96,7 +97,7 @@ public class GhostPdfController {
 	 * @param accessToken リクエストヘッダーの一時トークン
 	 * @param form        編集元PDFを含むフォーム
 	 * @param session     トークン検証に使用するHTTPセッション
-	 * @return PDFのbyte配列レスポンス
+	 * @return PDFのinline表示レスポンス
 	 */
 	@Operation(summary = "PDFプレビュー", description = "アップロードされたPDFをブラウザ表示用のPDFレスポンスとして返却します。", requestBody = @RequestBody(content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE, schema = @Schema(implementation = OriginalPdfRequest.class))))
 	@ApiResponses({
@@ -107,7 +108,7 @@ public class GhostPdfController {
 			@ApiResponse(responseCode = "500", description = "PDF処理に失敗しました。", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))) })
 	@PostMapping(value = "/showPdf", produces = MediaType.APPLICATION_PDF_VALUE)
 	@ResponseBody
-	public ResponseEntity<byte[]> showPdfPreview(
+	public ResponseEntity<Resource> showPdfPreview(
 			@Parameter(name = ACCESS_TOKEN_HEADER_NAME, in = ParameterIn.HEADER, required = true, description = ACCESS_TOKEN_HEADER_DESCRIPTION) @RequestHeader(ACCESS_TOKEN_HEADER_NAME) String accessToken,
 			@Valid @ModelAttribute OriginalPdfRequest form, HttpSession session) {
 		LOGGER.info("プレビュー用PDFを表示します。");
@@ -174,7 +175,7 @@ public class GhostPdfController {
 	 * @param accessToken リクエストヘッダーの一時トークン
 	 * @param form        編集元PDFと抽出ページ番号を含むフォーム
 	 * @param session     トークン検証に使用するHTTPセッション
-	 * @return 抽出後PDFのbyte配列レスポンス
+	 * @return 抽出後PDFのinline表示レスポンス
 	 */
 	@Operation(summary = "PDFページ抽出", description = "アップロードされたPDFから指定ページだけを抽出し、PDFレスポンスとして返却します。", requestBody = @RequestBody(content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE, schema = @Schema(implementation = ExtractPdfRequest.class))))
 	@ApiResponses({
@@ -185,7 +186,7 @@ public class GhostPdfController {
 			@ApiResponse(responseCode = "500", description = "PDF処理に失敗しました。", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))) })
 	@PostMapping(value = "/extractPdf", produces = MediaType.APPLICATION_PDF_VALUE)
 	@ResponseBody
-	public ResponseEntity<byte[]> extractPdfPages(
+	public ResponseEntity<Resource> extractPdfPages(
 			@Parameter(name = ACCESS_TOKEN_HEADER_NAME, in = ParameterIn.HEADER, required = true, description = ACCESS_TOKEN_HEADER_DESCRIPTION) @RequestHeader(ACCESS_TOKEN_HEADER_NAME) String accessToken,
 			@Valid @ModelAttribute ExtractPdfRequest form, HttpSession session) {
 		LOGGER.info("指定ページを抽出したPDFを作成します。");
@@ -200,7 +201,7 @@ public class GhostPdfController {
 	 * @param accessToken リクエストヘッダーの一時トークン
 	 * @param form        結合対象PDFを含むフォーム
 	 * @param session     トークン検証に使用するHTTPセッション
-	 * @return 結合後PDFのbyte配列レスポンス
+	 * @return 結合後PDFのinline表示レスポンス
 	 */
 	@Operation(summary = "PDF結合", description = "アップロードされた複数PDFを送信順に結合し、PDFレスポンスとして返却します。", requestBody = @RequestBody(content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE, schema = @Schema(implementation = MergePdfRequest.class))))
 	@ApiResponses({
@@ -211,7 +212,7 @@ public class GhostPdfController {
 			@ApiResponse(responseCode = "500", description = "PDF処理に失敗しました。", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))) })
 	@PostMapping(value = "/mergePdf", produces = MediaType.APPLICATION_PDF_VALUE)
 	@ResponseBody
-	public ResponseEntity<byte[]> mergePdfFiles(
+	public ResponseEntity<Resource> mergePdfFiles(
 			@Parameter(name = ACCESS_TOKEN_HEADER_NAME, in = ParameterIn.HEADER, required = true, description = ACCESS_TOKEN_HEADER_DESCRIPTION) @RequestHeader(ACCESS_TOKEN_HEADER_NAME) String accessToken,
 			@Valid @ModelAttribute MergePdfRequest form, HttpSession session) {
 		LOGGER.info("複数PDFを結合します。");
@@ -226,7 +227,7 @@ public class GhostPdfController {
 	 * @param accessToken リクエストヘッダーの一時トークン
 	 * @param form        分割対象PDFを含むフォーム
 	 * @param session     トークン検証に使用するHTTPセッション
-	 * @return 分割後PDFを格納したZIPのbyte配列レスポンス
+	 * @return 分割後PDFを格納したZIPのダウンロードレスポンス
 	 */
 	@Operation(summary = "PDF分割", description = "アップロードされたPDFを1ページずつ分割し、複数PDFをZIPレスポンスとして返却します。", requestBody = @RequestBody(content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE, schema = @Schema(implementation = SplitPdfRequest.class))))
 	@ApiResponses({
@@ -237,7 +238,7 @@ public class GhostPdfController {
 			@ApiResponse(responseCode = "500", description = "PDF処理に失敗しました。", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))) })
 	@PostMapping(value = "/splitPdf", produces = MEDIA_TYPE_APPLICATION_ZIP_VALUE)
 	@ResponseBody
-	public ResponseEntity<byte[]> splitPdf(
+	public ResponseEntity<Resource> splitPdf(
 			@Parameter(name = ACCESS_TOKEN_HEADER_NAME, in = ParameterIn.HEADER, required = true, description = ACCESS_TOKEN_HEADER_DESCRIPTION) @RequestHeader(ACCESS_TOKEN_HEADER_NAME) String accessToken,
 			@Valid @ModelAttribute SplitPdfRequest form, HttpSession session) {
 		LOGGER.info("PDFを1ページずつ分割します。");
@@ -252,7 +253,7 @@ public class GhostPdfController {
 	 * @param accessToken リクエストヘッダーの一時トークン
 	 * @param form        編集元PDFと削除ページ番号を含むフォーム
 	 * @param session     トークン検証に使用するHTTPセッション
-	 * @return 削除後PDFのbyte配列レスポンス
+	 * @return 削除後PDFのinline表示レスポンス
 	 */
 	@Operation(summary = "PDFページ削除", description = "アップロードされたPDFから指定ページを削除し、PDFレスポンスとして返却します。", requestBody = @RequestBody(content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE, schema = @Schema(implementation = OriginalPdfRequest.class))))
 	@ApiResponses({
@@ -263,7 +264,7 @@ public class GhostPdfController {
 			@ApiResponse(responseCode = "500", description = "PDF処理に失敗しました。", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))) })
 	@PostMapping(value = "/deletePdf", produces = MediaType.APPLICATION_PDF_VALUE)
 	@ResponseBody
-	public ResponseEntity<byte[]> deletePdfPages(
+	public ResponseEntity<Resource> deletePdfPages(
 			@Parameter(name = ACCESS_TOKEN_HEADER_NAME, in = ParameterIn.HEADER, required = true, description = ACCESS_TOKEN_HEADER_DESCRIPTION) @RequestHeader(ACCESS_TOKEN_HEADER_NAME) String accessToken,
 			@Valid @ModelAttribute OriginalPdfRequest form, HttpSession session) {
 		LOGGER.info("指定ページを削除したPDFを作成します。");
@@ -278,7 +279,7 @@ public class GhostPdfController {
 	 * @param accessToken リクエストヘッダーの一時トークン
 	 * @param form        編集元PDF、削除ページ番号、差し込みPDF情報を含むフォーム
 	 * @param session     トークン検証に使用するHTTPセッション
-	 * @return 差し込み後PDFのbyte配列レスポンス
+	 * @return 差し込み後PDFのinline表示レスポンス
 	 */
 	@Operation(summary = "PDF差し込み", description = "アップロードされたPDFへ別PDFを差し込み、PDFレスポンスとして返却します。", requestBody = @RequestBody(content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE, schema = @Schema(implementation = OriginalPdfRequest.class))))
 	@ApiResponses({
@@ -289,7 +290,7 @@ public class GhostPdfController {
 			@ApiResponse(responseCode = "500", description = "PDF処理に失敗しました。", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))) })
 	@PostMapping(value = "/insertPdf", produces = MediaType.APPLICATION_PDF_VALUE)
 	@ResponseBody
-	public ResponseEntity<byte[]> insertPdfFiles(
+	public ResponseEntity<Resource> insertPdfFiles(
 			@Parameter(name = ACCESS_TOKEN_HEADER_NAME, in = ParameterIn.HEADER, required = true, description = ACCESS_TOKEN_HEADER_DESCRIPTION) @RequestHeader(ACCESS_TOKEN_HEADER_NAME) String accessToken,
 			@Valid @ModelAttribute OriginalPdfRequest form, HttpSession session) {
 		LOGGER.info("PDFの差し込み・差し替えを行います。");

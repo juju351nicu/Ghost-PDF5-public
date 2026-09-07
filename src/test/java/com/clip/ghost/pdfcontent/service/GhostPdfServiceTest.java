@@ -26,6 +26,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.Resource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -74,10 +76,10 @@ class GhostPdfServiceTest {
 
 		OriginalPdfRequest form = new OriginalPdfRequest();
 		form.setOriginalFile(mockPdfFile);
-		ResponseEntity<byte[]> result = pdfService.showPdf(form);
+		ResponseEntity<Resource> result = pdfService.showPdf(form);
 
 		verify(pdfLogic, times(1)).loadPdf(any(MultipartFile.class));
-		verify(pdfLogic, times(1)).convertPdf(any(Path.class));
+		verify(pdfLogic, times(1)).openTemporaryFileForResponse(any(Path.class));
 		assertEquals(HttpStatus.OK, result.getStatusCode());
 	}
 
@@ -147,13 +149,13 @@ class GhostPdfServiceTest {
 
 		doReturn(path).when(pdfLogic).loadPdf(any(MultipartFile.class));
 		doReturn(path).when(pdfLogic).extractPdf(eq(List.of(1)), eq(path));
-		doReturn(contents).when(pdfLogic).convertPdf(any(Path.class));
+		doReturn(new ByteArrayResource(contents)).when(pdfLogic).openTemporaryFileForResponse(any(Path.class));
 
-		ResponseEntity<byte[]> result = pdfService.extractPdfByPages(form);
+		ResponseEntity<Resource> result = pdfService.extractPdfByPages(form);
 
 		verify(pdfLogic, times(1)).loadPdf(originalFile);
 		verify(pdfLogic, times(1)).extractPdf(eq(List.of(1)), eq(path));
-		verify(pdfLogic, times(1)).convertPdf(path);
+		verify(pdfLogic, times(1)).openTemporaryFileForResponse(path);
 		assertEquals(HttpStatus.OK, result.getStatusCode());
 	}
 
@@ -172,14 +174,14 @@ class GhostPdfServiceTest {
 		doReturn(firstPath).when(pdfLogic).loadPdf(firstFile);
 		doReturn(secondPath).when(pdfLogic).loadPdf(secondFile);
 		doReturn(mergePath).when(pdfLogic).mergePdf(List.of(firstPath, secondPath));
-		doReturn(contents).when(pdfLogic).convertPdf(mergePath);
+		doReturn(new ByteArrayResource(contents)).when(pdfLogic).openTemporaryFileForResponse(mergePath);
 
-		ResponseEntity<byte[]> result = pdfService.mergePdfs(form);
+		ResponseEntity<Resource> result = pdfService.mergePdfs(form);
 
 		verify(pdfLogic, times(1)).loadPdf(firstFile);
 		verify(pdfLogic, times(1)).loadPdf(secondFile);
 		verify(pdfLogic, times(1)).mergePdf(List.of(firstPath, secondPath));
-		verify(pdfLogic, times(1)).convertPdf(mergePath);
+		verify(pdfLogic, times(1)).openTemporaryFileForResponse(mergePath);
 		assertEquals(HttpStatus.OK, result.getStatusCode());
 	}
 
@@ -195,15 +197,17 @@ class GhostPdfServiceTest {
 
 		doReturn(inputPath).when(pdfLogic).loadPdf(originalFile);
 		doReturn(splitZipPath).when(pdfLogic).splitPdf(inputPath);
-		doReturn(contents).when(pdfLogic).convertTemporaryFile(splitZipPath);
+		doReturn(new ByteArrayResource(contents)).when(pdfLogic).openTemporaryFileForResponse(splitZipPath);
 
-		ResponseEntity<byte[]> result = pdfService.splitPdf(form);
+		ResponseEntity<Resource> result = pdfService.splitPdf(form);
 
 		verify(pdfLogic, times(1)).loadPdf(originalFile);
 		verify(pdfLogic, times(1)).splitPdf(inputPath);
-		verify(pdfLogic, times(1)).convertTemporaryFile(splitZipPath);
+		verify(pdfLogic, times(1)).openTemporaryFileForResponse(splitZipPath);
 		assertEquals(HttpStatus.OK, result.getStatusCode());
 		assertEquals(MediaType.valueOf("application/zip"), result.getHeaders().getContentType());
+		// byte配列を経由しないストリーム化後もContent-Lengthを維持する。
+		assertEquals(contents.length, result.getHeaders().getContentLength());
 	}
 
 	@Test
@@ -219,7 +223,7 @@ class GhostPdfServiceTest {
 
 		stubInsertPdfProcessing(path, contents);
 
-		ResponseEntity<byte[]> result = pdfService.insertPdfs(form);
+		ResponseEntity<Resource> result = pdfService.insertPdfs(form);
 
 		ArgumentCaptor<List<GhostPdfDto>> captor = ArgumentCaptor.forClass(List.class);
 		verify(pdfLogic, times(1)).insertPdf(any(Path.class), captor.capture());
@@ -240,12 +244,12 @@ class GhostPdfServiceTest {
 
 		stubInsertPdfProcessing(path, contents);
 
-		ResponseEntity<byte[]> result = pdfService.insertPdfs(form);
+		ResponseEntity<Resource> result = pdfService.insertPdfs(form);
 
 		verify(pdfLogic, times(1)).loadPdf(any(MultipartFile.class));
 		verify(pdfLogic, never()).deletePdf(org.mockito.ArgumentMatchers.<Integer>anyList(), any(Path.class));
 		verify(pdfLogic, times(1)).insertPdf(eq(path), any());
-		verify(pdfLogic, times(1)).convertPdf(any(Path.class));
+		verify(pdfLogic, times(1)).openTemporaryFileForResponse(any(Path.class));
 		assertEquals(HttpStatus.OK, result.getStatusCode());
 	}
 
@@ -265,15 +269,15 @@ class GhostPdfServiceTest {
 		doReturn(originalPath).when(pdfLogic).loadPdf(any(MultipartFile.class));
 		doReturn(deletedPath).when(pdfLogic).deletePdf(eq(List.of(1)), eq(originalPath));
 		doReturn(mergedPath).when(pdfLogic).insertPdf(eq(deletedPath), any());
-		doReturn(contents).when(pdfLogic).convertPdf(eq(mergedPath));
+		doReturn(new ByteArrayResource(contents)).when(pdfLogic).openTemporaryFileForResponse(eq(mergedPath));
 
-		ResponseEntity<byte[]> result = pdfService.insertPdfs(form);
+		ResponseEntity<Resource> result = pdfService.insertPdfs(form);
 
 		InOrder orderedCalls = inOrder(pdfLogic);
 		orderedCalls.verify(pdfLogic).loadPdf(any(MultipartFile.class));
 		orderedCalls.verify(pdfLogic).deletePdf(eq(List.of(1)), eq(originalPath));
 		orderedCalls.verify(pdfLogic).insertPdf(eq(deletedPath), any());
-		orderedCalls.verify(pdfLogic).convertPdf(eq(mergedPath));
+		orderedCalls.verify(pdfLogic).openTemporaryFileForResponse(eq(mergedPath));
 		assertEquals(HttpStatus.OK, result.getStatusCode());
 	}
 
@@ -290,7 +294,7 @@ class GhostPdfServiceTest {
 
 		stubInsertPdfProcessing(path, contents);
 
-		ResponseEntity<byte[]> result = pdfService.insertPdfs(form);
+		ResponseEntity<Resource> result = pdfService.insertPdfs(form);
 
 		ArgumentCaptor<List<GhostPdfDto>> captor = ArgumentCaptor.forClass(List.class);
 		verify(pdfLogic, times(1)).loadPdf(any(MultipartFile.class));
@@ -315,7 +319,7 @@ class GhostPdfServiceTest {
 
 		stubInsertPdfProcessing(path, contents);
 
-		ResponseEntity<byte[]> result = pdfService.insertPdfs(form);
+		ResponseEntity<Resource> result = pdfService.insertPdfs(form);
 
 		ArgumentCaptor<List<GhostPdfDto>> captor = ArgumentCaptor.forClass(List.class);
 		verify(pdfLogic, times(1)).loadPdf(any(MultipartFile.class));
@@ -342,7 +346,7 @@ class GhostPdfServiceTest {
 
 		stubInsertPdfProcessing(path, contents);
 
-		ResponseEntity<byte[]> result = pdfService.insertPdfs(form);
+		ResponseEntity<Resource> result = pdfService.insertPdfs(form);
 
 		ArgumentCaptor<List<GhostPdfDto>> captor = ArgumentCaptor.forClass(List.class);
 		verify(pdfLogic, times(2)).loadPdf(any(MultipartFile.class));
@@ -366,11 +370,11 @@ class GhostPdfServiceTest {
 		OriginalPdfRequest form = new OriginalPdfRequest();
 		form.setOriginalFile(mockPdfFile);
 		form.setOriginalDeletePages(List.of(1, 2));
-		ResponseEntity<byte[]> result = pdfService.deletePdfByPages(form);
+		ResponseEntity<Resource> result = pdfService.deletePdfByPages(form);
 
 		verify(pdfLogic, times(1)).loadPdf(any(MultipartFile.class));
 		verify(pdfLogic, times(1)).deletePdf(org.mockito.ArgumentMatchers.<Integer>anyList(), any(Path.class));
-		verify(pdfLogic, times(1)).convertPdf(any(Path.class));
+		verify(pdfLogic, times(1)).openTemporaryFileForResponse(any(Path.class));
 		assertEquals(HttpStatus.OK, result.getStatusCode());
 	}
 
@@ -390,11 +394,11 @@ class GhostPdfServiceTest {
 
 		stubInsertPdfProcessing(path, contents);
 
-		ResponseEntity<byte[]> result = pdfService.insertPdfs(form);
+		ResponseEntity<Resource> result = pdfService.insertPdfs(form);
 		ArgumentCaptor<List<GhostPdfDto>> captor = ArgumentCaptor.forClass(List.class);
 		verify(pdfLogic, times(2)).loadPdf(any(MultipartFile.class));
 		verify(pdfLogic, times(1)).insertPdf(any(Path.class), captor.capture());
-		verify(pdfLogic, times(1)).convertPdf(any(Path.class));
+		verify(pdfLogic, times(1)).openTemporaryFileForResponse(any(Path.class));
 		assertEquals(1, captor.getValue().size());
 		assertEquals(-1, captor.getValue().get(0).getInsertPage());
 		assertEquals(PdfConstants.OPTION_LAST_INSERT, captor.getValue().get(0).getInsertOption());
@@ -409,7 +413,7 @@ class GhostPdfServiceTest {
 	 */
 	private void stubPdfResponse(Path path, byte[] contents) {
 		doReturn(path).when(pdfLogic).loadPdf(any(MultipartFile.class));
-		doReturn(contents).when(pdfLogic).convertPdf(any(Path.class));
+		doReturn(new ByteArrayResource(contents)).when(pdfLogic).openTemporaryFileForResponse(any(Path.class));
 	}
 
 	/**
@@ -421,7 +425,7 @@ class GhostPdfServiceTest {
 	private void stubInsertPdfProcessing(Path path, byte[] contents) {
 		doReturn(path).when(pdfLogic).loadPdf(any(MultipartFile.class));
 		doReturn(path).when(pdfLogic).insertPdf(any(Path.class), any());
-		doReturn(contents).when(pdfLogic).convertPdf(any(Path.class));
+		doReturn(new ByteArrayResource(contents)).when(pdfLogic).openTemporaryFileForResponse(any(Path.class));
 	}
 
 	/**
@@ -433,7 +437,7 @@ class GhostPdfServiceTest {
 	private void stubDeletePdfProcessing(Path path, byte[] contents) {
 		doReturn(path).when(pdfLogic).loadPdf(any(MultipartFile.class));
 		doReturn(path).when(pdfLogic).deletePdf(org.mockito.ArgumentMatchers.<Integer>anyList(), any(Path.class));
-		doReturn(contents).when(pdfLogic).convertPdf(any(Path.class));
+		doReturn(new ByteArrayResource(contents)).when(pdfLogic).openTemporaryFileForResponse(any(Path.class));
 	}
 
 	/**

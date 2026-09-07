@@ -163,6 +163,11 @@ Public repository化後も、当面はlocal development / portfolio用途を前�
   - 既定値は `application.yml` と `@Value` のfallbackの2箇所にあり、両方をそろえた
   - 公開リポジトリのため既定値にローカル絶対パスは書かず、`GHOST_MARKDOWN_STORAGE_DIRECTORY` で上書きできる
   - `MarkdownStorageDirectoryContractTest` で一時ディレクトリと絶対パスの再混入を検知
+- PDF / ZIPのファイルレスポンスを `byte[]` 経由からストリーム（`ResponseEntity<Resource>`）へ変更
+  - 27ページ・20.5MBのPDFを1ページずつ分割すると出力ZIPは約192MB（9.4倍。埋め込みフォントがページごとに複製されるPDFBoxの仕様）。これを `byte[]` へ読み込んでいたため、出力サイズに比例してヒープを消費していた
+  - 一時ファイルの削除はレスポンス送信の完了後（リソースのclose時）に行う。送信途中で削除するとレスポンスが壊れるため
+  - Content-Type / Content-Disposition / Content-Length は従来と同一。FEの変更なし
+  - 実測: `-Xmx128m` では修正前が `OutOfMemoryError`、修正後は同じ分割が通る（`-Xmx256m` では修正前もぎりぎり通ったため、差が出る条件で確認した）
 - `deletePdf` / `insertPdf` のファイルサイズ検証をOpenAPIの413定義と整合させ、Controller単体テストで固定
 - `CodingConventionTest` にDOM直接操作とHTML直接挿入の再混入検知を追加
 - `CodingConventionTest` にfield injection の `@Autowired` 再混入検知を追加
