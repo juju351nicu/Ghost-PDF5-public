@@ -152,6 +152,12 @@ Public repository化後も、当面はlocal development / portfolio用途を前�
   - `error.message` を優先していたため日本語のfallbackが到達していなかった。例外の内容は画面へ出さない方針へ統一
   - サーバーへ到達できなかった場合だけは利用者が対処できるため、「サーバーに接続できません。アプリが起動しているか確認してください。」を専用に表示
   - `FrontendErrorMessageContractTest` で再混入を検知（JSテストランナーが無い構成のためソーススキャン）
+- ZIPダウンロード（1ページ単位分割）で保存先フォルダとファイル名を選べるようにした（File System Access API）
+  - Chrome / Edgeでは保存ダイアログが出る。**Firefox / Safari / モバイルは未対応のため従来どおりダウンロードフォルダへ保存**され、挙動は変わらない
+  - ピッカーはtransient activationを要求するため、クリック直後（API呼び出しの前）に開く。副産物としてキャンセル時はサーバー処理が発生しない
+  - 未対応ブラウザとキャンセルを別状態として返す。同じ値へ寄せると未対応ブラウザがキャンセル扱いになり何も起きなくなる
+  - File System Access APIの呼び出しは `api/file-response-handler.js` に限定し、`CodingConventionTest` で他ファイルからの利用を検出
+  - `FrontendSaveTargetContractTest` で「ピッカー → API → 書き込み」の順序と3状態の分岐を固定
 - `deletePdf` / `insertPdf` のファイルサイズ検証をOpenAPIの413定義と整合させ、Controller単体テストで固定
 - `CodingConventionTest` にDOM直接操作とHTML直接挿入の再混入検知を追加
 - `CodingConventionTest` にfield injection の `@Autowired` 再混入検知を追加

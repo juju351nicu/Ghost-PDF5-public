@@ -32,6 +32,12 @@
   - PDF API固有のpayload生成は `api/pdf-payload.js`、送信処理は `api/fetch-client.js` に分ける。
 - JavaScriptのAPIエラー表示変換は `api/api-error-utils.js` に集約する。
   - BE共通エラー形式の `fieldErrors` を各API clientや画面で直接読まない。
+  - 想定外エラーで例外の `message` を画面へ出さない。英語の内部表現（`Failed to fetch` など）が利用者に見えるため、日本語のメッセージへ変換する。
+  - サーバーへ到達できなかった場合だけは専用メッセージを出す。判定は `TypeError` とメッセージパターンの両方で絞る（messageはブラウザごとに異なる）。
+- File System Access API（`showSaveFilePicker` / `showOpenFilePicker` / `showDirectoryPicker`）は `api/file-response-handler.js` だけで使う。
+  - Chrome / Edgeのみ対応で、Firefox / Safari / モバイルは未対応。分岐が散るとフォールバックの挙動が場所によってずれる。
+  - 未対応ブラウザとキャンセルは別の状態として返す。同じ値へ寄せると、未対応ブラウザがキャンセル扱いになり何も起きなくなる。
+  - transient activation（利用者操作の直後）を要求するため、ピッカーはクリック直後に呼ぶ。`fetch` の完了後では失効している。
 - 機能拡張は当面 BE first で進める。
   - API / Service / Logic / DTO / JUnit / OpenAPI を先に固めてから FE を接続する。
   - FE先行で作り込むとAPI仕様変更の手戻りが増えやすいため、PDF処理ロジックを先に安定させる。
@@ -425,6 +431,7 @@ public record ApiMessage(String code, String message) {
   - field injection の `@Autowired` はJUnitのソーススキャンで検証する。
   - JavaScriptのStorage直接参照やdeprecated utility aliasなど、文字列として検出しやすい規約もJUnitのソーススキャンで検証する。
   - JavaScriptの `fetch` / `FormData` / `Headers` 直接利用は、FetchClient迂回としてJUnitのソーススキャンで検証する。
+  - File System Access APIの呼び出しが `api/file-response-handler.js` の外へ漏れていないかもJUnitのソーススキャンで検証する。
   - JavaScriptの `fieldErrors` 直接参照は、APIエラー表示変換の分散としてJUnitのソーススキャンで検証する。
   - JavaScriptのDOM直接操作やHTML直接挿入など、Vueのstate管理から外れやすい実装もJUnitのソーススキャンで検証する。
   - `window.open` を使う場合は、`noopener` 漏れもJUnitのソーススキャンで検証する。

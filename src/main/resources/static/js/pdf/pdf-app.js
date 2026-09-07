@@ -17,6 +17,7 @@ import PageNumberValidator from "../validation/page-number-validator.js";
 import FileSizeValidator from "../validation/file-size-validator.js";
 
 const draggable = window["vuedraggable"];
+const SPLIT_PDF_FILE_NAME = "split.zip";
 
 /**
  * PDF編集画面のVue app定義。
@@ -438,20 +439,59 @@ const pdfApp = {
     },
     /**
      * 編集元PDFを1ページずつ分割し、生成されたZIPをダウンロードする。
+     *
+     * 対応ブラウザ（Chrome / Edge）では先に保存先を選ばせる。File System Access APIは
+     * 利用者操作の直後しか使えないため、API呼び出しの前に呼ぶ必要がある。
+     * 保存先を決めてから処理を始めるので、キャンセル時はサーバー処理も発生しない。
+     *
+     * @returns {Promise<void>} 分割処理の完了Promise
      */
-    requestSplitPdf() {
+    async requestSplitPdf() {
       const originalFileData = this.originalFile;
       if (Util.isEmpty(originalFileData.fileObject)) {
         this.originalFile.delPagesText.message =
           "ファイル選択されておりません。";
         return;
       }
+      // 保存ダイアログ表示中はブラウザ側がモーダルで操作を止めるため、isProcessingは立てない。
+      // ここで立てるとキャンセル時に解除漏れの経路が増える。
+      const saveTarget = await this.requestSaveTarget(
+        SPLIT_PDF_FILE_NAME,
+        FileResponseHandler.FILE_TYPES.ZIP
+      );
+      if (saveTarget.cancelled) {
+        return;
+      }
       const payload = PdfPayload.buildSplitPayload(originalFileData.fileObject);
-      this.requestFileAndDownload(
+      await this.requestFileAndDownload(
         CONST.REST_PATH.SPLIT_PDF,
         payload,
-        "split.zip"
+        SPLIT_PDF_FILE_NAME,
+        saveTarget.handle
       );
+    },
+    /**
+     * 保存先の選択を要求し、失敗時はエラーモーダルへ回す。
+     *
+     * 未対応ブラウザとキャンセルを区別する。未対応の場合はhandleがnullのまま進み、
+     * 従来どおりブラウザのダウンロード機能で保存される。
+     *
+     * @param {string} suggestedName 既定のファイル名
+     * @param {{description: string, accept: Object}[]} types 拡張子フィルタ
+     * @returns {Promise<{cancelled: boolean, handle: FileSystemFileHandle|null}>} 保存先の選択結果
+     */
+    async requestSaveTarget(suggestedName, types) {
+      try {
+        const saveTarget = await FileResponseHandler.requestSaveTarget(
+          suggestedName,
+          types
+        );
+        return { cancelled: saveTarget.cancelled, handle: saveTarget.handle };
+      } catch (error) {
+        this.errorMessages = [PdfApiClient.buildUnexpectedErrorMessage(error)];
+        this.showMessageModal();
+        return { cancelled: true, handle: null };
+      }
     },
     /**
      * 編集元PDFに差し込みPDFを結合・差し替えし、生成されたPDFを別タブで開く。
@@ -816,15 +856,21 @@ const pdfApp = {
      * @param {string} url PDF操作APIのURL
      * @param {{key: string, value: unknown}[]} payload multipart formとして送信する値
      * @param {string} defaultFileName Content-Dispositionが無い場合のファイル名
+     * @param {FileSystemFileHandle} [saveTarget] 利用者が選んだ保存先
      * @returns {Promise<void>} ダウンロード処理の完了Promise
      */
-    requestFileAndDownload(url, payload, defaultFileName) {
+    requestFileAndDownload(url, payload, defaultFileName, saveTarget) {
       if (this.isProcessing) {
         return Promise.resolve();
       }
       this.isProcessing = true;
       this.errorMessages = [];
-      return PdfApiClient.requestFileAndDownload(url, payload, defaultFileName)
+      return PdfApiClient.requestFileAndDownload(
+        url,
+        payload,
+        defaultFileName,
+        saveTarget
+      )
         .then((errorMessages) => {
           if (!Util.isEmpty(errorMessages)) {
             this.errorMessages = errorMessages;
