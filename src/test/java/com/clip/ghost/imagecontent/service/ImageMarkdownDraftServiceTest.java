@@ -2,6 +2,7 @@ package com.clip.ghost.imagecontent.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -22,6 +23,8 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockMultipartFile;
 
+import com.clip.ghost.common.response.ApiResult;
+import com.clip.ghost.common.response.ApiResultType;
 import com.clip.ghost.imagecontent.dto.ImageMarkdownDraftRequest;
 import com.clip.ghost.imagecontent.dto.ImageMarkdownDraftResponse;
 import com.clip.ghost.imagecontent.exception.ImageInputException;
@@ -55,9 +58,13 @@ class ImageMarkdownDraftServiceTest {
 		when(converter.isEnabled()).thenReturn(true);
 		doReturn("first\r\nline  \r\n").when(converter).convert(any(byte[].class), eq(MediaType.IMAGE_PNG_VALUE));
 
-		ResponseEntity<ImageMarkdownDraftResponse> result = service.generateMarkdownDraft(createRequest(imageFile));
+		ResponseEntity<ApiResult<ImageMarkdownDraftResponse>> result = service
+				.generateMarkdownDraft(createRequest(imageFile));
 
-		ImageMarkdownDraftResponse response = result.getBody();
+		assertNotNull(result.getBody());
+		assertEquals(ApiResultType.INFO, result.getBody().getResultType());
+		assertTrue(result.getBody().getMessageList().isEmpty());
+		ImageMarkdownDraftResponse response = result.getBody().getData();
 		assertNotNull(response);
 		assertEquals(HttpStatus.OK, result.getStatusCode());
 		assertEquals("shot.png", response.getFileName());

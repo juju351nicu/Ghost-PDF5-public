@@ -16,6 +16,7 @@ import org.springframework.web.multipart.MultipartFile;
 import com.clip.ghost.common.exceptions.ErrorResponse;
 import com.clip.ghost.pdfcontent.constant.PdfConstants;
 import com.clip.ghost.common.security.AccessTokenValidator;
+import com.clip.ghost.common.response.ApiResult;
 import com.clip.ghost.pdfcontent.dto.PdfMarkdownDraftRequest;
 import com.clip.ghost.pdfcontent.dto.PdfMarkdownDraftResponse;
 import com.clip.ghost.pdfcontent.service.PdfMarkdownDraftService;
@@ -59,7 +60,7 @@ public class PdfMarkdownDraftController {
 	 */
 	@Operation(summary = "ページ単位Markdown下書き生成", description = "アップロードされたPDFからページ単位でテキストを抽出し、Markdown下書きを返却します。自動保存は行いません。", requestBody = @RequestBody(content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE, schema = @Schema(implementation = PdfMarkdownDraftRequest.class))))
 	@ApiResponses({
-			@ApiResponse(responseCode = "200", description = "ページ単位Markdown下書き", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = PdfMarkdownDraftResponse.class))),
+			@ApiResponse(responseCode = "200", description = "ページ単位Markdown下書き"),
 			@ApiResponse(responseCode = "400", description = "入力値が不正です。AUTOモードで画像変換の対象ページ数が上限を超えた場合も400です。", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
 			@ApiResponse(responseCode = "403", description = "access-tokenが不正です。"),
 			@ApiResponse(responseCode = "413", description = "アップロードファイルサイズが上限を超えています。", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
@@ -67,7 +68,7 @@ public class PdfMarkdownDraftController {
 			@ApiResponse(responseCode = "503", description = "AUTOモードで画像変換(OCR/vision)が無効です。", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))) })
 	@PostMapping(value = "/markdownDraftPdf", consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
 	@ResponseBody
-	public ResponseEntity<PdfMarkdownDraftResponse> generateMarkdownDraft(
+	public ResponseEntity<ApiResult<PdfMarkdownDraftResponse>> generateMarkdownDraft(
 			@Parameter(name = ACCESS_TOKEN_HEADER_NAME, in = ParameterIn.HEADER, required = true, description = ACCESS_TOKEN_HEADER_DESCRIPTION) @RequestHeader(ACCESS_TOKEN_HEADER_NAME) String accessToken,
 			@Valid @ModelAttribute PdfMarkdownDraftRequest form, HttpSession session) {
 		LOGGER.info("ページ単位Markdown下書きを生成します。");

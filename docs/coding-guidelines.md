@@ -321,21 +321,15 @@ Jackson利用ルール:
 
 ## JSONレスポンス共通化の判断
 
-- 現時点では、成功レスポンス共通ラッパーは導入しない。
-- PDF/ZIP/CSVなどのファイルレスポンスは、`ResponseEntity<byte[]>` や `ResponseEntity<Resource>` でContent-Type / Content-Dispositionを明示し、JSON共通ラッパーで包まない。
-- `POST /metadataPdf` のようなJSON成功レスポンスは、当面 `PdfMetadataResponse` など用途別Responseを直接返す。
-- 将来JSON APIが増え、成功レスポンスに共通の `data` / `resultType` / `messageList` が必要になった場合は、`ApiResult<T>` を候補名にする。
-  - `CommonResponse` は意味が広すぎるため、Ghost-PDF5では採用しない。
+- JSON成功レスポンスは共通ラッパー `ApiResult<T>`（`com.clip.ghost.common.response`）で包む。**導入済み**。
+  - 導入理由は「成功したが伝えたいことがある」を返す場所を作ること。OCR / visionを入れて部分的成功が起きる機能になったため必要になった。
+  - `CommonResponse` は意味が広すぎるため採用しない。
   - `ApiResponse<T>` はSpringdocの `io.swagger.v3.oas.annotations.responses.ApiResponse` と紛らわしいため避ける。
-- `ApiResult<T>` の導入を検討する具体例:
-  - PDF処理履歴。
-  - ジョブ状態確認。
-  - Markdown変換結果。
-  - AI要約結果。
-  - 設定保存結果。
-  - 複数画面/APIで同じ成功メッセージを返したくなった時。
-- 導入する場合の配置候補は `com.clip.ghost.common.response.ApiResult` とし、PDF機能固有のResponse DTOとは分ける。
-- `ApiResult<T>` は実装時点で次の最小構造から検討する。
+- 包む対象はJSON成功レスポンスだけ。
+  - PDF/ZIP/CSVなどのファイルレスポンスは、`ResponseEntity<byte[]>` や `ResponseEntity<Resource>` でContent-Type / Content-Dispositionを明示し、JSON共通ラッパーで包まない。
+  - エラーは既存の `ErrorResponse`（`fieldErrors` 形式）に任せ、`ApiResult<T>` にERRORを混ぜない。
+- ラップはservice層で行い、controllerでは包まない。DTO生成は `private build〇〇` に集約したまま、`return ResponseEntity.ok(ApiResult.of(build〇〇(...)))` の形で包む。
+- `ApiResult<T>` の構造は次のとおり。
 
 ```java
 @Schema(description = "JSON APIの成功レスポンス共通ラッパー。")
@@ -364,6 +358,13 @@ public class ApiResult<T> {
         return new ApiResult<>(data, ApiResultType.INFO, messageList);
     }
 
+    public static <T> ApiResult<T> warning(T data, List<ApiMessage> messageList) {
+        if (messageList.isEmpty()) {
+            throw new IllegalArgumentException("messageList must not be empty for WARNING.");
+        }
+        return new ApiResult<>(data, ApiResultType.WARNING, messageList);
+    }
+
     public static ApiResult<Void> empty() {
         return new ApiResult<>(null, ApiResultType.INFO, List.of());
     }
@@ -378,16 +379,20 @@ public record ApiMessage(String code, String message) {
 }
 ```
 
-- `ApiResult<T>` を実装する場合の注意:
-  - public setterは持たせず、`of(...)` / `empty()` のfactoryで生成する。
-  - `messageList` はnullにせず、未指定時は空リストにする。
-  - エラーは既存の `ErrorResponse` に任せ、`ApiResult<T>` にERRORを混ぜない。
+- `ApiResult<T>` を扱う際の注意:
+  - public setterは持たせず、`of(...)` / `warning(...)` / `empty()` のfactoryで生成する。
+  - `messageList` はnullにせず、未指定時は空リストにする。コンストラクタで `List.copyOf` して防御的にコピーする。
+  - `WARNING` は `warning(data, messageList)` で生成する。何を注意すべきか伝えられないWARNINGは役に立たないため、メッセージ空での生成は `IllegalArgumentException` で弾く。
   - メッセージコード体系が必要になるまでは、`ApiMessage` は最小の `code` / `message` に留める。
-  - Springdocのgeneric schema表現は崩れやすいため、導入時は `/v3/api-docs` のJUnitを追加する。
+  - Springdocのgeneric schema表現は崩れやすいため、`/v3/api-docs` のJUnit（`OpenApiDocumentationTest`）で `ApiResult〇〇` のschema名と `data` の中身を固定する。
+  - **200の `@ApiResponse` に `content = @Content(...)` を書かない。** 書くと戻り型からのschema推論が上書きされ、200のschemaが空になる。`description` だけを指定すれば、Springdocが `ApiResult〇〇` を生成して `$ref` を張る。エラーcodeの `@ApiResponse` は従来どおり `schema = @Schema(implementation = ErrorResponse.class)` を明示する。
+- フロントエンドはラッパーの構造（`data` / `resultType` / `messageList`）を `api/api-result-utils.js` だけで解釈する。
+  - api clientごとにラッパーを直接読むと、構造変更時の修正漏れが起きるため。`CodingConventionTest` のソーススキャンで他ファイルからの参照を検出する。
+  - `messageList` の画面表示は未実装。各api clientは戻り値に `messages` を持たせ、表示導線は必要になった時点で作る。
 - `ErrorResponse` は既存のエラーJSON仕様として維持し、成功レスポンス共通化と同時に置き換えない。
 - `JsonUtils` はJSON文字列変換・parse・オブジェクト変換の補助であり、APIレスポンス構造を定義するクラスではない。
   - Controllerの通常JSONレスポンスはSpring MVC / Jacksonに任せ、`JsonUtils.toJsonOrThrow(...)` で手動JSON文字列を作って返さない。
-  - `ApiResult<T>` を将来導入する場合も、`JsonUtils` へ依存させず、通常のResponse DTOとして扱う。
+  - `ApiResult<T>` も `JsonUtils` へ依存させず、通常のResponse DTOとしてSpring MVC / Jacksonに任せる。
 
 ## PDF処理のルール
 

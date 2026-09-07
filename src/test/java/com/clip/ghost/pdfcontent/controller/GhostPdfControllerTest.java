@@ -1,6 +1,7 @@
 package com.clip.ghost.pdfcontent.controller;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -17,6 +18,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Set;
+
+import java.nio.charset.StandardCharsets;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -43,6 +46,7 @@ import com.clip.ghost.pdfcontent.dto.OriginalPdfRequest;
 import com.clip.ghost.pdfcontent.dto.PdfMetadataResponse;
 import com.clip.ghost.pdfcontent.dto.PdfTextResponse;
 import com.clip.ghost.pdfcontent.service.GhostPdfService;
+import com.clip.ghost.common.response.ApiResult;
 import com.clip.ghost.common.security.AccessTokenValidator;
 import com.clip.ghost.common.utils.JsonUtils;
 import com.clip.ghost.common.utils.ResponseUtils;
@@ -51,6 +55,9 @@ import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
 import jakarta.validation.ValidatorFactory;
+
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * {@link GhostPdfController} のHTTPエンドポイント、token検証、validation入口を検証するテスト。
@@ -233,6 +240,7 @@ class GhostPdfControllerTest {
 		verify(pdfService, times(1)).getPdfMetadata(any(OriginalPdfRequest.class));
 		assertEquals(HttpStatus.OK.value(), result.getResponse().getStatus());
 		assertEquals(MediaType.APPLICATION_JSON_VALUE, result.getResponse().getContentType());
+		assertApiResultEnvelope(result);
 	}
 
 	@Test
@@ -260,6 +268,7 @@ class GhostPdfControllerTest {
 		verify(pdfService, times(1)).extractPdfText(any(OriginalPdfRequest.class));
 		assertEquals(HttpStatus.OK.value(), result.getResponse().getStatus());
 		assertEquals(MediaType.APPLICATION_JSON_VALUE, result.getResponse().getContentType());
+		assertApiResultEnvelope(result);
 	}
 
 	@Test
@@ -557,7 +566,8 @@ class GhostPdfControllerTest {
 		response.setFileSize(123L);
 		response.setPageCount(1);
 		response.setEncrypted(false);
-		doReturn(ResponseEntity.ok(response)).when(pdfService).getPdfMetadata(any(OriginalPdfRequest.class));
+		doReturn(ResponseEntity.ok(ApiResult.of(response))).when(pdfService)
+				.getPdfMetadata(any(OriginalPdfRequest.class));
 	}
 
 	private void stubTextResponse() {
@@ -566,7 +576,8 @@ class GhostPdfControllerTest {
 		response.setFileSize(123L);
 		response.setPageCount(1);
 		response.setText("sample text");
-		doReturn(ResponseEntity.ok(response)).when(pdfService).extractPdfText(any(OriginalPdfRequest.class));
+		doReturn(ResponseEntity.ok(ApiResult.of(response))).when(pdfService)
+				.extractPdfText(any(OriginalPdfRequest.class));
 	}
 
 	private void stubExtractPdfResponse(byte[] contents) {
@@ -788,4 +799,21 @@ class GhostPdfControllerTest {
 			return inputStream.readAllBytes();
 		}
 	}
+
+	/**
+	 * 成功レスポンスが共通ラッパー（data / resultType / messageList）の形であることを確認する。
+	 *
+	 * @param result HTTP実行結果
+	 * @return ラッパー内のdataノード
+	 * @throws Exception レスポンス本文を読み取れない場合
+	 */
+	private JsonNode assertApiResultEnvelope(MvcResult result) throws Exception {
+		JsonNode body = new ObjectMapper().readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8));
+		assertEquals("INFO", body.path("resultType").asString());
+		assertTrue(body.path("messageList").isArray());
+		assertEquals(0, body.path("messageList").size());
+		assertFalse(body.path("data").isMissingNode());
+		return body.path("data");
+	}
+
 }

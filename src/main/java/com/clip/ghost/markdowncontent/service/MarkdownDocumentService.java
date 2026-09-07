@@ -27,6 +27,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.clip.ghost.common.response.ApiResult;
 import com.clip.ghost.common.utils.FileInfoUtils;
 import com.clip.ghost.common.utils.FileOperationUtils;
 import com.clip.ghost.common.utils.PathUtils;
@@ -80,7 +81,7 @@ public class MarkdownDocumentService {
 	 * @param request Markdown保存リクエスト
 	 * @return Markdown保存レスポンス
 	 */
-	public ResponseEntity<MarkdownFileResponse> saveMarkdown(MarkdownSaveRequest request) {
+	public ResponseEntity<ApiResult<MarkdownFileResponse>> saveMarkdown(MarkdownSaveRequest request) {
 		Objects.requireNonNull(request, "request must not be null.");
 		String fileName = normalizeMarkdownFileName(request.getFileName());
 		Path outputPath = storageDirectory.resolve(fileName).normalize();
@@ -88,7 +89,7 @@ public class MarkdownDocumentService {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid Markdown file path.");
 		}
 		FileOperationUtils.writeString(outputPath, request.getContent());
-		return ResponseEntity.ok(buildResponse(fileName, outputPath));
+		return ResponseEntity.ok(ApiResult.of(buildResponse(fileName, outputPath)));
 	}
 
 	/**
@@ -96,13 +97,13 @@ public class MarkdownDocumentService {
 	 *
 	 * @return 保存済みMarkdownファイル一覧
 	 */
-	public ResponseEntity<List<MarkdownFileResponse>> listMarkdownFiles() {
+	public ResponseEntity<ApiResult<List<MarkdownFileResponse>>> listMarkdownFiles() {
 		List<MarkdownFileResponse> files = FileInfoUtils.getFilePaths(storageDirectory, false).stream()
 				.filter(path -> !Files.isSymbolicLink(path))
 				.filter(path -> PathUtils.isMarkdownFileName(path.getFileName().toString()))
 				.sorted(Comparator.comparing(path -> path.getFileName().toString(), String.CASE_INSENSITIVE_ORDER))
 				.map(path -> buildResponse(path.getFileName().toString(), path)).toList();
-		return ResponseEntity.ok(files);
+		return ResponseEntity.ok(ApiResult.of(files));
 	}
 
 	/**
@@ -111,11 +112,11 @@ public class MarkdownDocumentService {
 	 * @param fileName 読み取り対象Markdownファイル名
 	 * @return 保存済みMarkdown本文レスポンス
 	 */
-	public ResponseEntity<MarkdownDocumentResponse> getMarkdownFile(String fileName) {
+	public ResponseEntity<ApiResult<MarkdownDocumentResponse>> getMarkdownFile(String fileName) {
 		Path filePath = resolveReadableMarkdownPath(fileName);
 		MarkdownDocumentResponse response = buildDocumentResponse(filePath.getFileName().toString(), filePath,
 				readMarkdownContent(filePath));
-		return ResponseEntity.ok(response);
+		return ResponseEntity.ok(ApiResult.of(response));
 	}
 
 	/**
@@ -124,11 +125,11 @@ public class MarkdownDocumentService {
 	 * @param fileName 読み取り対象Markdownファイル名
 	 * @return Markdownプレビューレスポンス
 	 */
-	public ResponseEntity<MarkdownPreviewResponse> previewMarkdownFile(String fileName) {
+	public ResponseEntity<ApiResult<MarkdownPreviewResponse>> previewMarkdownFile(String fileName) {
 		Path filePath = resolveReadableMarkdownPath(fileName);
 		MarkdownPreviewResponse response = buildPreviewResponse(filePath.getFileName().toString(), filePath,
 				renderMarkdownPreview(readMarkdownContent(filePath)));
-		return ResponseEntity.ok(response);
+		return ResponseEntity.ok(ApiResult.of(response));
 	}
 
 	/**
@@ -137,9 +138,10 @@ public class MarkdownDocumentService {
 	 * @param request Markdown本文プレビューリクエスト
 	 * @return Markdown本文プレビューレスポンス
 	 */
-	public ResponseEntity<MarkdownPreviewContentResponse> previewMarkdownContent(MarkdownPreviewRequest request) {
+	public ResponseEntity<ApiResult<MarkdownPreviewContentResponse>> previewMarkdownContent(
+			MarkdownPreviewRequest request) {
 		Objects.requireNonNull(request, "request must not be null.");
-		return ResponseEntity.ok(buildPreviewContentResponse(renderMarkdownPreview(request.getContent())));
+		return ResponseEntity.ok(ApiResult.of(buildPreviewContentResponse(renderMarkdownPreview(request.getContent()))));
 	}
 
 	/**
@@ -149,11 +151,12 @@ public class MarkdownDocumentService {
 	 * @param request  Markdown更新リクエスト
 	 * @return Markdown更新後メタデータレスポンス
 	 */
-	public ResponseEntity<MarkdownFileResponse> updateMarkdownFile(String fileName, MarkdownUpdateRequest request) {
+	public ResponseEntity<ApiResult<MarkdownFileResponse>> updateMarkdownFile(String fileName,
+			MarkdownUpdateRequest request) {
 		Objects.requireNonNull(request, "request must not be null.");
 		Path filePath = resolveReadableMarkdownPath(fileName);
 		FileOperationUtils.writeString(filePath, request.getContent());
-		return ResponseEntity.ok(buildResponse(filePath.getFileName().toString(), filePath));
+		return ResponseEntity.ok(ApiResult.of(buildResponse(filePath.getFileName().toString(), filePath)));
 	}
 
 	/**
@@ -162,11 +165,11 @@ public class MarkdownDocumentService {
 	 * @param fileName 削除対象Markdownファイル名
 	 * @return Markdown削除レスポンス
 	 */
-	public ResponseEntity<MarkdownDeleteResponse> deleteMarkdownFile(String fileName) {
+	public ResponseEntity<ApiResult<MarkdownDeleteResponse>> deleteMarkdownFile(String fileName) {
 		Path filePath = resolveReadableMarkdownPath(fileName);
 		String resolvedFileName = filePath.getFileName().toString();
 		FileOperationUtils.deleteFile(filePath);
-		return ResponseEntity.ok(buildDeleteResponse(resolvedFileName));
+		return ResponseEntity.ok(ApiResult.of(buildDeleteResponse(resolvedFileName)));
 	}
 
 	/**

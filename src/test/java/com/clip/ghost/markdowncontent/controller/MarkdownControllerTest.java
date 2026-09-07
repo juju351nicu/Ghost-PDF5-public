@@ -1,6 +1,7 @@
 package com.clip.ghost.markdowncontent.controller;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -14,6 +15,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 
 import java.util.List;
+
+import java.nio.charset.StandardCharsets;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -31,6 +34,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import com.clip.ghost.common.exceptions.handler.ControllerValidationErrorHandler;
 import com.clip.ghost.common.security.AccessTokenValidator;
+import com.clip.ghost.common.response.ApiResult;
 import com.clip.ghost.common.utils.JsonUtils;
 import com.clip.ghost.markdowncontent.dto.MarkdownDeleteResponse;
 import com.clip.ghost.markdowncontent.dto.MarkdownDocumentResponse;
@@ -41,6 +45,9 @@ import com.clip.ghost.markdowncontent.dto.MarkdownPreviewResponse;
 import com.clip.ghost.markdowncontent.dto.MarkdownSaveRequest;
 import com.clip.ghost.markdowncontent.dto.MarkdownUpdateRequest;
 import com.clip.ghost.markdowncontent.service.MarkdownDocumentService;
+
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * {@link MarkdownController} のHTTPエンドポイントとtoken検証入口を検証するテスト。
@@ -82,6 +89,7 @@ class MarkdownControllerTest {
 		verify(markdownDocumentService, times(1)).saveMarkdown(any(MarkdownSaveRequest.class));
 		assertEquals(HttpStatus.OK.value(), result.getResponse().getStatus());
 		assertEquals(MediaType.APPLICATION_JSON_VALUE, result.getResponse().getContentType());
+		assertEquals("design-note.md", assertApiResultEnvelope(result).path("fileName").asString());
 	}
 
 	@Test
@@ -129,6 +137,10 @@ class MarkdownControllerTest {
 		verify(markdownDocumentService, times(1)).listMarkdownFiles();
 		assertEquals(HttpStatus.OK.value(), result.getResponse().getStatus());
 		assertEquals(MediaType.APPLICATION_JSON_VALUE, result.getResponse().getContentType());
+		// 一覧はトップレベルが配列ではなく、dataの中が配列になる。
+		JsonNode data = assertApiResultEnvelope(result);
+		assertTrue(data.isArray());
+		assertEquals("design-note.md", data.path(0).path("fileName").asString());
 	}
 
 	@Test
@@ -150,6 +162,7 @@ class MarkdownControllerTest {
 		verify(markdownDocumentService, times(1)).getMarkdownFile("design-note.md");
 		assertEquals(HttpStatus.OK.value(), result.getResponse().getStatus());
 		assertEquals(MediaType.APPLICATION_JSON_VALUE, result.getResponse().getContentType());
+		assertApiResultEnvelope(result);
 	}
 
 	@Test
@@ -180,6 +193,7 @@ class MarkdownControllerTest {
 		verify(markdownDocumentService, times(1)).previewMarkdownFile("design-note.md");
 		assertEquals(HttpStatus.OK.value(), result.getResponse().getStatus());
 		assertEquals(MediaType.APPLICATION_JSON_VALUE, result.getResponse().getContentType());
+		assertApiResultEnvelope(result);
 	}
 
 	@Test
@@ -211,6 +225,7 @@ class MarkdownControllerTest {
 		verify(markdownDocumentService, times(1)).previewMarkdownContent(any(MarkdownPreviewRequest.class));
 		assertEquals(HttpStatus.OK.value(), result.getResponse().getStatus());
 		assertEquals(MediaType.APPLICATION_JSON_VALUE, result.getResponse().getContentType());
+		assertApiResultEnvelope(result);
 	}
 
 	@Test
@@ -248,6 +263,7 @@ class MarkdownControllerTest {
 				any(MarkdownUpdateRequest.class));
 		assertEquals(HttpStatus.OK.value(), result.getResponse().getStatus());
 		assertEquals(MediaType.APPLICATION_JSON_VALUE, result.getResponse().getContentType());
+		assertApiResultEnvelope(result);
 	}
 
 	@Test
@@ -297,6 +313,7 @@ class MarkdownControllerTest {
 		verify(markdownDocumentService, times(1)).deleteMarkdownFile("design-note.md");
 		assertEquals(HttpStatus.OK.value(), result.getResponse().getStatus());
 		assertEquals(MediaType.APPLICATION_JSON_VALUE, result.getResponse().getContentType());
+		assertApiResultEnvelope(result);
 	}
 
 	@Test
@@ -323,7 +340,7 @@ class MarkdownControllerTest {
 		response.setByteSize(123L);
 		response.setLineCount(2L);
 		response.setLastModifiedTime("2026-07-25T16:45:00");
-		doReturn(ResponseEntity.ok(response)).when(markdownDocumentService)
+		doReturn(ResponseEntity.ok(ApiResult.of(response))).when(markdownDocumentService)
 				.saveMarkdown(any(MarkdownSaveRequest.class));
 	}
 
@@ -334,7 +351,7 @@ class MarkdownControllerTest {
 		response.setLineCount(2L);
 		response.setLastModifiedTime("2026-07-25T16:45:00");
 		response.setContent("# Title");
-		doReturn(ResponseEntity.ok(response)).when(markdownDocumentService).getMarkdownFile("design-note.md");
+		doReturn(ResponseEntity.ok(ApiResult.of(response))).when(markdownDocumentService).getMarkdownFile("design-note.md");
 	}
 
 	private void stubPreviewMarkdownFileResponse() {
@@ -344,13 +361,13 @@ class MarkdownControllerTest {
 		response.setLineCount(2L);
 		response.setLastModifiedTime("2026-07-25T16:45:00");
 		response.setHtml("<h1>Title</h1>");
-		doReturn(ResponseEntity.ok(response)).when(markdownDocumentService).previewMarkdownFile("design-note.md");
+		doReturn(ResponseEntity.ok(ApiResult.of(response))).when(markdownDocumentService).previewMarkdownFile("design-note.md");
 	}
 
 	private void stubPreviewMarkdownContentResponse() {
 		MarkdownPreviewContentResponse response = new MarkdownPreviewContentResponse();
 		response.setHtml("<h1>Title</h1>");
-		doReturn(ResponseEntity.ok(response)).when(markdownDocumentService)
+		doReturn(ResponseEntity.ok(ApiResult.of(response))).when(markdownDocumentService)
 				.previewMarkdownContent(any(MarkdownPreviewRequest.class));
 	}
 
@@ -360,7 +377,7 @@ class MarkdownControllerTest {
 		response.setByteSize(321L);
 		response.setLineCount(2L);
 		response.setLastModifiedTime("2026-07-25T16:50:00");
-		doReturn(ResponseEntity.ok(response)).when(markdownDocumentService).updateMarkdownFile(eq("design-note.md"),
+		doReturn(ResponseEntity.ok(ApiResult.of(response))).when(markdownDocumentService).updateMarkdownFile(eq("design-note.md"),
 				any(MarkdownUpdateRequest.class));
 	}
 
@@ -368,7 +385,7 @@ class MarkdownControllerTest {
 		MarkdownDeleteResponse response = new MarkdownDeleteResponse();
 		response.setFileName("design-note.md");
 		response.setDeleted(Boolean.TRUE);
-		doReturn(ResponseEntity.ok(response)).when(markdownDocumentService).deleteMarkdownFile("design-note.md");
+		doReturn(ResponseEntity.ok(ApiResult.of(response))).when(markdownDocumentService).deleteMarkdownFile("design-note.md");
 	}
 
 	private void stubListMarkdownFilesResponse() {
@@ -377,7 +394,7 @@ class MarkdownControllerTest {
 		response.setByteSize(123L);
 		response.setLineCount(2L);
 		response.setLastModifiedTime("2026-07-25T16:45:00");
-		doReturn(ResponseEntity.ok(List.of(response))).when(markdownDocumentService).listMarkdownFiles();
+		doReturn(ResponseEntity.ok(ApiResult.of(List.of(response)))).when(markdownDocumentService).listMarkdownFiles();
 	}
 
 	private MvcResult performSaveMarkdown(MarkdownSaveRequest request, String accessToken,
@@ -489,4 +506,21 @@ class MarkdownControllerTest {
 		request.setContent("# Title");
 		return request;
 	}
+
+	/**
+	 * 成功レスポンスが共通ラッパー（data / resultType / messageList）の形であることを確認する。
+	 *
+	 * @param result HTTP実行結果
+	 * @return ラッパー内のdataノード
+	 * @throws Exception レスポンス本文を読み取れない場合
+	 */
+	private JsonNode assertApiResultEnvelope(MvcResult result) throws Exception {
+		JsonNode body = new ObjectMapper().readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8));
+		assertEquals("INFO", body.path("resultType").asString());
+		assertTrue(body.path("messageList").isArray());
+		assertEquals(0, body.path("messageList").size());
+		assertFalse(body.path("data").isMissingNode());
+		return body.path("data");
+	}
+
 }
