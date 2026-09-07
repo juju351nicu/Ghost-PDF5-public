@@ -139,7 +139,7 @@ Public repository化後も、当面はlocal development / portfolio用途を前�
   - 対象はJSONの11本（`metadataPdf` / `textPdf` / `markdownDraftPdf` / `markdownDraftImage` / `saveMarkdown` / `markdownFiles` / `markdownFile` GET・PUT・DELETE / `markdownPreview` GET・POST）
   - `GET /markdownFiles` はトップレベル配列をやめ、`data` の中を配列にした
   - バイナリ（PDF / ZIP）・CSV・エラー（`ErrorResponse` の `fieldErrors`）は従来どおり包まない
-  - 「成功したが伝えたいことがある」を返せるよう `resultType` と `messageList` を用意。今フェーズは全エンドポイントが `INFO` + 空リストで、実際の利用は次フェーズ
+  - 「成功したが伝えたいことがある」を返せるよう `resultType` と `messageList` を用意。実際の利用は後続フェーズで追加済み（下記「成功時の通知メッセージ」）
   - FEはラッパーの構造を `api/api-result-utils.js` だけで解釈し、他ファイルからの参照は `CodingConventionTest` で検出
   - `OpenApiDocumentationTest` で11本すべての200が `ApiResult〇〇` schemaになり、`data` が用途別Responseを指すことを固定
 - `const.js` のJSDocとフォーマットをES Modules側の書き方へ統一
@@ -168,6 +168,14 @@ Public repository化後も、当面はlocal development / portfolio用途を前�
   - 一時ファイルの削除はレスポンス送信の完了後（リソースのclose時）に行う。送信途中で削除するとレスポンスが壊れるため
   - Content-Type / Content-Disposition / Content-Length は従来と同一。FEの変更なし
   - 実測: `-Xmx128m` では修正前が `OutOfMemoryError`、修正後は同じ分割が通る（`-Xmx256m` では修正前もぎりぎり通ったため、差が出る条件で確認した）
+- 成功時の通知メッセージ（`ApiResult` の `resultType = WARNING` / `messageList`）を実際に使うようにした
+  - `mode=AUTO` は1ページの変換失敗で全体が失敗していた。失敗したページを記録して残りのページの変換を続け、成功分を200で返すよう変更
+  - 失敗したページは本文を空にし、`source` を `FAILED` にする（`TEXT` のままでは白紙ページと区別できない）。`messageList` に `ocrPagePartiallyFailed` と失敗ページ番号を載せる
+  - 変換対象があって1ページも成功しなかった場合は警告ではなく失敗として、従来どおり最初の失敗を伝播する。文字レイヤーだけのPDF（変換対象0ページ）は従来どおり成功
+  - `POST /saveMarkdown` は既存ファイルを無警告に上書きしていた。上書き自体は変えず、`markdownFileOverwritten` で事後に伝えるよう変更（`PUT /markdownFile` は上書きが目的なので対象外）
+  - 画面表示はモーダルではなくインライン（`components/api-message-list.js`）。Markdownメモパネルの編集欄の上に出し、次の操作で消える
+  - 表示側はメッセージを解釈せず並べるだけにし、`WARNING` を返すAPIが増えても画面を触らずに済ませる
+  - `FrontendApiMessageContractTest` で「api clientの `messages` → app state → 表示component」の接続を固定
 - `deletePdf` / `insertPdf` のファイルサイズ検証をOpenAPIの413定義と整合させ、Controller単体テストで固定
 - `CodingConventionTest` にDOM直接操作とHTML直接挿入の再混入検知を追加
 - `CodingConventionTest` にfield injection の `@Autowired` 再混入検知を追加
@@ -371,7 +379,7 @@ Markdown保存を含むJava 25の全286テストが成功しています。
   - 現状のGhost-PDF5はPDF API中心のため、`api/fetch-client.js` / `api/pdf-api-client.js` / `api/api-error-utils.js` の分離で十分。
   - 複数APIでエラー表示がさらに増えた時点で、例外型やHTTP status別メッセージへの変換を拡張する。
 - JSON APIの成功レスポンス共通化は `ApiResult<T>` として導入済み（下記「実施済み」参照）。
-  - `messageList` の実際の利用（`mode=AUTO` で変換に失敗したページの通知など）と、その画面表示導線は次フェーズ。
+  - `messageList` の実際の利用（`mode=AUTO` の部分失敗通知、`POST /saveMarkdown` の上書き通知）と画面表示導線は実施済み。
   - PDF/ZIP/CSVなどのバイナリレスポンスは引き続き共通JSONで包まない。
   - `JsonUtils` はJSON文字列変換・parse用の補助であり、APIレスポンス共通化とは責務を分ける。
 - PDF基本API拡張は、資料のPhase 1に沿って `metadataPdf`、ページ抽出、PDF結合、1ページずつのPDF分割を追加済み。

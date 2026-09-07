@@ -134,6 +134,62 @@ class PdfDocumentAnalysisLogicTest {
 	}
 
 	@Test
+	void extractPdfPageContentsKeepsSucceededPagesWhenConverterFailsForOnePage() throws IOException {
+		Path inputPath = createPdf("partial.pdf", "", "second page", "");
+		PdfDocumentAnalysisLogic analysisLogic = new PdfDocumentAnalysisLogic();
+		AtomicInteger convertedCount = new AtomicInteger();
+
+		List<PdfPageContent> contents = analysisLogic.extractPdfPageContents(inputPath, 100, 20, pngBytes -> {
+			if (convertedCount.incrementAndGet() == 1) {
+				throw new IllegalArgumentException("変換に失敗しました。");
+			}
+			return "converted markdown";
+		});
+
+		// 1ページの失敗で全体を捨てず、成功したページの変換結果を返す。
+		assertEquals(2, convertedCount.get());
+		assertEquals(3, contents.size());
+		assertNull(contents.get(0).convertedText());
+		assertTrue(contents.get(0).conversionFailed());
+		assertFalse(contents.get(1).conversionFailed());
+		assertEquals("converted markdown", contents.get(2).convertedText());
+		assertFalse(contents.get(2).conversionFailed());
+		assertTrue(Files.exists(inputPath));
+	}
+
+	@Test
+	void extractPdfPageContentsPropagatesFirstFailureWhenEveryTargetPageFails() throws IOException {
+		Path inputPath = createPdf("all-failed.pdf", "", "");
+		PdfDocumentAnalysisLogic analysisLogic = new PdfDocumentAnalysisLogic();
+		AtomicInteger convertedCount = new AtomicInteger();
+
+		// 全滅は部分的成功ではないため、HTTP statusを変えないよう最初の失敗をそのまま伝播する。
+		IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+				() -> analysisLogic.extractPdfPageContents(inputPath, 100, 20, pngBytes -> {
+					throw new IllegalArgumentException("変換に失敗しました。" + convertedCount.incrementAndGet());
+				}));
+
+		assertEquals("変換に失敗しました。1", exception.getMessage());
+		assertEquals(2, convertedCount.get());
+		assertTrue(Files.exists(inputPath));
+	}
+
+	@Test
+	void extractPdfPageContentsKeepsTextPagesWhenThereIsNoConversionTarget() throws IOException {
+		Path inputPath = createPdf("no-target.pdf", "first page", "second page");
+		PdfDocumentAnalysisLogic analysisLogic = new PdfDocumentAnalysisLogic();
+
+		List<PdfPageContent> contents = analysisLogic.extractPdfPageContents(inputPath, 100, 20, pngBytes -> {
+			throw new IllegalStateException("変換対象が無いページで変換器が呼ばれました。");
+		});
+
+		// 変換対象0ページを「全滅」と数えると、文字レイヤーだけのPDFが失敗になってしまう。
+		assertEquals(2, contents.size());
+		assertFalse(contents.get(0).conversionFailed());
+		assertFalse(contents.get(1).conversionFailed());
+	}
+
+	@Test
 	void extractPdfPageContentsRejectsWithoutCallingConverterWhenBlankPagesExceedMaxPages() throws IOException {
 		Path inputPath = createPdf("limit.pdf", "first page", "", "");
 		PdfDocumentAnalysisLogic analysisLogic = new PdfDocumentAnalysisLogic();

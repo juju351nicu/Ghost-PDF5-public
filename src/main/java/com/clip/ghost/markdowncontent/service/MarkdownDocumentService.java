@@ -27,6 +27,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.clip.ghost.common.response.ApiMessage;
 import com.clip.ghost.common.response.ApiResult;
 import com.clip.ghost.common.utils.FileInfoUtils;
 import com.clip.ghost.common.utils.FileOperationUtils;
@@ -51,6 +52,8 @@ public class MarkdownDocumentService {
 	private static final String DEFAULT_MARKDOWN_FILE_BASE_NAME = "document";
 	private static final String MARKDOWN_FILE_EXTENSION = "md";
 	private static final String MARKDOWN_FILE_SUFFIX = "." + MARKDOWN_FILE_EXTENSION;
+	private static final String OVERWRITTEN_MESSAGE_CODE = "markdownFileOverwritten";
+	private static final String OVERWRITTEN_MESSAGE = "既存のファイルを上書きしました。";
 	// GFM表拡張はセルの列揃えを th/td の align 属性として出力するが、Safelist.relaxed() は align を
 	// 許可しないため、列揃えを保つ目的でこの2属性だけ明示的に許可する。他の属性の許可範囲は変えない。
 	private static final Safelist MARKDOWN_PREVIEW_SAFELIST = Safelist.relaxed().addAttributes("th", "align")
@@ -80,6 +83,10 @@ public class MarkdownDocumentService {
 
 	/**
 	 * Markdown本文を保存し、保存後の最小メタデータを返却する。
+	 * <p>
+	 * 既存ファイルがある場合も従来どおり上書きし、上書きしたことだけを結果種別WARNINGで事後に伝える。
+	 * 保存を拒否すると、下書きを反映しただけの利用者が保存できなくなるため挙動は変えない。
+	 * 上書き判定は書き込み前に行う。書き込み後では新規作成と上書きを区別できない。
 	 *
 	 * @param request Markdown保存リクエスト
 	 * @return Markdown保存レスポンス
@@ -91,8 +98,14 @@ public class MarkdownDocumentService {
 		if (Files.isSymbolicLink(outputPath)) {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid Markdown file path.");
 		}
+		boolean overwritten = Files.exists(outputPath);
 		FileOperationUtils.writeString(outputPath, request.getContent());
-		return ResponseEntity.ok(ApiResult.of(buildResponse(fileName, outputPath)));
+		MarkdownFileResponse response = buildResponse(fileName, outputPath);
+		if (overwritten) {
+			List<ApiMessage> messageList = List.of(new ApiMessage(OVERWRITTEN_MESSAGE_CODE, OVERWRITTEN_MESSAGE));
+			return ResponseEntity.ok(ApiResult.warning(response, messageList));
+		}
+		return ResponseEntity.ok(ApiResult.of(response));
 	}
 
 	/**

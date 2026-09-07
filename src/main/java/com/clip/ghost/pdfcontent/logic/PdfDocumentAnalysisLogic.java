@@ -112,12 +112,16 @@ final class PdfDocumentAnalysisLogic {
 	 * 呼び出し回数が {@code maxPages} で有界になるため許容する。
 	 * <p>
 	 * ページ順を維持し、空ページも省略しない。入力ファイルは削除しない。
+	 * <p>
+	 * 変換器が失敗したページは、そのページだけを失敗として記録し、残りのページの変換を続ける。
+	 * 1ページの失敗で全体を捨てると、外部AIへ課金して得た成功分のページまで利用者へ届かなくなるため。
+	 * ただし変換対象があって1ページも成功しなかった場合は部分的成功ではないため、最初の失敗をそのまま伝播する。
 	 *
 	 * @param inputPath          読み込むPDFのパス
 	 * @param renderDpi          画像化する解像度（DPI）
 	 * @param maxPages           画像変換にかけるページ数の上限
 	 * @param pageImageConverter 画像化した1ページ分をテキストへ変換する処理
-	 * @return PDF順のページ内容（テキストと、変換したページの変換結果）
+	 * @return PDF順のページ内容（テキストと、変換したページの変換結果・変換失敗）
 	 * @throws PdfPageLimitExceededException 変換対象ページ数が上限を超えた場合
 	 * @throws PdfProcessingException        PDFの読み込み、テキスト抽出、または画像化に失敗した場合
 	 */
@@ -136,12 +140,30 @@ final class PdfDocumentAnalysisLogic {
 
 			PDFRenderer renderer = new PDFRenderer(document);
 			Map<Integer, String> convertedTexts = new HashMap<>();
+			List<Integer> failedPageNumbers = new ArrayList<>();
+			RuntimeException firstFailure = null;
 			for (Integer pageNumber : renderTargetPages) {
 				// PDFBoxのレンダリングは0始まりのため、1始まりのページ番号から開始ページ番号を引く。
 				byte[] pngBytes = renderPageToPng(renderer, pageNumber - PdfConstants.START_PAGE, renderDpi);
-				convertedTexts.put(pageNumber, pageImageConverter.convert(pngBytes));
+				try {
+					convertedTexts.put(pageNumber, pageImageConverter.convert(pngBytes));
+				} catch (RuntimeException e) {
+					// 画像化（renderPageToPng）の失敗はPDF自体を読めていない疑いがあるため従来どおり全体を止め、
+					// 変換器の失敗だけをページ単位の部分失敗として扱う。
+					failedPageNumbers.add(pageNumber);
+					if (firstFailure == null) {
+						firstFailure = e;
+					}
+					LOGGER.warn("ページの画像変換に失敗したため、このページを空本文として続行します。pageNumber={}", pageNumber, e);
+				}
 			}
-			return buildPageContents(pageTexts, convertedTexts);
+			if (!renderTargetPages.isEmpty() && failedPageNumbers.size() == renderTargetPages.size()) {
+				// 全滅は「一部が失敗した成功」ではないため、1ページ目の失敗で止まっていた従来どおり例外にする。
+				// 独自例外へ包み直すとHTTP statusが変わるため、最初の失敗をそのまま投げる。
+				LOGGER.warn("画像変換が全ページ失敗したため処理を中断します。targetPageCount={}", renderTargetPages.size());
+				throw firstFailure;
+			}
+			return buildPageContents(pageTexts, convertedTexts, failedPageNumbers);
 		} catch (IllegalStateException | IOException e) {
 			throw new PdfProcessingException("PDFページ内容の抽出に失敗しました。path=" + inputPath, e);
 		}
@@ -185,14 +207,17 @@ final class PdfDocumentAnalysisLogic {
 	/**
 	 * ページ単位テキストと変換結果からページ内容を組み立てる。
 	 *
-	 * @param pageTexts      PDF順のページ単位テキスト
-	 * @param convertedTexts 変換したページ番号と変換結果
+	 * @param pageTexts         PDF順のページ単位テキスト
+	 * @param convertedTexts    変換したページ番号と変換結果
+	 * @param failedPageNumbers 変換に失敗したページ番号（1始まり）
 	 * @return PDF順のページ内容
 	 */
-	private List<PdfPageContent> buildPageContents(List<String> pageTexts, Map<Integer, String> convertedTexts) {
+	private List<PdfPageContent> buildPageContents(List<String> pageTexts, Map<Integer, String> convertedTexts,
+			List<Integer> failedPageNumbers) {
 		return IntStream.rangeClosed(PdfConstants.START_PAGE, pageTexts.size())
 				.mapToObj(pageNumber -> new PdfPageContent(pageNumber,
-						pageTexts.get(pageNumber - PdfConstants.START_PAGE), convertedTexts.get(pageNumber)))
+						pageTexts.get(pageNumber - PdfConstants.START_PAGE), convertedTexts.get(pageNumber),
+						failedPageNumbers.contains(pageNumber)))
 				.toList();
 	}
 

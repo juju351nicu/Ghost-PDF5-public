@@ -75,6 +75,7 @@
 						<button type="button" :disabled="isProcessing" @click="requestDeleteMarkdownFile">削除</button>
 					</div>
 					<p class="markdown-panel__message" v-if="markdownMessage">{{ markdownMessage }}</p>
+					<api-message-list :messages="apiMessages"></api-message-list>
 					<textarea class="markdown-panel__editor" v-model="markdownContent"
 						placeholder="# 設計メモ"></textarea>
 					<div class="markdown-panel__columns">

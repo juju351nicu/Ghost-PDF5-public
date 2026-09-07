@@ -412,9 +412,23 @@ public record ApiMessage(String code, String message) {
   - メッセージコード体系が必要になるまでは、`ApiMessage` は最小の `code` / `message` に留める。
   - Springdocのgeneric schema表現は崩れやすいため、`/v3/api-docs` のJUnit（`OpenApiDocumentationTest`）で `ApiResult〇〇` のschema名と `data` の中身を固定する。
   - **200の `@ApiResponse` に `content = @Content(...)` を書かない。** 書くと戻り型からのschema推論が上書きされ、200のschemaが空になる。`description` だけを指定すれば、Springdocが `ApiResult〇〇` を生成して `$ref` を張る。エラーcodeの `@ApiResponse` は従来どおり `schema = @Schema(implementation = ErrorResponse.class)` を明示する。
+- `WARNING` を返す条件は次のとおり。**導入済み**（`mode=AUTO` の一部ページ変換失敗、`POST /saveMarkdown` の上書き）。
+  - `WARNING` は成功時だけに使う。処理を完了できなかった場合はHTTP statusとエラーJSONで返し、200 + `WARNING` にしない。
+  - 部分的な失敗は「1件以上成功した」場合だけ `WARNING` にする。**全滅は警告ではなく失敗**として、従来どおり例外で止める。
+    - 対象0件（そもそも失敗しうる処理をしていない）と全滅を混同しない。文字レイヤーだけのPDFは変換対象0ページのため常に成功。
+    - 全滅時は独自例外へ包み直さず、最初の失敗をそのまま伝播させる。包み直すとHTTP statusが変わる。
+  - 部分的な失敗を許す処理は、失敗した対象を記録して残りを続ける。1件の失敗で全体を捨てると、外部AIへ課金して得た成功分まで失われる。
+  - 失敗した対象は、成功して結果が空だった場合と区別できる値で返す（例: `source = FAILED`）。区別できないと利用者が失敗に気付けない。
+  - 例外の内容はSLF4Jの `warn` でログへ出し、画面へは出さない。メッセージは `ApiMessage` の `code` / `message` だけで伝える。
+  - 上書きのような「利用者の意図どおりだが伝えるべきこと」は、挙動を変えずに事後通知する。禁止して操作を止めない。
 - フロントエンドはラッパーの構造（`data` / `resultType` / `messageList`）を `api/api-result-utils.js` だけで解釈する。
   - api clientごとにラッパーを直接読むと、構造変更時の修正漏れが起きるため。`CodingConventionTest` のソーススキャンで他ファイルからの参照を検出する。
-  - `messageList` の画面表示は未実装。各api clientは戻り値に `messages` を持たせ、表示導線は必要になった時点で作る。
+  - `messageList` の表示は**モーダルではなくインライン**にする（`components/api-message-list.js`）。モーダルはエラー用で、処理が終わった後の通知で操作を止めても利用者にできることが増えない。
+    - 表示位置は対応する操作の近く（Markdown下書き・保存はMarkdownメモパネル内、編集欄の上）。
+    - 見た目は `main.css` の `.api-message-list` に置く。inline styleは使わない。
+    - 通知は次の操作で消す。`this.errorMessages = []` と同じ位置で `clearApiMessages()` を呼ぶ。
+    - 表示側はメッセージの内容を解釈せず並べるだけにする。`WARNING` を返すAPIが増えても画面を触らずに済ませるため。
+    - 接続は `FrontendApiMessageContractTest` のソーススキャンで固定する（JSのテストランナーが無い構成のため）。
 - `ErrorResponse` は既存のエラーJSON仕様として維持し、成功レスポンス共通化と同時に置き換えない。
 - `JsonUtils` はJSON文字列変換・parse・オブジェクト変換の補助であり、APIレスポンス構造を定義するクラスではない。
   - Controllerの通常JSONレスポンスはSpring MVC / Jacksonに任せ、`JsonUtils.toJsonOrThrow(...)` で手動JSON文字列を作って返さない。

@@ -1,6 +1,7 @@
 import Util from "../util.js";
 import CONST from "../const.js";
 import Modal from "../components/modal.js";
+import ApiMessageList from "../components/api-message-list.js";
 import TheHeader from "../components/theheader.js";
 import TheFooter from "../components/thefooter.js";
 import OriginalPdfForm from "../components/original-pdf-form.js";
@@ -34,6 +35,7 @@ const pdfApp = {
     "original-pdf-form": OriginalPdfForm,
     "insert-pdf-row": InsertPdfRow,
     "image-ocr-form": ImageOcrForm,
+    "api-message-list": ApiMessageList,
   },
   data() {
     return {
@@ -44,6 +46,7 @@ const pdfApp = {
       insertPagePulldown: PdfFormState.createInsertOptionItems(),
       isShowModal: false,
       errorMessages: [],
+      apiMessages: [],
       isProcessing: false,
       imageDraft: PdfFormState.createImageDraftState(),
       markdownFileName: "design-note.md",
@@ -72,6 +75,24 @@ const pdfApp = {
     },
   },
   methods: {
+    /**
+     * 成功レスポンスの通知メッセージを画面へ反映する。
+     *
+     * メッセージの内容と件数はBEが決めるため、画面側は受け取ったものをそのまま渡す。
+     *
+     * @param {{code: string, message: string}[]} messages 成功レスポンスの通知メッセージ
+     */
+    applyApiMessages(messages) {
+      this.apiMessages = Util.isEmpty(messages) ? [] : messages;
+    },
+    /**
+     * 成功レスポンスの通知メッセージを消す。
+     *
+     * 直前の操作の通知が次の操作の結果として残らないよう、エラーメッセージの初期化と同じ位置で呼ぶ。
+     */
+    clearApiMessages() {
+      this.apiMessages = [];
+    },
     /**
      * エラーメッセージモーダルを表示する。
      */
@@ -407,6 +428,7 @@ const pdfApp = {
       }
       this.isProcessing = true;
       this.errorMessages = [];
+      this.clearApiMessages();
       this.markdownMessage = "";
       return ImageApiClient.requestImageMarkdownDraft(
         CONST.REST_PATH.MARKDOWN_DRAFT_IMAGE,
@@ -418,6 +440,7 @@ const pdfApp = {
             this.showMessageModal();
             return;
           }
+          this.applyApiMessages(result.messages);
           const draftResponse = result.imageDraftResponse;
           this.markdownFileName = this.buildMarkdownFileNameFromPdf(
             draftResponse.fileName
@@ -774,6 +797,7 @@ const pdfApp = {
       }
       this.isProcessing = true;
       this.errorMessages = [];
+      this.clearApiMessages();
       this.markdownMessage = "";
       return request()
         .then((result) => {
@@ -782,6 +806,7 @@ const pdfApp = {
             this.showMessageModal();
             return;
           }
+          this.applyApiMessages(result.messages);
           onSuccess(result.data);
         })
         .catch((error) => {
@@ -833,6 +858,7 @@ const pdfApp = {
       }
       this.isProcessing = true;
       this.errorMessages = [];
+      this.clearApiMessages();
       return PdfApiClient.requestPdfAndOpen(url, payload)
         .then((errorMessages) => {
           if (!Util.isEmpty(errorMessages)) {
@@ -865,6 +891,7 @@ const pdfApp = {
       }
       this.isProcessing = true;
       this.errorMessages = [];
+      this.clearApiMessages();
       return PdfApiClient.requestFileAndDownload(
         url,
         payload,
@@ -899,6 +926,7 @@ const pdfApp = {
       }
       this.isProcessing = true;
       this.errorMessages = [];
+      this.clearApiMessages();
       return PdfApiClient.requestPdfMetadata(CONST.REST_PATH.METADATA_PDF, payload)
         .then((result) => {
           if (!Util.isEmpty(result.errorMessages)) {
@@ -906,6 +934,7 @@ const pdfApp = {
             this.showMessageModal();
             return;
           }
+          this.applyApiMessages(result.messages);
           this.pdfMetadata = PdfFormState.createLoadedPdfMetadataState(
             result.metadata
           );
@@ -932,6 +961,7 @@ const pdfApp = {
       }
       this.isProcessing = true;
       this.errorMessages = [];
+      this.clearApiMessages();
       this.markdownMessage = "";
       return PdfApiClient.requestPdfText(CONST.REST_PATH.TEXT_PDF, payload)
         .then((result) => {
@@ -940,6 +970,7 @@ const pdfApp = {
             this.showMessageModal();
             return;
           }
+          this.applyApiMessages(result.messages);
           const textResponse = result.textResponse;
           this.markdownFileName = this.buildMarkdownFileNameFromPdf(
             textResponse.fileName
@@ -972,6 +1003,7 @@ const pdfApp = {
       }
       this.isProcessing = true;
       this.errorMessages = [];
+      this.clearApiMessages();
       this.markdownMessage = "";
       return PdfApiClient.requestPdfMarkdownDraft(
         CONST.REST_PATH.MARKDOWN_DRAFT_PDF,
@@ -983,6 +1015,7 @@ const pdfApp = {
             this.showMessageModal();
             return;
           }
+          this.applyApiMessages(result.messages);
           const draftResponse = result.markdownDraftResponse;
           this.markdownFileName = this.buildMarkdownFileNameFromPdf(
             draftResponse.fileName

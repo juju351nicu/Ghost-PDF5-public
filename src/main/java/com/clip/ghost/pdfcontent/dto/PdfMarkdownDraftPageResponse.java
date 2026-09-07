@@ -26,8 +26,11 @@ public class PdfMarkdownDraftPageResponse {
 	@JsonProperty("text")
 	private String text;
 
-	/** 本文の取得元。文字レイヤーからは {@code TEXT}、画像化してOCR/vision変換したページは {@code OCR}。 */
-	@Schema(description = "本文の取得元。TEXT（PDFの文字レイヤー）またはOCR（画像化して外部変換）。", example = "TEXT")
+	/**
+	 * 本文の取得元。文字レイヤーからは {@code TEXT}、画像化してOCR/vision変換したページは {@code OCR}、
+	 * 画像化したが変換に失敗したページは {@code FAILED}。
+	 */
+	@Schema(description = "本文の取得元。TEXT（PDFの文字レイヤー）、OCR（画像化して外部変換）、FAILED（画像化したが変換に失敗）。", example = "TEXT")
 	@JsonProperty("source")
 	private String source;
 }
