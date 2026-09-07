@@ -21,7 +21,9 @@ springdoc:
     enabled: false
 ghost:
   markdown:
-    storage-directory: ${GHOST_MARKDOWN_STORAGE_DIRECTORY:${java.io.tmpdir}/ghost-pdf5/markdown}
+    # 保存したMarkdownは利用者の成果物なので、OSが自動削除する一時ディレクトリへ置かない。
+    # 個人のパスを公開リポジトリへ書かず、どのPCでも動くようホーム配下を既定にする。
+    storage-directory: ${GHOST_MARKDOWN_STORAGE_DIRECTORY:${user.home}/ghost-pdf5/markdown}
   ocr:
     provider: ${GHOST_OCR_PROVIDER:anthropic}
     pdf:

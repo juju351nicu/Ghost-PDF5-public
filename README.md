@@ -158,6 +158,11 @@ Public repository化後も、当面はlocal development / portfolio用途を前�
   - 未対応ブラウザとキャンセルを別状態として返す。同じ値へ寄せると未対応ブラウザがキャンセル扱いになり何も起きなくなる
   - File System Access APIの呼び出しは `api/file-response-handler.js` に限定し、`CodingConventionTest` で他ファイルからの利用を検出
   - `FrontendSaveTargetContractTest` で「ピッカー → API → 書き込み」の順序と3状態の分岐を固定
+- 保存したMarkdownの既定の保存先を一時ディレクトリからホーム配下へ変更（`${user.home}/ghost-pdf5/markdown`）
+  - `${java.io.tmpdir}` 配下はOSが自動削除するため、利用者の成果物が消える可能性があった
+  - 既定値は `application.yml` と `@Value` のfallbackの2箇所にあり、両方をそろえた
+  - 公開リポジトリのため既定値にローカル絶対パスは書かず、`GHOST_MARKDOWN_STORAGE_DIRECTORY` で上書きできる
+  - `MarkdownStorageDirectoryContractTest` で一時ディレクトリと絶対パスの再混入を検知
 - `deletePdf` / `insertPdf` のファイルサイズ検証をOpenAPIの413定義と整合させ、Controller単体テストで固定
 - `CodingConventionTest` にDOM直接操作とHTML直接挿入の再混入検知を追加
 - `CodingConventionTest` にfield injection の `@Autowired` 再混入検知を追加
