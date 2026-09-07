@@ -54,7 +54,7 @@ export default {
             v-model="originalFile.delPagesText.text"
             @blur="validateDeletePagesOnBlur"
             :class="{ 'textbox--error': originalFile.delPagesText.message }"
-            :disabled="originalFile.delPagesText.disabled" placeholder="ページ指定  (入力例：2，3-5)" />
+            :disabled="originalFile.delPagesText.disabled" placeholder="ページ指定  (入力例：2, 3-5)" />
           <button type="button" :disabled="isProcessing" @click="requestExtractPdf">抽出する</button>
           <button type="button" :disabled="isProcessing" @click="requestDeletePdf">削除する</button>
           <button type="button" :disabled="isProcessing" @click="requestMetadataPdf">PDF情報を確認</button>

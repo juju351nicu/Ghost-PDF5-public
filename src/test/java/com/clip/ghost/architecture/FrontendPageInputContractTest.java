@@ -15,8 +15,9 @@ import org.junit.jupiter.api.Test;
 /**
  * ページ指定入力の表記ゆれ吸収を固定するテスト。
  * <p>
- * 空白を除去する正規表現が壊れていたため、{@code "2, 3-5"} のように区切りの後ろへ空白を入れた入力や、
- * 入力欄のplaceholderが案内している全角カンマの入力が「整数の値を入力してください。」になっていた。
+ * 空白を除去する正規表現のエスケープが誤っていたため {@code "2, 3-5"} が扱えず、
+ * さらに {@code toHalfWidth} の変換範囲が全角英数字だけだったため、当時のplaceholderが案内していた
+ * 全角カンマ {@code "2，3-5"} も「整数の値を入力してください。」になっていた。
  * JavaScriptのテストランナーを持たない構成のため、その再発をソーススキャンで検知する。
  */
 class FrontendPageInputContractTest {
@@ -34,8 +35,9 @@ class FrontendPageInputContractTest {
 		assertAll(
 				() -> assertTrue(util.contains("target.replace(/\\s+/g, \"\")"),
 						"空白除去は空白文字にマッチする正規表現とgフラグで行ってください。"),
-				// 旧実装の `/\\s*|\t|\r|\n/` は「バックスラッシュ + s」の並びを探すため空白にマッチせず、
-				// gフラグも無いため先頭の空マッチで置換が終わっていた。
+				// 旧実装の `/\\s*|\t|\r|\n/` は、正規表現リテラル中の `\\` がリテラルのバックスラッシュを
+				// 意味するため「バックスラッシュ + 0個以上の s」を探していた。空白とは無関係で、
+				// gフラグを足しても直らない。エスケープの形そのものを検知する。
 				() -> assertFalse(util.contains("replace(/\\\\s*"), "空白除去でバックスラッシュ自体を探さないでください。"));
 	}
 
@@ -72,15 +74,19 @@ class FrontendPageInputContractTest {
 		String originalPdfForm = read("static/js/components/original-pdf-form.js");
 
 		assertAll(
-				// 入力欄のplaceholderが全角カンマで案内しているため、全角カンマは必ず受け付ける。
-				() -> assertTrue(originalPdfForm.contains("ページ指定  (入力例：2，3-5)"),
-						"ページ指定のplaceholderを変える場合は、受け付ける区切り文字も合わせてください。"),
+				// placeholderは半角カンマの流儀にそろえる。2つの入力欄で流儀が違うと、
+				// 利用者はどちらが正しい書き方か判断できない。
+				() -> assertTrue(originalPdfForm.contains("ページ指定  (入力例：2, 3-5)"),
+						"ページ指定のplaceholderは半角カンマで案内してください。"),
+				() -> assertTrue(originalPdfForm.contains("分割範囲  (入力例：1-5, 6-12"),
+						"分割範囲のplaceholderは半角カンマで案内してください。"),
+				// 案内は半角にそろえるが、日本語入力で出やすい全角も受け付ける。
+				() -> assertTrue(validator.contains("Util.toHalfWidth(pagesText)"),
+						"全角数字は既存のtoHalfWidthで半角へそろえてください。"),
 				() -> assertTrue(validator.contains("const COMMA_LIKE_PATTERN = /[，、]/g;"),
 						"全角カンマと読点を半角カンマとして扱ってください。"),
 				() -> assertTrue(validator.contains("const HYPHEN_LIKE_PATTERN = /[－‐‑‒–—―ー]/g;"),
-						"全角ハイフンやダッシュ、長音を半角ハイフンとして扱ってください。"),
-				() -> assertTrue(validator.contains("Util.toHalfWidth(pagesText)"),
-						"全角数字は既存のtoHalfWidthで半角へそろえてください。"));
+						"全角ハイフンやダッシュ、長音を半角ハイフンとして扱ってください。"));
 	}
 
 	/**
