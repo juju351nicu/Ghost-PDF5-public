@@ -222,17 +222,17 @@ public class GhostPdfController {
 	}
 
 	/**
-	 * アップロードされたPDFを1ページずつ分割し、ZIPレスポンスとして返却する。
+	 * アップロードされたPDFを分割し、ZIPレスポンスとして返却する。
 	 *
 	 * @param accessToken リクエストヘッダーの一時トークン
-	 * @param form        分割対象PDFを含むフォーム
+	 * @param form        分割対象PDFと分割範囲を含むフォーム
 	 * @param session     トークン検証に使用するHTTPセッション
 	 * @return 分割後PDFを格納したZIPのダウンロードレスポンス
 	 */
-	@Operation(summary = "PDF分割", description = "アップロードされたPDFを1ページずつ分割し、複数PDFをZIPレスポンスとして返却します。", requestBody = @RequestBody(content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE, schema = @Schema(implementation = SplitPdfRequest.class))))
+	@Operation(summary = "PDF分割", description = "アップロードされたPDFを分割し、複数PDFをZIPレスポンスとして返却します。splitRangesを指定すると範囲ごとに1ファイル、省略すると1ページずつ分割します。", requestBody = @RequestBody(content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE, schema = @Schema(implementation = SplitPdfRequest.class))))
 	@ApiResponses({
 			@ApiResponse(responseCode = "200", description = "分割後PDFのZIP", content = @Content(mediaType = MEDIA_TYPE_APPLICATION_ZIP_VALUE)),
-			@ApiResponse(responseCode = "400", description = "入力値が不正です。", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+			@ApiResponse(responseCode = "400", description = "入力値が不正です。分割範囲の形式不正・重複・件数超過、およびPDFの総ページ数を超える範囲も400です。", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
 			@ApiResponse(responseCode = "403", description = "access-tokenが不正です。"),
 			@ApiResponse(responseCode = "413", description = "アップロードファイルサイズが上限を超えています。", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
 			@ApiResponse(responseCode = "500", description = "PDF処理に失敗しました。", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))) })
@@ -241,7 +241,7 @@ public class GhostPdfController {
 	public ResponseEntity<Resource> splitPdf(
 			@Parameter(name = ACCESS_TOKEN_HEADER_NAME, in = ParameterIn.HEADER, required = true, description = ACCESS_TOKEN_HEADER_DESCRIPTION) @RequestHeader(ACCESS_TOKEN_HEADER_NAME) String accessToken,
 			@Valid @ModelAttribute SplitPdfRequest form, HttpSession session) {
-		LOGGER.info("PDFを1ページずつ分割します。");
+		LOGGER.info("PDFを分割します。");
 		accessTokenValidator.validate(accessToken, session);
 		validateOriginalPdfFileSize(form);
 		return pdfService.splitPdf(form);

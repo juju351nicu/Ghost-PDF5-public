@@ -1,4 +1,5 @@
 import PageNumberValidator from "../validation/page-number-validator.js";
+import PdfThumbnailList from "./pdf-thumbnail-list.js";
 
 /**
  * 編集元PDFカードの表示と入力イベントを扱うVueコンポーネント。
@@ -8,13 +9,20 @@ import PageNumberValidator from "../validation/page-number-validator.js";
  */
 export default {
   name: "OriginalPdfForm",
+  components: {
+    "pdf-thumbnail-list": PdfThumbnailList,
+  },
   props: {
     originalFile: { type: Object, required: true },
     pdfMetadata: { type: Object, required: true },
+    thumbnailState: { type: Object, required: true },
     isProcessing: { type: Boolean, required: true },
   },
   emits: [
     "file-change",
+    "request-thumbnails-pdf",
+    "toggle-thumbnail-page",
+    "clear-thumbnail-selection",
     "request-open-original-pdf",
     "request-delete-pdf",
     "request-extract-pdf",
@@ -52,11 +60,24 @@ export default {
           <button type="button" :disabled="isProcessing" @click="requestMetadataPdf">PDF情報を確認</button>
           <button type="button" :disabled="isProcessing" @click="requestTextPdf">テキスト抽出</button>
           <button type="button" :disabled="isProcessing" @click="requestMarkdownDraftPdf">Markdown下書き</button>
+          <input type="text" class="page-input" ref="splitRangesText"
+            v-model="originalFile.splitRangesText.text"
+            @blur="validateSplitRangesOnBlur"
+            :class="{ 'textbox--error': originalFile.splitRangesText.message }"
+            placeholder="分割範囲  (入力例：1-5, 6-12 / 空欄で1ページずつ)" />
           <button type="button" :disabled="isProcessing" @click="requestSplitPdf">分割する</button>
           <button type="button" @click="clearAll">全クリア</button>
           <br />
           <span class="error_message">{{ originalFile.delPagesText.message }}</span>
+          <span class="error_message">{{ originalFile.splitRangesText.message }}</span>
         </div>
+        <pdf-thumbnail-list
+          :thumbnail-state="thumbnailState"
+          :is-processing="isProcessing"
+          @request-thumbnails="requestThumbnailsPdf"
+          @toggle-page="toggleThumbnailPage"
+          @clear-selection="clearThumbnailSelection">
+        </pdf-thumbnail-list>
         <dl class="pdf-metadata" v-if="pdfMetadata.loaded">
           <div class="pdf-metadata__row">
             <dt>ファイル名</dt>
@@ -111,6 +132,25 @@ export default {
       });
     },
     /**
+     * 分割範囲入力欄からフォーカスが外れた時に入力値を検証する。
+     *
+     * 空欄は「1ページずつ分割」を表す正常な入力のため、エラーにしない。
+     */
+    validateSplitRangesOnBlur() {
+      const rangesText = this.originalFile.splitRangesText.text;
+      if (PageNumberValidator.isValidSplitRangesText(rangesText)) {
+        this.originalFile.splitRangesText.message = "";
+        return;
+      }
+      this.originalFile.splitRangesText.message =
+        "分割範囲の指定が正しくありません。";
+      this.$nextTick(() => {
+        if (this.$refs.splitRangesText) {
+          this.$refs.splitRangesText.focus();
+        }
+      });
+    },
+    /**
      * 編集元PDFのページ削除リクエストを親コンポーネントへ通知する。
      */
     requestDeletePdf() {
@@ -145,6 +185,26 @@ export default {
      */
     requestSplitPdf() {
       this.$emit("request-split-pdf");
+    },
+    /**
+     * サムネイル取得リクエストを親コンポーネントへ通知する。
+     */
+    requestThumbnailsPdf() {
+      this.$emit("request-thumbnails-pdf");
+    },
+    /**
+     * サムネイルのページ選択・解除を親コンポーネントへ通知する。
+     *
+     * @param {number} pageNumber 1始まりのページ番号
+     */
+    toggleThumbnailPage(pageNumber) {
+      this.$emit("toggle-thumbnail-page", pageNumber);
+    },
+    /**
+     * サムネイル選択の全解除を親コンポーネントへ通知する。
+     */
+    clearThumbnailSelection() {
+      this.$emit("clear-thumbnail-selection");
     },
     /**
      * ファイルサイズを画面表示用に整形する。

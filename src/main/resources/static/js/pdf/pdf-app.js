@@ -1,6 +1,7 @@
 import Util from "../util.js";
 import CONST from "../const.js";
 import Modal from "../components/modal.js";
+import ApiMessageList from "../components/api-message-list.js";
 import TheHeader from "../components/theheader.js";
 import TheFooter from "../components/thefooter.js";
 import OriginalPdfForm from "../components/original-pdf-form.js";
@@ -34,16 +35,19 @@ const pdfApp = {
     "original-pdf-form": OriginalPdfForm,
     "insert-pdf-row": InsertPdfRow,
     "image-ocr-form": ImageOcrForm,
+    "api-message-list": ApiMessageList,
   },
   data() {
     return {
       originalFile: PdfFormState.createOriginalFileState(),
       pdfMetadata: PdfFormState.createPdfMetadataState(),
+      pdfThumbnails: PdfFormState.createThumbnailState(),
       insertFiles: PdfFormState.createInitialInsertFiles(),
       newNo: 3,
       insertPagePulldown: PdfFormState.createInsertOptionItems(),
       isShowModal: false,
       errorMessages: [],
+      apiMessages: [],
       isProcessing: false,
       imageDraft: PdfFormState.createImageDraftState(),
       markdownFileName: "design-note.md",
@@ -72,6 +76,24 @@ const pdfApp = {
     },
   },
   methods: {
+    /**
+     * 成功レスポンスの通知メッセージを画面へ反映する。
+     *
+     * メッセージの内容と件数はBEが決めるため、画面側は受け取ったものをそのまま渡す。
+     *
+     * @param {{code: string, message: string}[]} messages 成功レスポンスの通知メッセージ
+     */
+    applyApiMessages(messages) {
+      this.apiMessages = Util.isEmpty(messages) ? [] : messages;
+    },
+    /**
+     * 成功レスポンスの通知メッセージを消す。
+     *
+     * 直前の操作の通知が次の操作の結果として残らないよう、エラーメッセージの初期化と同じ位置で呼ぶ。
+     */
+    clearApiMessages() {
+      this.apiMessages = [];
+    },
     /**
      * エラーメッセージモーダルを表示する。
      */
@@ -136,6 +158,55 @@ const pdfApp = {
       return result.pages;
     },
     /**
+     * サムネイルの選択状態と、ページ指定入力欄への反映を初期化する。
+     */
+    clearThumbnailSelection() {
+      this.pdfThumbnails.selectedPageNumbers = [];
+      this.applySelectedPagesToPageInput();
+    },
+    /**
+     * サムネイル1ページ分の選択・解除を切り替える。
+     *
+     * @param {number} pageNumber 1始まりのページ番号
+     */
+    toggleThumbnailPage(pageNumber) {
+      const selectedPageNumbers = this.pdfThumbnails.selectedPageNumbers;
+      this.pdfThumbnails.selectedPageNumbers = selectedPageNumbers.includes(
+        pageNumber
+      )
+        ? selectedPageNumbers.filter(
+            (selectedPage) => selectedPage !== pageNumber
+          )
+        : selectedPageNumbers.concat(pageNumber);
+      this.applySelectedPagesToPageInput();
+    },
+    /**
+     * 選択したページを既存の「ページ指定」入力欄へ反映する。
+     *
+     * 入力欄は残したまま値だけを書き換える。手入力の操作を壊さず、選択結果をそのまま
+     * 「抽出する」「削除する」へ渡せるようにするため。
+     * 抽出・削除はページ指定チェックがONのときだけ動くため、選択があるかどうかにチェックを合わせる。
+     */
+    applySelectedPagesToPageInput() {
+      const pagesText = PageNumberValidator.buildPagesText(
+        this.pdfThumbnails.selectedPageNumbers
+      );
+      this.originalFile.delPagesText.text = pagesText;
+      this.originalFile.delPagesText.message = "";
+      this.originalFile.delPagesChecked.checked = !Util.isEmpty(pagesText);
+    },
+    /**
+     * 分割範囲入力を解析し、エラーメッセージを画面状態へ反映する。
+     *
+     * @param {string} rangesText 分割範囲入力
+     * @returns {string[]} 分割範囲リスト。空配列は1ページずつ分割を表す
+     */
+    parseSplitRanges(rangesText) {
+      const result = PageNumberValidator.parseSplitRangesText(rangesText);
+      this.originalFile.splitRangesText.message = result.message;
+      return result.ranges;
+    },
+    /**
      * 差し込みPDF行番号から配列indexを取得する。
      *
      * @param {number} fileNo 差し込みPDF行番号
@@ -155,6 +226,7 @@ const pdfApp = {
       this.clearOriginalPdfPreview();
       this.originalFile = PdfFormState.createOriginalFileState();
       this.pdfMetadata = PdfFormState.createPdfMetadataState();
+      this.pdfThumbnails = PdfFormState.createThumbnailState();
       // 既存仕様に合わせ、全クリア後は削除ページ入力欄をdisabled扱いに戻す。
       this.originalFile.delPagesText.disabled = "disabled";
       for (let index = 0; index < this.insertFiles.length; index++) {
@@ -407,6 +479,7 @@ const pdfApp = {
       }
       this.isProcessing = true;
       this.errorMessages = [];
+      this.clearApiMessages();
       this.markdownMessage = "";
       return ImageApiClient.requestImageMarkdownDraft(
         CONST.REST_PATH.MARKDOWN_DRAFT_IMAGE,
@@ -418,6 +491,7 @@ const pdfApp = {
             this.showMessageModal();
             return;
           }
+          this.applyApiMessages(result.messages);
           const draftResponse = result.imageDraftResponse;
           this.markdownFileName = this.buildMarkdownFileNameFromPdf(
             draftResponse.fileName
@@ -438,7 +512,10 @@ const pdfApp = {
         });
     },
     /**
-     * 編集元PDFを1ページずつ分割し、生成されたZIPをダウンロードする。
+     * 編集元PDFを分割し、生成されたZIPをダウンロードする。
+     *
+     * 分割範囲が入力されていれば範囲ごとに、空欄なら従来どおり1ページずつ分割する。
+     * 範囲の形式が不正な場合は、保存先の選択もAPI呼び出しも行わない。
      *
      * 対応ブラウザ（Chrome / Edge）では先に保存先を選ばせる。File System Access APIは
      * 利用者操作の直後しか使えないため、API呼び出しの前に呼ぶ必要がある。
@@ -453,6 +530,12 @@ const pdfApp = {
           "ファイル選択されておりません。";
         return;
       }
+      const splitRanges = this.parseSplitRanges(
+        originalFileData.splitRangesText.text
+      );
+      if (!Util.isEmpty(this.originalFile.splitRangesText.message)) {
+        return;
+      }
       // 保存ダイアログ表示中はブラウザ側がモーダルで操作を止めるため、isProcessingは立てない。
       // ここで立てるとキャンセル時に解除漏れの経路が増える。
       const saveTarget = await this.requestSaveTarget(
@@ -462,7 +545,10 @@ const pdfApp = {
       if (saveTarget.cancelled) {
         return;
       }
-      const payload = PdfPayload.buildSplitPayload(originalFileData.fileObject);
+      const payload = PdfPayload.buildSplitPayload(
+        originalFileData.fileObject,
+        splitRanges
+      );
       await this.requestFileAndDownload(
         CONST.REST_PATH.SPLIT_PDF,
         payload,
@@ -774,6 +860,7 @@ const pdfApp = {
       }
       this.isProcessing = true;
       this.errorMessages = [];
+      this.clearApiMessages();
       this.markdownMessage = "";
       return request()
         .then((result) => {
@@ -782,6 +869,7 @@ const pdfApp = {
             this.showMessageModal();
             return;
           }
+          this.applyApiMessages(result.messages);
           onSuccess(result.data);
         })
         .catch((error) => {
@@ -833,6 +921,7 @@ const pdfApp = {
       }
       this.isProcessing = true;
       this.errorMessages = [];
+      this.clearApiMessages();
       return PdfApiClient.requestPdfAndOpen(url, payload)
         .then((errorMessages) => {
           if (!Util.isEmpty(errorMessages)) {
@@ -865,6 +954,7 @@ const pdfApp = {
       }
       this.isProcessing = true;
       this.errorMessages = [];
+      this.clearApiMessages();
       return PdfApiClient.requestFileAndDownload(
         url,
         payload,
@@ -899,6 +989,7 @@ const pdfApp = {
       }
       this.isProcessing = true;
       this.errorMessages = [];
+      this.clearApiMessages();
       return PdfApiClient.requestPdfMetadata(CONST.REST_PATH.METADATA_PDF, payload)
         .then((result) => {
           if (!Util.isEmpty(result.errorMessages)) {
@@ -906,6 +997,7 @@ const pdfApp = {
             this.showMessageModal();
             return;
           }
+          this.applyApiMessages(result.messages);
           this.pdfMetadata = PdfFormState.createLoadedPdfMetadataState(
             result.metadata
           );
@@ -932,6 +1024,7 @@ const pdfApp = {
       }
       this.isProcessing = true;
       this.errorMessages = [];
+      this.clearApiMessages();
       this.markdownMessage = "";
       return PdfApiClient.requestPdfText(CONST.REST_PATH.TEXT_PDF, payload)
         .then((result) => {
@@ -940,6 +1033,7 @@ const pdfApp = {
             this.showMessageModal();
             return;
           }
+          this.applyApiMessages(result.messages);
           const textResponse = result.textResponse;
           this.markdownFileName = this.buildMarkdownFileNameFromPdf(
             textResponse.fileName
@@ -949,6 +1043,55 @@ const pdfApp = {
           this.markdownMessage =
             textResponse.fileName +
             " の抽出テキストをMarkdown欄へ反映しました。";
+        })
+        .catch((error) => {
+          this.errorMessages = [
+            PdfApiClient.buildUnexpectedErrorMessage(error),
+          ];
+          this.showMessageModal();
+        })
+        .finally(() => {
+          this.isProcessing = false;
+        });
+    },
+    /**
+     * ページ選択用サムネイルAPIを実行し、成功時はサムネイル一覧へ反映する。
+     *
+     * サムネイル取得はPDF全体のアップロードを伴うため、利用者がボタンを押したときだけ実行する。
+     * 1リクエストで全ページ分を受け取り、ページごとには呼ばない。
+     *
+     * @returns {Promise<void>} サムネイル取得処理の完了Promise
+     */
+    requestPdfThumbnails() {
+      const originalFileData = this.originalFile;
+      if (Util.isEmpty(originalFileData.fileObject)) {
+        this.pdfThumbnails.message = "ファイル選択されておりません。";
+        return Promise.resolve();
+      }
+      if (this.isProcessing) {
+        return Promise.resolve();
+      }
+      this.isProcessing = true;
+      this.errorMessages = [];
+      this.clearApiMessages();
+      this.pdfThumbnails.message = "";
+      return PdfApiClient.requestPdfThumbnails(
+        CONST.REST_PATH.THUMBNAILS_PDF,
+        PdfPayload.buildThumbnailPayload(originalFileData.fileObject)
+      )
+        .then((result) => {
+          if (!Util.isEmpty(result.errorMessages)) {
+            this.errorMessages = result.errorMessages;
+            this.showMessageModal();
+            return;
+          }
+          this.applyApiMessages(result.messages);
+          const thumbnailResponse = result.thumbnailResponse;
+          this.pdfThumbnails.pages = thumbnailResponse.pages || [];
+          this.pdfThumbnails.selectedPageNumbers = [];
+          this.pdfThumbnails.message =
+            thumbnailResponse.pageCount +
+            "ページのサムネイルを表示しています。ページを選ぶとページ指定へ反映します。";
         })
         .catch((error) => {
           this.errorMessages = [
@@ -972,6 +1115,7 @@ const pdfApp = {
       }
       this.isProcessing = true;
       this.errorMessages = [];
+      this.clearApiMessages();
       this.markdownMessage = "";
       return PdfApiClient.requestPdfMarkdownDraft(
         CONST.REST_PATH.MARKDOWN_DRAFT_PDF,
@@ -983,6 +1127,7 @@ const pdfApp = {
             this.showMessageModal();
             return;
           }
+          this.applyApiMessages(result.messages);
           const draftResponse = result.markdownDraftResponse;
           this.markdownFileName = this.buildMarkdownFileNameFromPdf(
             draftResponse.fileName

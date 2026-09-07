@@ -105,14 +105,18 @@ public class GhostPdfService {
 	}
 
 	/**
-	 * アップロードされたPDFを1ページずつ分割し、ZIPレスポンスとして返却する。
+	 * アップロードされたPDFを分割し、ZIPレスポンスとして返却する。
+	 * <p>
+	 * 分割範囲が指定されていれば範囲ごとに1ファイル、未指定なら従来どおり1ページずつ分割する。
+	 * ダウンロードファイル名は範囲指定の有無で変えない。保存先と保存名は画面のピッカーで利用者が選べるうえ、
+	 * どの範囲のPDFかはZIP内のファイル名で分かるため。
 	 *
-	 * @param form 分割対象PDFを含むフォーム
+	 * @param form 分割対象PDFと分割範囲を含むフォーム
 	 * @return 分割後PDFを格納したZIPのダウンロードレスポンス
 	 */
 	public ResponseEntity<Resource> splitPdf(SplitPdfRequest form) {
 		Path inputPath = pdfLogic.loadPdf(form.getOriginalFile());
-		Path splitZipPath = pdfLogic.splitPdf(inputPath);
+		Path splitZipPath = pdfLogic.splitPdf(inputPath, form.getSplitRanges());
 		return ResponseUtils.downloadZip(SPLIT_ZIP_FILE_NAME,
 				pdfLogic.openTemporaryFileForResponse(splitZipPath));
 	}

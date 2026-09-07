@@ -412,9 +412,23 @@ public record ApiMessage(String code, String message) {
   - メッセージコード体系が必要になるまでは、`ApiMessage` は最小の `code` / `message` に留める。
   - Springdocのgeneric schema表現は崩れやすいため、`/v3/api-docs` のJUnit（`OpenApiDocumentationTest`）で `ApiResult〇〇` のschema名と `data` の中身を固定する。
   - **200の `@ApiResponse` に `content = @Content(...)` を書かない。** 書くと戻り型からのschema推論が上書きされ、200のschemaが空になる。`description` だけを指定すれば、Springdocが `ApiResult〇〇` を生成して `$ref` を張る。エラーcodeの `@ApiResponse` は従来どおり `schema = @Schema(implementation = ErrorResponse.class)` を明示する。
+- `WARNING` を返す条件は次のとおり。**導入済み**（`mode=AUTO` の一部ページ変換失敗、`POST /saveMarkdown` の上書き）。
+  - `WARNING` は成功時だけに使う。処理を完了できなかった場合はHTTP statusとエラーJSONで返し、200 + `WARNING` にしない。
+  - 部分的な失敗は「1件以上成功した」場合だけ `WARNING` にする。**全滅は警告ではなく失敗**として、従来どおり例外で止める。
+    - 対象0件（そもそも失敗しうる処理をしていない）と全滅を混同しない。文字レイヤーだけのPDFは変換対象0ページのため常に成功。
+    - 全滅時は独自例外へ包み直さず、最初の失敗をそのまま伝播させる。包み直すとHTTP statusが変わる。
+  - 部分的な失敗を許す処理は、失敗した対象を記録して残りを続ける。1件の失敗で全体を捨てると、外部AIへ課金して得た成功分まで失われる。
+  - 失敗した対象は、成功して結果が空だった場合と区別できる値で返す（例: `source = FAILED`）。区別できないと利用者が失敗に気付けない。
+  - 例外の内容はSLF4Jの `warn` でログへ出し、画面へは出さない。メッセージは `ApiMessage` の `code` / `message` だけで伝える。
+  - 上書きのような「利用者の意図どおりだが伝えるべきこと」は、挙動を変えずに事後通知する。禁止して操作を止めない。
 - フロントエンドはラッパーの構造（`data` / `resultType` / `messageList`）を `api/api-result-utils.js` だけで解釈する。
   - api clientごとにラッパーを直接読むと、構造変更時の修正漏れが起きるため。`CodingConventionTest` のソーススキャンで他ファイルからの参照を検出する。
-  - `messageList` の画面表示は未実装。各api clientは戻り値に `messages` を持たせ、表示導線は必要になった時点で作る。
+  - `messageList` の表示は**モーダルではなくインライン**にする（`components/api-message-list.js`）。モーダルはエラー用で、処理が終わった後の通知で操作を止めても利用者にできることが増えない。
+    - 表示位置は対応する操作の近く（Markdown下書き・保存はMarkdownメモパネル内、編集欄の上）。
+    - 見た目は `main.css` の `.api-message-list` に置く。inline styleは使わない。
+    - 通知は次の操作で消す。`this.errorMessages = []` と同じ位置で `clearApiMessages()` を呼ぶ。
+    - 表示側はメッセージの内容を解釈せず並べるだけにする。`WARNING` を返すAPIが増えても画面を触らずに済ませるため。
+    - 接続は `FrontendApiMessageContractTest` のソーススキャンで固定する（JSのテストランナーが無い構成のため）。
 - `ErrorResponse` は既存のエラーJSON仕様として維持し、成功レスポンス共通化と同時に置き換えない。
 - `JsonUtils` はJSON文字列変換・parse・オブジェクト変換の補助であり、APIレスポンス構造を定義するクラスではない。
   - Controllerの通常JSONレスポンスはSpring MVC / Jacksonに任せ、`JsonUtils.toJsonOrThrow(...)` で手動JSON文字列を作って返さない。
@@ -428,6 +442,39 @@ public record ApiMessage(String code, String message) {
 - ページ番号は画面・リクエストでは1始まり、PDFBox内部では0始まりであることをコメントに残す。
 - OpenPDF / `com.lowagie` 系 import は追加しない。
 - 結合、挿入、置換、末尾挿入、ページ削除の既存仕様を変更しない。
+
+## PDF分割範囲の入力形式
+
+- 範囲ごとの分割（`POST /splitPdf` の `splitRanges`）は `List<String>`（`["1-5", "6-12", "13"]`）で受け取る。
+  - `List<Integer>`（`extractPages` と同じ形式）では範囲を表現できない。`[1,2,3,4,5]` からは「1-5を1ファイル」と「1ページずつ5ファイル」を区別できないため。
+  - 区切りページ指定（`[6, 13]`）は「1-5と13-20だけ欲しい（6-12は不要）」を表現できず、後で作り直しになる。
+  - 1つの文字列（`"1-5, 6-12"`）ではエラー箇所の特定が粗くなる。1件ごとに検証・エラー返却できる形式を採る。
+  - `POST /extractPdf` の `extractPages` は `List<Integer>` のまま変えない。ページ集合の指定であり、範囲という単位を必要としない。
+- 範囲の重複は**禁止**する。同じページが複数ファイルへ入ると、どちらを使うべきか利用者が判断できない。
+- 範囲の件数には上限を設ける（`@CheckPageRangeList` の `max`、既定50件）。範囲の件数は出力ファイル数、つまりZIPサイズに直結する。1ページずつの分割は範囲未指定で行えるため、範囲指定に大きな上限は要らない。
+- 検証は形式とページ数で層を分ける。
+  - 形式・大小関係・重なり・件数はannotation（`@CheckPageRangeList`）で見る。PDFを開かずに判定できる。
+  - 総ページ数との突き合わせはPDFを開く層（`PdfPageOperationLogic`）で行う。総ページ数はPDFを開くまで分からない。
+  - どちらも400（`fieldErrors` 形式）で返し、**PDFを1回も加工せずに止める**。総ページ数との突き合わせはZIPを書き始める前に行う。書き始めてから弾くと、中身の無いZIPが一時ファイルとして残る。
+  - 総ページ数超過は `PdfSplitRangeException`（400）で表す。`PdfProcessingException` は500のため、利用者が直せる入力エラーには使わない。
+- 範囲未指定は「1ページずつ分割」として従来どおり動かす。ZIP内の命名も従来の `split-001.pdf` を変えず、範囲分割は `pages_1-5.pdf` と別系統にする。
+- ダウンロードファイル名（`split.zip`）は範囲指定の有無で変えない。保存先と保存名は画面のピッカーで利用者が選べ、どの範囲のPDFかはZIP内のファイル名で分かる。
+
+## サムネイルからのページ選択
+
+- サムネイルは **1リクエストで全ページ分** 返す（`POST /thumbnailsPdf`）。
+  - サーバー側に文書セッションが無く、操作ごとにPDFをmultipartでアップロードする構成のため。ページ単位でリクエストすると、27ページのPDFで20 MBのアップロードが27回発生する。
+  - リクエストDTOにページ指定の項目を持たせない。持たせると「ページごとに呼ぶ」実装を誘発する。
+- 画像はdata URI（`data:image/png;base64,...`）で返し、画面は `img` の `:src` バインディングで表示する。`innerHTML` は使わない。
+- レンダリングは1ページずつ行い、`BufferedImage` とPNGバイト列の参照は都度捨てる（`mode=AUTO` のページ処理と同じ考え方）。同時にメモリへ載る画像を1ページ分に抑える。
+- `ImageType` は `RGB` を使う。グレースケールにすればサイズは減るが、色で区別している図や見出しが判別しづらくなる。サムネイルは「どのページか」を見分けるためのもの。
+- 解像度とページ数上限は設定で持つ（`ghost.pdf.thumbnail.dpi` 既定40 / `ghost.pdf.thumbnail.max-pages` 既定100）。
+  - 設定キーは `ghost.ocr.*` へ混ぜない。サムネイルは外部AIを使わない画面表示用の機能で、OCRのコストガードとは目的が別。
+  - ページ数上限の超過は既存の `PdfPageLimitExceededException`（400）を使う。同じ「ページ数が多すぎて画像化を断る」判断のため、例外型を増やさない。
+- 選択したページは既存の「ページ指定」入力欄へ反映し、**入力欄は残す**。手入力の操作を壊さないため。
+  - 反映する文字列は連続ページを範囲へ畳む（`[1,2,3,5]` -> `1-3,5`）。区切りに空白を入れない。既存の `parseDeletePagesText` が空白付きの要素を数値として解釈できないため。
+  - 抽出・削除はページ指定チェックがONのときだけ動くため、選択の有無にチェック状態を合わせる。
+- サムネイルはキャッシュしない。キャッシュにはアップロードしたPDFをサーバー側で保持する設計変更（有効期限、複数利用者、削除保証）が必要で、サムネイルとは別に扱う。
 
 ## JUnit / テスト方針
 

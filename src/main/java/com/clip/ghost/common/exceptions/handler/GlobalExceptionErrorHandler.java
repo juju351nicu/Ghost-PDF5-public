@@ -21,6 +21,7 @@ import com.clip.ghost.imagecontent.exception.ImageProcessingException;
 import com.clip.ghost.imagecontent.exception.OcrUnavailableException;
 import com.clip.ghost.pdfcontent.exception.PdfPageLimitExceededException;
 import com.clip.ghost.pdfcontent.exception.PdfProcessingException;
+import com.clip.ghost.pdfcontent.exception.PdfSplitRangeException;
 
 /**
  * アプリケーション共通の例外をHTTPレスポンスへ変換するREST用例外ハンドラー。
@@ -37,6 +38,8 @@ public class GlobalExceptionErrorHandler extends ResponseEntityExceptionHandler 
 	private static final String MULTIPART_ERROR_MESSAGE = "許可されないサイズのファイルが入っております。";
 	private static final String PDF_PROCESSING_ERROR_MESSAGE = "PDF処理に失敗しました。入力ファイルを確認してください。";
 	private static final String PDF_PAGE_LIMIT_ERROR_MESSAGE = "画像変換の対象ページ数が上限を超えています。対象 %d ページ / 上限 %d ページ";
+	private static final String PDF_SPLIT_RANGE_ERROR_CODE = "pdfSplitRangeOutOfBounds";
+	private static final String PDF_SPLIT_RANGE_ERROR_MESSAGE = "分割範囲「%s」はPDFのページ範囲外です。このPDFは全 %d ページです。";
 	private static final String IMAGE_INPUT_ERROR_CODE = "imageInputError";
 	private static final String IMAGE_PROCESSING_ERROR_CODE = "imageProcessingError";
 	private static final String OCR_UNAVAILABLE_ERROR_CODE = "ocrUnavailable";
@@ -91,6 +94,24 @@ public class GlobalExceptionErrorHandler extends ResponseEntityExceptionHandler 
 				ex.getMaxPages());
 		return createErrorResponse(PDF_PAGE_LIMIT_ERROR_CODE,
 				PDF_PAGE_LIMIT_ERROR_MESSAGE.formatted(ex.getTargetPageCount(), ex.getMaxPages()),
+				HttpStatus.BAD_REQUEST);
+	}
+
+	/**
+	 * 分割範囲がPDFの総ページ数を超えていた場合、レスポンスステータスを400にする。
+	 * <p>
+	 * 利用者が入力を直せるエラーのため、範囲外だった範囲と総ページ数をメッセージへ含める。
+	 * ページ数は文書の内容ではないため、レスポンス・ログへ出しても情報漏洩にならない。
+	 *
+	 * @param ex 分割範囲例外
+	 * @return 分割範囲エラーのレスポンス
+	 */
+	@ResponseStatus(HttpStatus.BAD_REQUEST)
+	@ExceptionHandler(PdfSplitRangeException.class)
+	protected ResponseEntity<ErrorResponse> handlePdfSplitRange(PdfSplitRangeException ex) {
+		LOGGER.warn("分割範囲がPDFのページ範囲外です。range={}, totalPages={}", ex.getOutsideRangeText(), ex.getTotalPages());
+		return createErrorResponse(PDF_SPLIT_RANGE_ERROR_CODE,
+				PDF_SPLIT_RANGE_ERROR_MESSAGE.formatted(ex.getOutsideRangeText(), ex.getTotalPages()),
 				HttpStatus.BAD_REQUEST);
 	}
 

@@ -24,8 +24,12 @@
 			<original-pdf-form
 				:original-file="originalFile"
 				:pdf-metadata="pdfMetadata"
+				:thumbnail-state="pdfThumbnails"
 				:is-processing="isProcessing"
 				@file-change="handlePdfFileChange($event, -1)"
+				@request-thumbnails-pdf="requestPdfThumbnails"
+				@toggle-thumbnail-page="toggleThumbnailPage"
+				@clear-thumbnail-selection="clearThumbnailSelection"
 				@request-open-original-pdf="openOriginalPdfInNewTab"
 				@request-delete-pdf="requestDeletePdf"
 					@request-extract-pdf="requestExtractPdf"
@@ -75,6 +79,7 @@
 						<button type="button" :disabled="isProcessing" @click="requestDeleteMarkdownFile">削除</button>
 					</div>
 					<p class="markdown-panel__message" v-if="markdownMessage">{{ markdownMessage }}</p>
+					<api-message-list :messages="apiMessages"></api-message-list>
 					<textarea class="markdown-panel__editor" v-model="markdownContent"
 						placeholder="# 設計メモ"></textarea>
 					<div class="markdown-panel__columns">

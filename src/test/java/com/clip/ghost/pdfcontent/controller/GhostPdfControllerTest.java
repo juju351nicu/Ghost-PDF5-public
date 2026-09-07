@@ -375,6 +375,45 @@ class GhostPdfControllerTest {
 	}
 
 	@Test
+	@DisplayName("PDF分割では分割範囲を指定してもServiceへ処理を委譲する")
+	void splitPdfDelegatesToServiceWhenSplitRangesAreSpecified() throws Exception {
+		byte[] contents = readTestPdf();
+		MockMultipartFile mockPdfFile = createOriginalPdfFile(contents);
+
+		stubSplitPdfResponse(contents);
+
+		MvcResult result = performSplitPdf(mockPdfFile, ACCESS_TOKEN, session, "1-5", "6-12");
+
+		verify(pdfService, times(1)).splitPdf(any());
+		assertEquals(HttpStatus.OK.value(), result.getResponse().getStatus());
+	}
+
+	@Test
+	@DisplayName("PDF分割では分割範囲の形式が不正な場合に400を返し、PDFを加工しない")
+	void splitPdfReturnsBadRequestWhenSplitRangeFormatIsInvalid() throws Exception {
+		byte[] contents = readTestPdf();
+		MockMultipartFile mockPdfFile = createOriginalPdfFile(contents);
+
+		MvcResult result = performSplitPdf(mockPdfFile, ACCESS_TOKEN, session, "1-");
+
+		// 形式の検証はannotationで行うため、Serviceへ到達する前に止まる。
+		verify(pdfService, never()).splitPdf(any());
+		assertEquals(HttpStatus.BAD_REQUEST.value(), result.getResponse().getStatus());
+	}
+
+	@Test
+	@DisplayName("PDF分割では分割範囲が重複する場合に400を返し、PDFを加工しない")
+	void splitPdfReturnsBadRequestWhenSplitRangesOverlap() throws Exception {
+		byte[] contents = readTestPdf();
+		MockMultipartFile mockPdfFile = createOriginalPdfFile(contents);
+
+		MvcResult result = performSplitPdf(mockPdfFile, ACCESS_TOKEN, session, "1-5", "3-8");
+
+		verify(pdfService, never()).splitPdf(any());
+		assertEquals(HttpStatus.BAD_REQUEST.value(), result.getResponse().getStatus());
+	}
+
+	@Test
 	@DisplayName("PDF分割では分割対象PDF未指定の場合に400を返す")
 	void splitPdfReturnsBadRequestWhenOriginalFileIsMissing() throws Exception {
 		MvcResult result = performSplitPdfWithoutFile(ACCESS_TOKEN, session);
@@ -667,10 +706,11 @@ class GhostPdfControllerTest {
 	}
 
 	private MvcResult performSplitPdf(MockMultipartFile originalFile, String accessToken,
-			MockHttpSession requestSession) throws Exception {
+			MockHttpSession requestSession, String... splitRanges) throws Exception {
 		return mockMvc.perform(
 				multipart(REQUEST_PATH_SPLIT_PDF).file(originalFile).header(ACCESS_TOKEN_HEADER_NAME, accessToken)
-						.session(requestSession).characterEncoding(CHARACTER_ENCODING_UTF_8))
+						.session(requestSession).characterEncoding(CHARACTER_ENCODING_UTF_8)
+						.param("splitRanges", splitRanges))
 				.andReturn();
 	}
 

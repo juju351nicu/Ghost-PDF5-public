@@ -5,6 +5,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,6 +24,7 @@ import org.slf4j.LoggerFactory;
 import com.clip.ghost.pdfcontent.constant.PdfConstants;
 import com.clip.ghost.pdfcontent.dto.PdfMetadataResponse;
 import com.clip.ghost.pdfcontent.dto.PdfPageContent;
+import com.clip.ghost.pdfcontent.dto.PdfPageThumbnail;
 import com.clip.ghost.pdfcontent.dto.PdfTextResponse;
 import com.clip.ghost.pdfcontent.exception.PdfPageLimitExceededException;
 import com.clip.ghost.pdfcontent.exception.PdfProcessingException;
@@ -112,12 +114,16 @@ final class PdfDocumentAnalysisLogic {
 	 * 呼び出し回数が {@code maxPages} で有界になるため許容する。
 	 * <p>
 	 * ページ順を維持し、空ページも省略しない。入力ファイルは削除しない。
+	 * <p>
+	 * 変換器が失敗したページは、そのページだけを失敗として記録し、残りのページの変換を続ける。
+	 * 1ページの失敗で全体を捨てると、外部AIへ課金して得た成功分のページまで利用者へ届かなくなるため。
+	 * ただし変換対象があって1ページも成功しなかった場合は部分的成功ではないため、最初の失敗をそのまま伝播する。
 	 *
 	 * @param inputPath          読み込むPDFのパス
 	 * @param renderDpi          画像化する解像度（DPI）
 	 * @param maxPages           画像変換にかけるページ数の上限
 	 * @param pageImageConverter 画像化した1ページ分をテキストへ変換する処理
-	 * @return PDF順のページ内容（テキストと、変換したページの変換結果）
+	 * @return PDF順のページ内容（テキストと、変換したページの変換結果・変換失敗）
 	 * @throws PdfPageLimitExceededException 変換対象ページ数が上限を超えた場合
 	 * @throws PdfProcessingException        PDFの読み込み、テキスト抽出、または画像化に失敗した場合
 	 */
@@ -136,15 +142,88 @@ final class PdfDocumentAnalysisLogic {
 
 			PDFRenderer renderer = new PDFRenderer(document);
 			Map<Integer, String> convertedTexts = new HashMap<>();
+			List<Integer> failedPageNumbers = new ArrayList<>();
+			RuntimeException firstFailure = null;
 			for (Integer pageNumber : renderTargetPages) {
 				// PDFBoxのレンダリングは0始まりのため、1始まりのページ番号から開始ページ番号を引く。
 				byte[] pngBytes = renderPageToPng(renderer, pageNumber - PdfConstants.START_PAGE, renderDpi);
-				convertedTexts.put(pageNumber, pageImageConverter.convert(pngBytes));
+				try {
+					convertedTexts.put(pageNumber, pageImageConverter.convert(pngBytes));
+				} catch (RuntimeException e) {
+					// 画像化（renderPageToPng）の失敗はPDF自体を読めていない疑いがあるため従来どおり全体を止め、
+					// 変換器の失敗だけをページ単位の部分失敗として扱う。
+					failedPageNumbers.add(pageNumber);
+					if (firstFailure == null) {
+						firstFailure = e;
+					}
+					LOGGER.warn("ページの画像変換に失敗したため、このページを空本文として続行します。pageNumber={}", pageNumber, e);
+				}
 			}
-			return buildPageContents(pageTexts, convertedTexts);
+			if (!renderTargetPages.isEmpty() && failedPageNumbers.size() == renderTargetPages.size()) {
+				// 全滅は「一部が失敗した成功」ではないため、1ページ目の失敗で止まっていた従来どおり例外にする。
+				// 独自例外へ包み直すとHTTP statusが変わるため、最初の失敗をそのまま投げる。
+				LOGGER.warn("画像変換が全ページ失敗したため処理を中断します。targetPageCount={}", renderTargetPages.size());
+				throw firstFailure;
+			}
+			return buildPageContents(pageTexts, convertedTexts, failedPageNumbers);
 		} catch (IllegalStateException | IOException e) {
 			throw new PdfProcessingException("PDFページ内容の抽出に失敗しました。path=" + inputPath, e);
 		}
+	}
+
+	/**
+	 * PDFの全ページを低解像度で画像化し、ページ選択UI用のサムネイルを返す。
+	 * <p>
+	 * ページ数が上限を超える場合は1ページも画像化せずに例外で止める。全ページ分を1レスポンスで返すため、
+	 * ページ数がそのままレスポンスサイズに比例するのを防ぐ。
+	 * <p>
+	 * 1ページずつ画像化してdata URIへ変換し、{@code BufferedImage} とPNGバイト列の参照は都度捨てる。
+	 * 同時にメモリへ載る画像を1ページ分に抑えるため。
+	 * <p>
+	 * 画像は {@code ImageType.RGB} で作る。グレースケールにすればサイズは減るが、色で区別している図や
+	 * 見出しがページ選択時に判別しづらくなる。サムネイルは「どのページか」を見分けるためのものなので色を残す。
+	 *
+	 * @param inputPath 読み込むPDFのパス
+	 * @param renderDpi 画像化する解像度（DPI）
+	 * @param maxPages  サムネイルを返すページ数の上限
+	 * @return PDF順のページ単位サムネイル
+	 * @throws PdfPageLimitExceededException 総ページ数が上限を超えた場合
+	 * @throws PdfProcessingException        PDFの読み込みまたは画像化に失敗した場合
+	 */
+	List<PdfPageThumbnail> extractPdfThumbnails(Path inputPath, int renderDpi, int maxPages) {
+		try (PDDocument document = Loader.loadPDF(inputPath.toFile())) {
+			int totalPages = document.getNumberOfPages();
+			if (totalPages > maxPages) {
+				LOGGER.warn("総ページ数が上限を超えたためサムネイルを生成しません。pageCount={}, maxPages={}", totalPages, maxPages);
+				throw new PdfPageLimitExceededException(totalPages, maxPages);
+			}
+			LOGGER.info("サムネイルの生成を開始します。pageCount={}, renderDpi={}", totalPages, renderDpi);
+
+			PDFRenderer renderer = new PDFRenderer(document);
+			List<PdfPageThumbnail> thumbnails = new ArrayList<>(totalPages);
+			for (int pageNumber = PdfConstants.START_PAGE; pageNumber <= totalPages; pageNumber++) {
+				thumbnails.add(renderThumbnail(renderer, pageNumber, renderDpi));
+			}
+			return thumbnails;
+		} catch (IllegalStateException | IOException e) {
+			throw new PdfProcessingException("PDFサムネイルの生成に失敗しました。path=" + inputPath, e);
+		}
+	}
+
+	/**
+	 * 指定ページのサムネイルを生成する。
+	 *
+	 * @param renderer   PDFレンダラー
+	 * @param pageNumber 画面・API仕様の1始まりページ番号
+	 * @param renderDpi  解像度（DPI）
+	 * @return ページ単位サムネイル
+	 * @throws IOException レンダリングまたはPNGエンコードに失敗した場合
+	 */
+	private PdfPageThumbnail renderThumbnail(PDFRenderer renderer, int pageNumber, int renderDpi) throws IOException {
+		// PDFBoxのレンダリングは0始まりのため、1始まりのページ番号から開始ページ番号を引く。
+		BufferedImage image = renderPageImage(renderer, pageNumber - PdfConstants.START_PAGE, renderDpi);
+		String dataUri = PdfConstants.BASE64_PNG + Base64.getEncoder().encodeToString(toPngBytes(image));
+		return new PdfPageThumbnail(pageNumber, dataUri, image.getWidth(), image.getHeight());
 	}
 
 	/**
@@ -185,14 +264,17 @@ final class PdfDocumentAnalysisLogic {
 	/**
 	 * ページ単位テキストと変換結果からページ内容を組み立てる。
 	 *
-	 * @param pageTexts      PDF順のページ単位テキスト
-	 * @param convertedTexts 変換したページ番号と変換結果
+	 * @param pageTexts         PDF順のページ単位テキスト
+	 * @param convertedTexts    変換したページ番号と変換結果
+	 * @param failedPageNumbers 変換に失敗したページ番号（1始まり）
 	 * @return PDF順のページ内容
 	 */
-	private List<PdfPageContent> buildPageContents(List<String> pageTexts, Map<Integer, String> convertedTexts) {
+	private List<PdfPageContent> buildPageContents(List<String> pageTexts, Map<Integer, String> convertedTexts,
+			List<Integer> failedPageNumbers) {
 		return IntStream.rangeClosed(PdfConstants.START_PAGE, pageTexts.size())
 				.mapToObj(pageNumber -> new PdfPageContent(pageNumber,
-						pageTexts.get(pageNumber - PdfConstants.START_PAGE), convertedTexts.get(pageNumber)))
+						pageTexts.get(pageNumber - PdfConstants.START_PAGE), convertedTexts.get(pageNumber),
+						failedPageNumbers.contains(pageNumber)))
 				.toList();
 	}
 
@@ -206,7 +288,32 @@ final class PdfDocumentAnalysisLogic {
 	 * @throws IOException レンダリングまたはPNGエンコードに失敗した場合
 	 */
 	private byte[] renderPageToPng(PDFRenderer renderer, int pageIndex, int renderDpi) throws IOException {
-		BufferedImage image = renderer.renderImageWithDPI(pageIndex, renderDpi, ImageType.RGB);
+		return toPngBytes(renderPageImage(renderer, pageIndex, renderDpi));
+	}
+
+	/**
+	 * 指定ページを画像へレンダリングする。
+	 * <p>
+	 * 画像の幅・高さを使う呼び出し元があるため、PNGへのエンコードとは分けている。
+	 *
+	 * @param renderer  PDFレンダラー
+	 * @param pageIndex 0始まりのページインデックス
+	 * @param renderDpi 解像度（DPI）
+	 * @return レンダリングした画像
+	 * @throws IOException レンダリングに失敗した場合
+	 */
+	private BufferedImage renderPageImage(PDFRenderer renderer, int pageIndex, int renderDpi) throws IOException {
+		return renderer.renderImageWithDPI(pageIndex, renderDpi, ImageType.RGB);
+	}
+
+	/**
+	 * 画像をPNGバイト列へエンコードする。
+	 *
+	 * @param image エンコードする画像
+	 * @return PNGバイト列
+	 * @throws IOException PNGエンコードに失敗した場合
+	 */
+	private byte[] toPngBytes(BufferedImage image) throws IOException {
 		ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 		ImageIO.write(image, "png", outputStream);
 		return outputStream.toByteArray();

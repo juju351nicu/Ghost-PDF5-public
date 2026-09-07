@@ -196,13 +196,13 @@ class GhostPdfServiceTest {
 		form.setOriginalFile(originalFile);
 
 		doReturn(inputPath).when(pdfLogic).loadPdf(originalFile);
-		doReturn(splitZipPath).when(pdfLogic).splitPdf(inputPath);
+		doReturn(splitZipPath).when(pdfLogic).splitPdf(inputPath, null);
 		doReturn(new ByteArrayResource(contents)).when(pdfLogic).openTemporaryFileForResponse(splitZipPath);
 
 		ResponseEntity<Resource> result = pdfService.splitPdf(form);
 
 		verify(pdfLogic, times(1)).loadPdf(originalFile);
-		verify(pdfLogic, times(1)).splitPdf(inputPath);
+		verify(pdfLogic, times(1)).splitPdf(inputPath, null);
 		verify(pdfLogic, times(1)).openTemporaryFileForResponse(splitZipPath);
 		assertEquals(HttpStatus.OK, result.getStatusCode());
 		assertEquals(MediaType.valueOf("application/zip"), result.getHeaders().getContentType());

@@ -139,7 +139,7 @@ Public repository化後も、当面はlocal development / portfolio用途を前�
   - 対象はJSONの11本（`metadataPdf` / `textPdf` / `markdownDraftPdf` / `markdownDraftImage` / `saveMarkdown` / `markdownFiles` / `markdownFile` GET・PUT・DELETE / `markdownPreview` GET・POST）
   - `GET /markdownFiles` はトップレベル配列をやめ、`data` の中を配列にした
   - バイナリ（PDF / ZIP）・CSV・エラー（`ErrorResponse` の `fieldErrors`）は従来どおり包まない
-  - 「成功したが伝えたいことがある」を返せるよう `resultType` と `messageList` を用意。今フェーズは全エンドポイントが `INFO` + 空リストで、実際の利用は次フェーズ
+  - 「成功したが伝えたいことがある」を返せるよう `resultType` と `messageList` を用意。実際の利用は後続フェーズで追加済み（下記「成功時の通知メッセージ」）
   - FEはラッパーの構造を `api/api-result-utils.js` だけで解釈し、他ファイルからの参照は `CodingConventionTest` で検出
   - `OpenApiDocumentationTest` で11本すべての200が `ApiResult〇〇` schemaになり、`data` が用途別Responseを指すことを固定
 - `const.js` のJSDocとフォーマットをES Modules側の書き方へ統一
@@ -168,6 +168,34 @@ Public repository化後も、当面はlocal development / portfolio用途を前�
   - 一時ファイルの削除はレスポンス送信の完了後（リソースのclose時）に行う。送信途中で削除するとレスポンスが壊れるため
   - Content-Type / Content-Disposition / Content-Length は従来と同一。FEの変更なし
   - 実測: `-Xmx128m` では修正前が `OutOfMemoryError`、修正後は同じ分割が通る（`-Xmx256m` では修正前もぎりぎり通ったため、差が出る条件で確認した）
+- 成功時の通知メッセージ（`ApiResult` の `resultType = WARNING` / `messageList`）を実際に使うようにした
+  - `mode=AUTO` は1ページの変換失敗で全体が失敗していた。失敗したページを記録して残りのページの変換を続け、成功分を200で返すよう変更
+  - 失敗したページは本文を空にし、`source` を `FAILED` にする（`TEXT` のままでは白紙ページと区別できない）。`messageList` に `ocrPagePartiallyFailed` と失敗ページ番号を載せる
+  - 変換対象があって1ページも成功しなかった場合は警告ではなく失敗として、従来どおり最初の失敗を伝播する。文字レイヤーだけのPDF（変換対象0ページ）は従来どおり成功
+  - `POST /saveMarkdown` は既存ファイルを無警告に上書きしていた。上書き自体は変えず、`markdownFileOverwritten` で事後に伝えるよう変更（`PUT /markdownFile` は上書きが目的なので対象外）
+  - 画面表示はモーダルではなくインライン（`components/api-message-list.js`）。Markdownメモパネルの編集欄の上に出し、次の操作で消える
+  - 表示側はメッセージを解釈せず並べるだけにし、`WARNING` を返すAPIが増えても画面を触らずに済ませる
+  - `FrontendApiMessageContractTest` で「api clientの `messages` → app state → 表示component」の接続を固定
+- `POST /splitPdf` に指定範囲ごとの分割を追加（`splitRanges`、例 `["1-10","11-20","21-27"]`）
+  - 範囲未指定は従来どおり1ページずつ分割。ZIP内の命名も従来の `split-001.pdf` のまま。範囲分割は `pages_1-10.pdf` と別系統にした
+  - 入力形式は `List<String>`。`List<Integer>`（`extractPages` と同じ形式）では「1-5を1ファイル」と「1ページずつ5ファイル」を区別できない
+  - 形式・大小関係・重なり・件数（既定50件）はannotation（`@CheckPageRangeList`）、総ページ数との突き合わせはPDFを開く層で検証。どちらも400で、PDFを加工する前に止まる
+  - 範囲の重複は禁止。同じページが複数ファイルへ入ると、どちらを使うべきか利用者が判断できない
+  - **出力サイズ実測**（27ページ・埋め込みフォント付き583 KBのPDF、同一ファイルで比較）
+    - 1ページずつ分割: 14.0 MB（入力の24.6倍。埋め込みフォントがページごとに複製される）
+    - 3範囲（1-10 / 11-20 / 21-27）で分割: 1.56 MB（入力の2.7倍）。**1ページずつ分割の約9分の1**
+    - 出力サイズは出力ファイル数にほぼ比例するため、範囲分割は分割時のサイズ膨張を緩和する。ただし範囲を細かく切れば1ページずつ分割へ近づくので、`byte[]` を経由しないストリーム化（前フェーズ）は引き続き前提
+  - `FrontendSplitRangeContractTest` で「入力欄 → 形式validation → payload → API」の接続を固定
+- サムネイル一覧からのページ選択を追加（`POST /thumbnailsPdf`）
+  - 全ページを低DPIで画像化し、data URI（`data:image/png;base64,...`）で返す。画面はサムネイルをクリックしてページを選び、既存の「ページ指定」欄へ反映する（`1-3,5` のように連続ページは範囲へ畳む）。手入力の欄はそのまま残している
+  - **1リクエストで全ページ分**返す。サーバー側に文書セッションが無く、ページごとに呼ぶと27ページのPDFで20 MBのアップロードが27回発生するため
+  - 解像度とページ数上限を設定で持つ（`ghost.pdf.thumbnail.dpi` 既定40 / `ghost.pdf.thumbnail.max-pages` 既定100）。上限超過は1ページも描画せず400
+  - 1ページずつ画像化してdata URIへ変換し、画像の参照は都度捨てる（`mode=AUTO` と同じ考え方）。同時にメモリへ載るのは1ページ分
+  - **レスポンスサイズ実測**: 27ページ・テキスト中心のPDF（Letterサイズ、40dpiで340x440px）で **79 KB**（1ページあたりdata URI約2.8 KB）
+    - 図や写真が多いページはPNGが大きくなり、1ページ20〜40 KB（base64で約1.33倍）に達しうる。その場合でも既定の100ページ上限で概ね3〜5 MBに収まる見積もり
+    - 既定40dpiはページの見分けには十分で、これ以上下げると文字の並びが判別しづらくなるため据え置く
+  - サムネイルはキャッシュしない。キャッシュにはアップロードしたPDFをサーバー側で保持する設計変更が必要で、別に扱う
+  - `FrontendThumbnailContractTest` で「コンポーネント → payload → API client → app state」の接続と、自動取得しないこと・ページごとに取得しないことを固定
 - `deletePdf` / `insertPdf` のファイルサイズ検証をOpenAPIの413定義と整合させ、Controller単体テストで固定
 - `CodingConventionTest` にDOM直接操作とHTML直接挿入の再混入検知を追加
 - `CodingConventionTest` にfield injection の `@Autowired` 再混入検知を追加
@@ -362,20 +390,20 @@ Markdown保存を含むJava 25の全286テストが成功しています。
   - Markdown管理、履歴、設定、レビューなどで画面が2〜3画面以上に増えたら移行タイミング。
   - TypeScript は API client、入力フォーム、エラー表示を型で守りたくなった段階で導入を検討する。
   - Vuetify などのUIライブラリは、Vite + TypeScript の足場が安定した後に検討する。
-- `pdf.js` 導入は当分先にする。
-  - 編集元PDFはブラウザ標準ビューアをiframeで表示しており、ページ番号とサムネイルはその機能で確認できる。
-  - クリックでページ選択、範囲指定UI、テキストレイヤー、注釈表示が必要になった段階で検討する。
-  - サムネイル一覧からのページ選択は、`PDFRenderer` で低DPIのページ画像を返すendpointでも実装できるため、pdf.jsは必須ではない。
+- `pdf.js` 導入は当分先にする。**サムネイル一覧からのページ選択は実装済みで、pdf.jsは引き続き不要。**
+  - 編集元PDFはブラウザ標準ビューアをiframeで表示しており、ページ番号とサムネイルはその機能でも確認できる。
+  - サムネイル一覧からのページ選択は `POST /thumbnailsPdf`（`PDFRenderer` で低DPIのページ画像をdata URIで返す）で実装した。pdf.jsは必須ではないという判断のとおりに作れている。
+  - テキストレイヤー、注釈表示、ページの並べ替えが必要になった段階で、あらためて検討する。
 - APIが増えた場合、`typingGame/src/utils/fetchClient.ts` / `apiErrorUtils.ts` を参考に、
   `HttpError` の導入を検討する。
   - 現状のGhost-PDF5はPDF API中心のため、`api/fetch-client.js` / `api/pdf-api-client.js` / `api/api-error-utils.js` の分離で十分。
   - 複数APIでエラー表示がさらに増えた時点で、例外型やHTTP status別メッセージへの変換を拡張する。
 - JSON APIの成功レスポンス共通化は `ApiResult<T>` として導入済み（下記「実施済み」参照）。
-  - `messageList` の実際の利用（`mode=AUTO` で変換に失敗したページの通知など）と、その画面表示導線は次フェーズ。
+  - `messageList` の実際の利用（`mode=AUTO` の部分失敗通知、`POST /saveMarkdown` の上書き通知）と画面表示導線は実施済み。
   - PDF/ZIP/CSVなどのバイナリレスポンスは引き続き共通JSONで包まない。
   - `JsonUtils` はJSON文字列変換・parse用の補助であり、APIレスポンス共通化とは責務を分ける。
 - PDF基本API拡張は、資料のPhase 1に沿って `metadataPdf`、ページ抽出、PDF結合、1ページずつのPDF分割を追加済み。
-  - 指定範囲ごとの分割は、画面入力とAPI仕様を整理してから検討する。
+  - 指定範囲ごとの分割も追加済み（`splitRanges`）。入力形式の選定理由と検証の層分けは [コーディング規約](docs/coding-guidelines.md) の「PDF分割範囲の入力形式」を参照。
   - 既存の `/showPdf`、`/deletePdf`、`/insertPdf` は壊さず、新機能を横に追加する。
 - Storage操作やブラウザ判定をさらに増やす場合、`typingGame/src/utils/gameUtils.ts` /
   `authTokenStorage.ts` を参考に、専用モジュールへ責務分離する。

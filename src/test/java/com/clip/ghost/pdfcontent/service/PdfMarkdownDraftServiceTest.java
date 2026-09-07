@@ -30,9 +30,11 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockMultipartFile;
 
+import com.clip.ghost.imagecontent.exception.ImageProcessingException;
 import com.clip.ghost.imagecontent.exception.OcrUnavailableException;
 import com.clip.ghost.imagecontent.logic.ImageConverterResolver;
 import com.clip.ghost.imagecontent.logic.ImageToMarkdownConverter;
+import com.clip.ghost.common.response.ApiMessage;
 import com.clip.ghost.common.response.ApiResult;
 import com.clip.ghost.common.response.ApiResultType;
 import com.clip.ghost.pdfcontent.config.PdfOcrProperties;
@@ -129,8 +131,8 @@ class PdfMarkdownDraftServiceTest {
 		when(properties.getRenderDpi()).thenReturn(OCR_RENDER_DPI);
 		when(properties.getMaxPages()).thenReturn(OCR_MAX_PAGES);
 		doReturn(inputPath).when(pdfLogic).loadPdf(originalFile);
-		doReturn(List.of(new PdfPageContent(1, "text page", null),
-				new PdfPageContent(2, "", "scanned\r\nmarkdown  "))).when(pdfLogic)
+		doReturn(List.of(new PdfPageContent(1, "text page", null, false),
+				new PdfPageContent(2, "", "scanned\r\nmarkdown  ", false))).when(pdfLogic)
 				.extractPdfPageContents(eq(inputPath), eq(OCR_RENDER_DPI), eq(OCR_MAX_PAGES), any());
 
 		PdfMarkdownDraftResponse response = extractData(service.generateMarkdownDraft(form));
@@ -158,14 +160,115 @@ class PdfMarkdownDraftServiceTest {
 		doReturn("converted markdown").when(converter).convert(pngBytes, "image/png");
 		ArgumentCaptor<PdfPageImageConverter> pageImageConverterCaptor = ArgumentCaptor
 				.forClass(PdfPageImageConverter.class);
-		doReturn(List.of(new PdfPageContent(1, "text page", null))).when(pdfLogic).extractPdfPageContents(eq(inputPath),
-				eq(150), eq(5), pageImageConverterCaptor.capture());
+		doReturn(List.of(new PdfPageContent(1, "text page", null, false))).when(pdfLogic)
+				.extractPdfPageContents(eq(inputPath), eq(150), eq(5), pageImageConverterCaptor.capture());
 
 		service.generateMarkdownDraft(form);
 
 		// Logicへ渡すlambdaが、共有の画像変換器をimage/pngで呼ぶことを確認する。
 		assertEquals("converted markdown", pageImageConverterCaptor.getValue().convert(pngBytes));
 		verify(converter).convert(pngBytes, "image/png");
+	}
+
+	@Test
+	@DisplayName("AUTOで一部ページの変換が失敗した場合はWARNINGで成功分を返す")
+	void generateMarkdownDraftAutoReturnsWarningWhenSomePagesFail() {
+		Path inputPath = Path.of("temporary", "partial.pdf");
+		MockMultipartFile originalFile = createPdfFile("partial.pdf", new byte[] { 1 });
+		PdfMarkdownDraftRequest form = createRequest(originalFile);
+		form.setMode("AUTO");
+		when(converterResolver.resolve()).thenReturn(converter);
+		when(converter.isEnabled()).thenReturn(true);
+		when(properties.getRenderDpi()).thenReturn(OCR_RENDER_DPI);
+		when(properties.getMaxPages()).thenReturn(OCR_MAX_PAGES);
+		doReturn(inputPath).when(pdfLogic).loadPdf(originalFile);
+		doReturn(List.of(new PdfPageContent(1, "", "scanned markdown", false), new PdfPageContent(2, "", null, true),
+				new PdfPageContent(3, "text page", null, false))).when(pdfLogic)
+				.extractPdfPageContents(eq(inputPath), eq(OCR_RENDER_DPI), eq(OCR_MAX_PAGES), any());
+
+		ResponseEntity<ApiResult<PdfMarkdownDraftResponse>> result = service.generateMarkdownDraft(form);
+
+		assertNotNull(result.getBody());
+		assertEquals(HttpStatus.OK, result.getStatusCode());
+		assertEquals(ApiResultType.WARNING, result.getBody().getResultType());
+		assertEquals(1, result.getBody().getMessageList().size());
+		ApiMessage message = result.getBody().getMessageList().get(0);
+		assertEquals("ocrPagePartiallyFailed", message.code());
+		assertEquals("1ページの文字起こしに失敗しました。（失敗したページ: 2）", message.message());
+		PdfMarkdownDraftResponse response = result.getBody().getData();
+		assertNotNull(response);
+		// 失敗ページを空本文のFAILEDにしても、成功したページの本文はそのまま返す。
+		assertPageWithSource(response.getPages().get(0), 1, "scanned markdown", "OCR");
+		assertPageWithSource(response.getPages().get(1), 2, "", "FAILED");
+		assertPageWithSource(response.getPages().get(2), 3, "text page", "TEXT");
+		assertEquals(3, response.getPageCount());
+		assertEquals("## Page 1\n\nscanned markdown\n\n## Page 2\n\n## Page 3\n\ntext page", response.getMarkdown());
+	}
+
+	@Test
+	@DisplayName("AUTOで複数ページの変換が失敗した場合は件数と全ページ番号を伝える")
+	void generateMarkdownDraftAutoReportsEveryFailedPageNumber() {
+		Path inputPath = Path.of("temporary", "partial-multi.pdf");
+		MockMultipartFile originalFile = createPdfFile("partial-multi.pdf", new byte[] { 1 });
+		PdfMarkdownDraftRequest form = createRequest(originalFile);
+		form.setMode("AUTO");
+		when(converterResolver.resolve()).thenReturn(converter);
+		when(converter.isEnabled()).thenReturn(true);
+		when(properties.getRenderDpi()).thenReturn(OCR_RENDER_DPI);
+		when(properties.getMaxPages()).thenReturn(OCR_MAX_PAGES);
+		doReturn(inputPath).when(pdfLogic).loadPdf(originalFile);
+		doReturn(List.of(new PdfPageContent(1, "", null, true), new PdfPageContent(2, "", "scanned", false),
+				new PdfPageContent(3, "", null, true))).when(pdfLogic)
+				.extractPdfPageContents(eq(inputPath), eq(OCR_RENDER_DPI), eq(OCR_MAX_PAGES), any());
+
+		ResponseEntity<ApiResult<PdfMarkdownDraftResponse>> result = service.generateMarkdownDraft(form);
+
+		assertNotNull(result.getBody());
+		assertEquals(ApiResultType.WARNING, result.getBody().getResultType());
+		assertEquals("2ページの文字起こしに失敗しました。（失敗したページ: 1, 3）",
+				result.getBody().getMessageList().get(0).message());
+	}
+
+	@Test
+	@DisplayName("AUTOで全ページ成功した場合はINFOとメッセージ空を保つ")
+	void generateMarkdownDraftAutoKeepsInfoWhenEveryPageSucceeds() {
+		Path inputPath = Path.of("temporary", "success.pdf");
+		MockMultipartFile originalFile = createPdfFile("success.pdf", new byte[] { 1 });
+		PdfMarkdownDraftRequest form = createRequest(originalFile);
+		form.setMode("AUTO");
+		when(converterResolver.resolve()).thenReturn(converter);
+		when(converter.isEnabled()).thenReturn(true);
+		when(properties.getRenderDpi()).thenReturn(OCR_RENDER_DPI);
+		when(properties.getMaxPages()).thenReturn(OCR_MAX_PAGES);
+		doReturn(inputPath).when(pdfLogic).loadPdf(originalFile);
+		doReturn(List.of(new PdfPageContent(1, "", "scanned markdown", false),
+				new PdfPageContent(2, "text page", null, false))).when(pdfLogic)
+				.extractPdfPageContents(eq(inputPath), eq(OCR_RENDER_DPI), eq(OCR_MAX_PAGES), any());
+
+		ResponseEntity<ApiResult<PdfMarkdownDraftResponse>> result = service.generateMarkdownDraft(form);
+
+		assertNotNull(result.getBody());
+		assertEquals(ApiResultType.INFO, result.getBody().getResultType());
+		assertTrue(result.getBody().getMessageList().isEmpty());
+	}
+
+	@Test
+	@DisplayName("AUTOで全ページの変換が失敗した場合はLogicの例外をそのまま伝播し、200にしない")
+	void generateMarkdownDraftAutoPropagatesExceptionWhenEveryPageFails() {
+		Path inputPath = Path.of("temporary", "all-failed.pdf");
+		MockMultipartFile originalFile = createPdfFile("all-failed.pdf", new byte[] { 1 });
+		PdfMarkdownDraftRequest form = createRequest(originalFile);
+		form.setMode("AUTO");
+		when(converterResolver.resolve()).thenReturn(converter);
+		when(converter.isEnabled()).thenReturn(true);
+		when(properties.getRenderDpi()).thenReturn(OCR_RENDER_DPI);
+		when(properties.getMaxPages()).thenReturn(OCR_MAX_PAGES);
+		doReturn(inputPath).when(pdfLogic).loadPdf(originalFile);
+		// 全滅は部分的成功ではないため、Logicが投げた失敗をServiceで200へ丸めない。
+		doThrow(new ImageProcessingException("変換に失敗しました。")).when(pdfLogic).extractPdfPageContents(eq(inputPath),
+				eq(OCR_RENDER_DPI), eq(OCR_MAX_PAGES), any());
+
+		assertThrows(ImageProcessingException.class, () -> service.generateMarkdownDraft(form));
 	}
 
 	@Test

@@ -21,6 +21,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.clip.ghost.common.response.ApiMessage;
 import com.clip.ghost.common.response.ApiResult;
 import com.clip.ghost.common.response.ApiResultType;
 import com.clip.ghost.markdowncontent.dto.MarkdownDeleteResponse;
@@ -80,6 +81,28 @@ class MarkdownDocumentServiceTest {
 		assertEquals(Files.size(savedPath), body.getByteSize());
 		assertEquals(2L, body.getLineCount());
 		assertNotNull(body.getLastModifiedTime());
+	}
+
+	@Test
+	@DisplayName("Markdown保存は既存ファイルを上書きした場合にWARNINGで伝える")
+	void saveMarkdownReturnsWarningWhenExistingFileIsOverwritten() throws IOException {
+		MarkdownDocumentService service = new MarkdownDocumentService(tempDir.toString());
+		Path savedPath = tempDir.resolve("design-note.md");
+		Files.writeString(savedPath, "old body", StandardCharsets.UTF_8);
+		MarkdownSaveRequest request = createRequest("design-note.md", "new body");
+
+		ResponseEntity<ApiResult<MarkdownFileResponse>> response = service.saveMarkdown(request);
+
+		assertEquals(HttpStatus.OK, response.getStatusCode());
+		assertNotNull(response.getBody());
+		assertEquals(ApiResultType.WARNING, response.getBody().getResultType());
+		assertEquals(1, response.getBody().getMessageList().size());
+		ApiMessage message = response.getBody().getMessageList().get(0);
+		assertEquals("markdownFileOverwritten", message.code());
+		assertEquals("既存のファイルを上書きしました。", message.message());
+		// 上書きは禁止せず事後に伝えるだけなので、保存内容は新しい本文へ置き換わる。
+		assertEquals("new body", Files.readString(savedPath, StandardCharsets.UTF_8));
+		assertEquals("design-note.md", extractData(response).getFileName());
 	}
 
 	@Test

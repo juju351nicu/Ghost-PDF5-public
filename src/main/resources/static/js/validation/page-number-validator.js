@@ -16,6 +16,9 @@ import CONST from "../const.js";
 const INVALID_PAGE_MESSAGE = "適切な値を入力してください。";
 /** ページ番号が1以上の整数として扱えない場合のメッセージ。 */
 const NON_NUMERIC_PAGE_MESSAGE = "整数の値を入力してください。";
+/** 分割範囲の形式が正しくない場合のメッセージ。 */
+const INVALID_SPLIT_RANGE_MESSAGE =
+  "分割範囲は「1-5, 6-12」の形式で入力してください。";
 /** 1以上の整数だけを許可する。 */
 const POSITIVE_INTEGER_PATTERN = /^[1-9][0-9]*$/;
 /** `1-3` のような昇順ページ範囲候補を判定する。大小関係はparse時に検証する。 */
@@ -88,6 +91,127 @@ const parseDeletePagesText = (pagesText) => {
 };
 
 /**
+ * 分割範囲入力の解析結果。
+ *
+ * rangesはBEへ送信する `"1-5"` 形式の範囲文字列リスト。空配列は「範囲指定なし（1ページずつ分割）」を表す。
+ * messageが空文字以外の場合は入力エラーとして扱い、API送信は行わない。
+ *
+ * @typedef {Object} SplitRangesParseResult
+ * @property {string[]} ranges 入力順を保った分割範囲リスト
+ * @property {string} message 入力エラーメッセージ。正常時は空文字
+ */
+
+/**
+ * 1件の分割範囲が `5` または `5-12` として扱えるか判定する。
+ *
+ * 削除ページ入力と違い、開始と終了が同じ範囲（`3-3`）も許可する。1ページだけを1ファイルにする
+ * 指定として意味があり、BE側の検証も同じ条件にしている。
+ *
+ * @param {string} rangeItem 分割範囲1件。例: "1-5"
+ * @returns {boolean} 分割範囲として扱える場合はtrue
+ */
+const isValidSplitRangeItem = (rangeItem) => {
+  if (POSITIVE_INTEGER_PATTERN.test(rangeItem)) {
+    return true;
+  }
+  if (!PAGE_RANGE_PATTERN.test(rangeItem)) {
+    return false;
+  }
+  const rangeParts = rangeItem.split(CONST.DELIMITER.HYPHEN);
+  return (
+    Number.parseInt(rangeParts[0], 10) <= Number.parseInt(rangeParts[1], 10)
+  );
+};
+
+/**
+ * 分割範囲入力が形式として正しいか判定する。
+ *
+ * 空欄は「1ページずつ分割」を表す正常な入力として扱う。
+ *
+ * @param {string} rangesText 分割範囲入力。例: "1-5, 6-12"
+ * @returns {boolean} 空欄、またはすべての範囲が正しい形式の場合はtrue
+ */
+const isValidSplitRangesText = (rangesText) => {
+  return parseSplitRangesText(rangesText).message === "";
+};
+
+/**
+ * 分割範囲入力をAPI送信用の範囲文字列リストへ変換する。
+ *
+ * ページ数との突き合わせ（総ページ数を超えていないか）と範囲の重複判定はBEに任せる。
+ * 総ページ数はPDFを開くまで分からず、画面側で判定すると二重管理になるため。
+ *
+ * @param {string} rangesText 分割範囲入力。例: "1-5, 6-12"
+ * @returns {SplitRangesParseResult} 変換後の範囲リストとエラーメッセージ
+ */
+const parseSplitRangesText = (rangesText) => {
+  if (Util.isEmpty(rangesText)) {
+    return { ranges: [], message: "" };
+  }
+  const splitRanges = [];
+  const rangeItems = Util.trimSpace(rangesText).split(CONST.DELIMITER.COMMA);
+  for (const rangeItem of rangeItems) {
+    if (Util.isEmpty(rangeItem)) {
+      continue;
+    }
+    if (!isValidSplitRangeItem(rangeItem)) {
+      return { ranges: [], message: INVALID_SPLIT_RANGE_MESSAGE };
+    }
+    splitRanges.push(rangeItem);
+  }
+  return { ranges: splitRanges, message: "" };
+};
+
+/**
+ * ページ番号リストを、既存の「ページ指定」入力欄と同じ表記へ変換する。
+ *
+ * 連続したページは範囲へ畳む（`[1,2,3,5]` -> `"1-3,5"`）。区切りに空白を入れないのは、
+ * 既存の `parseDeletePagesText` が空白付きの要素を数値として解釈できないため。
+ * サムネイル選択の結果をそのまま「抽出する」「削除する」へ渡せる形にそろえる。
+ *
+ * @param {number[]} pageNumbers 1始まりのページ番号リスト
+ * @returns {string} ページ指定入力欄へ入れる文字列。空リストの場合は空文字
+ */
+const buildPagesText = (pageNumbers) => {
+  if (Util.isEmpty(pageNumbers)) {
+    return "";
+  }
+  const sortedPageNumbers = Util.uniqArrayBySet(pageNumbers).sort(
+    (leftPage, rightPage) => leftPage - rightPage
+  );
+  const rangeTexts = [];
+  let startPage = sortedPageNumbers[0];
+  let previousPage = sortedPageNumbers[0];
+  for (const pageNumber of sortedPageNumbers.slice(1)) {
+    if (pageNumber === previousPage + 1) {
+      previousPage = pageNumber;
+      continue;
+    }
+    rangeTexts.push(buildRangeText(startPage, previousPage));
+    startPage = pageNumber;
+    previousPage = pageNumber;
+  }
+  rangeTexts.push(buildRangeText(startPage, previousPage));
+  return rangeTexts.join(CONST.DELIMITER.COMMA);
+};
+
+/**
+ * 開始ページと終了ページを1件分のページ指定表記へ変換する。
+ *
+ * 既存の `parseDeletePagesText` は開始と終了が同じ範囲（`3-3`）をエラーにするため、
+ * 1ページだけの場合は範囲にしない。
+ *
+ * @param {number} startPage 開始ページ番号
+ * @param {number} endPage 終了ページ番号
+ * @returns {string} ページ指定表記
+ */
+const buildRangeText = (startPage, endPage) => {
+  return startPage === endPage
+    ? String(startPage)
+    : startPage + CONST.DELIMITER.HYPHEN + endPage;
+};
+
+/**
  * 差し込みページ番号が1つの数値として扱えるか判定する。
  *
  * @param {string} pageText 差し込みページ番号入力
@@ -100,5 +224,8 @@ const isValidInsertPageText = (pageText) => {
 export default {
   isValidDeletePagesText,
   parseDeletePagesText,
+  buildPagesText,
+  isValidSplitRangesText,
+  parseSplitRangesText,
   isValidInsertPageText,
 };

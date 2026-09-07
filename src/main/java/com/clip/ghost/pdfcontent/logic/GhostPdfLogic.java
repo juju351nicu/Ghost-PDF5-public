@@ -15,6 +15,7 @@ import com.clip.ghost.pdfcontent.exception.PdfProcessingException;
 import com.clip.ghost.pdfcontent.dto.GhostPdfDto;
 import com.clip.ghost.pdfcontent.dto.PdfMetadataResponse;
 import com.clip.ghost.pdfcontent.dto.PdfPageContent;
+import com.clip.ghost.pdfcontent.dto.PdfPageThumbnail;
 import com.clip.ghost.pdfcontent.dto.PdfTextResponse;
 
 import lombok.NoArgsConstructor;
@@ -142,6 +143,26 @@ public class GhostPdfLogic {
 	}
 
 	/**
+	 * 一時保存されたPDFの全ページから、ページ選択UI用のサムネイルを生成する。
+	 * <p>
+	 * 成功・失敗にかかわらず、呼び出し後に入力一時ファイルを削除する。ページ上限を超えて拒否した場合も削除する。
+	 *
+	 * @param inputPath 読み込むPDFのパス
+	 * @param renderDpi 画像化する解像度（DPI）
+	 * @param maxPages  サムネイルを返すページ数の上限
+	 * @return PDF順のページ単位サムネイル
+	 * @throws PdfPageLimitExceededException 総ページ数が上限を超えた場合
+	 * @throws PdfProcessingException        PDFの読み込みまたは画像化に失敗した場合
+	 */
+	public List<PdfPageThumbnail> extractPdfThumbnails(Path inputPath, int renderDpi, int maxPages) {
+		try {
+			return documentAnalysisLogic.extractPdfThumbnails(inputPath, renderDpi, maxPages);
+		} finally {
+			temporaryFileStorage().delete(inputPath);
+		}
+	}
+
+	/**
 	 * PDFから指定ページを削除し、削除後PDFの一時保存先パスを返却する。
 	 *
 	 * @param deletePages 削除するページ番号のリスト
@@ -192,15 +213,18 @@ public class GhostPdfLogic {
 	}
 
 	/**
-	 * 一時保存されたPDFを1ページずつ分割し、分割後PDFを格納したZIPの一時保存先パスを返却する。
+	 * 一時保存されたPDFを分割し、分割後PDFを格納したZIPの一時保存先パスを返却する。
+	 * <p>
+	 * {@code splitRanges} が未指定なら従来どおり1ページずつ分割する。成功・失敗にかかわらず入力一時ファイルを削除する。
 	 *
-	 * @param inputPath 読み込むPDFのパス
+	 * @param inputPath   読み込むPDFのパス
+	 * @param splitRanges 範囲ごとに分割する場合の {@code 1-5} 形式のページ範囲。未指定時は1ページずつ分割する
 	 * @return 分割後PDFを格納したZIPの一時保存先パス
 	 */
-	public Path splitPdf(Path inputPath) {
+	public Path splitPdf(Path inputPath, List<String> splitRanges) {
 		Path outputPath = temporaryFileStorage().createTemporaryFilePath("split.zip");
 		try {
-			pageOperationLogic.splitPdf(inputPath, outputPath);
+			pageOperationLogic.splitPdf(inputPath, outputPath, splitRanges);
 		} finally {
 			temporaryFileStorage().delete(inputPath);
 		}

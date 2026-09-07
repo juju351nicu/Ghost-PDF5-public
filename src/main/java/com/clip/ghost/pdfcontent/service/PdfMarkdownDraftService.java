@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.clip.ghost.common.response.ApiMessage;
 import com.clip.ghost.common.response.ApiResult;
 import com.clip.ghost.imagecontent.exception.OcrUnavailableException;
 import com.clip.ghost.imagecontent.logic.ImageConverterResolver;
@@ -41,7 +42,10 @@ public class PdfMarkdownDraftService {
 	private static final String MODE_AUTO = "AUTO";
 	private static final String SOURCE_TEXT = "TEXT";
 	private static final String SOURCE_OCR = "OCR";
+	private static final String SOURCE_FAILED = "FAILED";
 	private static final String IMAGE_MEDIA_TYPE = "image/png";
+	private static final String PARTIAL_FAILURE_CODE = "ocrPagePartiallyFailed";
+	private static final String PAGE_NUMBER_SEPARATOR = ", ";
 
 	private final GhostPdfLogic pdfLogic;
 	private final ImageConverterResolver converterResolver;
@@ -49,6 +53,9 @@ public class PdfMarkdownDraftService {
 
 	/**
 	 * アップロードされたPDFからページ単位のMarkdown下書きを生成する。
+	 * <p>
+	 * AUTOモードで一部のページだけ変換に失敗した場合は、成功したページを返しつつ結果種別をWARNINGにする。
+	 * 変換対象があって1ページも成功しなかった場合はLogic側が例外にするため、ここへは戻ってこない。
 	 *
 	 * @param form Markdown下書きの生成元PDFと変換モードを含むフォーム
 	 * @return PDF情報、ページ単位テキスト、Markdown下書きを含むレスポンス
@@ -57,9 +64,16 @@ public class PdfMarkdownDraftService {
 	 */
 	public ResponseEntity<ApiResult<PdfMarkdownDraftResponse>> generateMarkdownDraft(PdfMarkdownDraftRequest form) {
 		MultipartFile originalFile = form.getOriginalFile();
-		List<PdfMarkdownDraftPageResponse> pages = isAutoMode(form.getMode()) ? buildAutoPages(originalFile)
-				: buildTextPages(originalFile);
-		return ResponseEntity.ok(ApiResult.of(buildResponse(originalFile, pages)));
+		if (!isAutoMode(form.getMode())) {
+			return ResponseEntity.ok(ApiResult.of(buildResponse(originalFile, buildTextPages(originalFile))));
+		}
+		List<PdfPageContent> contents = extractAutoPageContents(originalFile);
+		PdfMarkdownDraftResponse response = buildResponse(originalFile, buildAutoPages(contents));
+		List<Integer> failedPageNumbers = collectConversionFailedPageNumbers(contents);
+		if (failedPageNumbers.isEmpty()) {
+			return ResponseEntity.ok(ApiResult.of(response));
+		}
+		return ResponseEntity.ok(ApiResult.warning(response, List.of(buildPartialFailureMessage(failedPageNumbers))));
 	}
 
 	/**
@@ -90,29 +104,61 @@ public class PdfMarkdownDraftService {
 	}
 
 	/**
-	 * 文字を取得できないページを画像化し、共有の画像変換器で補完してページレスポンスを生成する。
+	 * 文字を取得できないページを画像化し、共有の画像変換器で補完したページ内容を取得する。
 	 * <p>
 	 * 変換器の有効性は入力PDFを保存する前に確認し、無効時は入力一時ファイルを作らずに503相当で止める。
 	 * 変換対象ページ数の上限判定はLogic側が画像化前に行うため、上限超過時は変換器が1度も呼ばれない。
 	 *
 	 * @param originalFile アップロードされた元PDF
-	 * @return PDF順のページレスポンス
+	 * @return PDF順のページ内容
 	 * @throws OcrUnavailableException       画像変換が無効、またはproviderが未対応の場合
 	 * @throws PdfPageLimitExceededException 変換対象ページ数が上限を超えた場合
 	 */
-	private List<PdfMarkdownDraftPageResponse> buildAutoPages(MultipartFile originalFile) {
+	private List<PdfPageContent> extractAutoPageContents(MultipartFile originalFile) {
 		ImageToMarkdownConverter converter = converterResolver.resolve();
 		if (!converter.isEnabled()) {
 			throw new OcrUnavailableException("画像PDFのOCRは無効です。providerを有効化してください。");
 		}
 		Path inputPath = pdfLogic.loadPdf(originalFile);
-		List<PdfPageContent> contents = pdfLogic.extractPdfPageContents(inputPath, properties.getRenderDpi(),
-				properties.getMaxPages(), pngBytes -> converter.convert(pngBytes, IMAGE_MEDIA_TYPE));
-		List<PdfMarkdownDraftPageResponse> pages = new ArrayList<>(contents.size());
-		for (PdfPageContent content : contents) {
-			pages.add(buildAutoPage(content));
-		}
-		return pages;
+		return pdfLogic.extractPdfPageContents(inputPath, properties.getRenderDpi(), properties.getMaxPages(),
+				pngBytes -> converter.convert(pngBytes, IMAGE_MEDIA_TYPE));
+	}
+
+	/**
+	 * 画像変換まで済んだページ内容からページレスポンスを生成する。
+	 *
+	 * @param contents PDF順のページ内容
+	 * @return PDF順のページレスポンス
+	 */
+	private List<PdfMarkdownDraftPageResponse> buildAutoPages(List<PdfPageContent> contents) {
+		return contents.stream().map(this::buildAutoPage).toList();
+	}
+
+	/**
+	 * 画像変換に失敗したページ番号を抽出する。
+	 *
+	 * @param contents PDF順のページ内容
+	 * @return 変換に失敗したページ番号（1始まり、ページ順）
+	 */
+	private List<Integer> collectConversionFailedPageNumbers(List<PdfPageContent> contents) {
+		return contents.stream().filter(PdfPageContent::conversionFailed).map(PdfPageContent::pageNumber).toList();
+	}
+
+	/**
+	 * 一部ページの変換失敗を伝える画面表示用メッセージを生成する。
+	 * <p>
+	 * 失敗したページ番号を含める。利用者は失敗したページだけを画像として文字起こしし直せるため、
+	 * 件数だけ伝えるより対処に直結する。変換対象は {@code ghost.ocr.pdf.max-pages}（既定20）で上限があるため、
+	 * 全件を並べてもメッセージが極端に長くならない。
+	 *
+	 * @param failedPageNumbers 変換に失敗したページ番号（1始まり、ページ順）
+	 * @return 部分失敗を伝えるメッセージ
+	 */
+	private ApiMessage buildPartialFailureMessage(List<Integer> failedPageNumbers) {
+		String pageNumbers = failedPageNumbers.stream().map(String::valueOf)
+				.collect(Collectors.joining(PAGE_NUMBER_SEPARATOR));
+		return new ApiMessage(PARTIAL_FAILURE_CODE,
+				failedPageNumbers.size() + "ページの文字起こしに失敗しました。（失敗したページ: " + pageNumbers + "）");
 	}
 
 	/**
@@ -120,11 +166,17 @@ public class PdfMarkdownDraftService {
 	 * <p>
 	 * 文字レイヤーが空かどうかの判定はLogic側の1箇所に固定しているため、ここでは変換結果の有無だけで取得元を決める。
 	 * 上限チェックで数えるページ集合と実際に変換されたページ集合をズラさないための分担。
+	 * <p>
+	 * 変換に失敗したページは本文を空にし、取得元を {@code FAILED} にする。{@code TEXT} のままにすると
+	 * 「文字レイヤーが空の白紙ページ」と区別できず、利用者が失敗に気付けないため。
 	 *
 	 * @param content 1ページ分の抽出内容
 	 * @return ページレスポンス
 	 */
 	private PdfMarkdownDraftPageResponse buildAutoPage(PdfPageContent content) {
+		if (content.conversionFailed()) {
+			return buildPageResponse(content.pageNumber(), "", SOURCE_FAILED);
+		}
 		if (content.convertedText() != null) {
 			return buildPageResponse(content.pageNumber(), normalizePageText(content.convertedText()), SOURCE_OCR);
 		}
@@ -136,7 +188,7 @@ public class PdfMarkdownDraftService {
 	 *
 	 * @param pageNumber 1始まりのページ番号
 	 * @param text       正規化済みページ本文
-	 * @param source     本文の取得元（TEXT / OCR）
+	 * @param source     本文の取得元（TEXT / OCR / FAILED）
 	 * @return ページレスポンスDTO
 	 */
 	private PdfMarkdownDraftPageResponse buildPageResponse(int pageNumber, String text, String source) {

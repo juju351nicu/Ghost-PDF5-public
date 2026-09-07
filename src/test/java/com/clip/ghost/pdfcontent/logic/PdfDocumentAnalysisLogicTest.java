@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -28,6 +29,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import com.clip.ghost.pdfcontent.dto.PdfMetadataResponse;
 import com.clip.ghost.pdfcontent.dto.PdfPageContent;
+import com.clip.ghost.pdfcontent.dto.PdfPageThumbnail;
 import com.clip.ghost.pdfcontent.dto.PdfTextResponse;
 import com.clip.ghost.pdfcontent.exception.PdfPageLimitExceededException;
 import com.clip.ghost.pdfcontent.exception.PdfProcessingException;
@@ -134,6 +136,62 @@ class PdfDocumentAnalysisLogicTest {
 	}
 
 	@Test
+	void extractPdfPageContentsKeepsSucceededPagesWhenConverterFailsForOnePage() throws IOException {
+		Path inputPath = createPdf("partial.pdf", "", "second page", "");
+		PdfDocumentAnalysisLogic analysisLogic = new PdfDocumentAnalysisLogic();
+		AtomicInteger convertedCount = new AtomicInteger();
+
+		List<PdfPageContent> contents = analysisLogic.extractPdfPageContents(inputPath, 100, 20, pngBytes -> {
+			if (convertedCount.incrementAndGet() == 1) {
+				throw new IllegalArgumentException("変換に失敗しました。");
+			}
+			return "converted markdown";
+		});
+
+		// 1ページの失敗で全体を捨てず、成功したページの変換結果を返す。
+		assertEquals(2, convertedCount.get());
+		assertEquals(3, contents.size());
+		assertNull(contents.get(0).convertedText());
+		assertTrue(contents.get(0).conversionFailed());
+		assertFalse(contents.get(1).conversionFailed());
+		assertEquals("converted markdown", contents.get(2).convertedText());
+		assertFalse(contents.get(2).conversionFailed());
+		assertTrue(Files.exists(inputPath));
+	}
+
+	@Test
+	void extractPdfPageContentsPropagatesFirstFailureWhenEveryTargetPageFails() throws IOException {
+		Path inputPath = createPdf("all-failed.pdf", "", "");
+		PdfDocumentAnalysisLogic analysisLogic = new PdfDocumentAnalysisLogic();
+		AtomicInteger convertedCount = new AtomicInteger();
+
+		// 全滅は部分的成功ではないため、HTTP statusを変えないよう最初の失敗をそのまま伝播する。
+		IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+				() -> analysisLogic.extractPdfPageContents(inputPath, 100, 20, pngBytes -> {
+					throw new IllegalArgumentException("変換に失敗しました。" + convertedCount.incrementAndGet());
+				}));
+
+		assertEquals("変換に失敗しました。1", exception.getMessage());
+		assertEquals(2, convertedCount.get());
+		assertTrue(Files.exists(inputPath));
+	}
+
+	@Test
+	void extractPdfPageContentsKeepsTextPagesWhenThereIsNoConversionTarget() throws IOException {
+		Path inputPath = createPdf("no-target.pdf", "first page", "second page");
+		PdfDocumentAnalysisLogic analysisLogic = new PdfDocumentAnalysisLogic();
+
+		List<PdfPageContent> contents = analysisLogic.extractPdfPageContents(inputPath, 100, 20, pngBytes -> {
+			throw new IllegalStateException("変換対象が無いページで変換器が呼ばれました。");
+		});
+
+		// 変換対象0ページを「全滅」と数えると、文字レイヤーだけのPDFが失敗になってしまう。
+		assertEquals(2, contents.size());
+		assertFalse(contents.get(0).conversionFailed());
+		assertFalse(contents.get(1).conversionFailed());
+	}
+
+	@Test
 	void extractPdfPageContentsRejectsWithoutCallingConverterWhenBlankPagesExceedMaxPages() throws IOException {
 		Path inputPath = createPdf("limit.pdf", "first page", "", "");
 		PdfDocumentAnalysisLogic analysisLogic = new PdfDocumentAnalysisLogic();
@@ -160,6 +218,67 @@ class PdfDocumentAnalysisLogicTest {
 		int highDpiWidth = readConvertedImageWidth(analysisLogic, inputPath, 144);
 
 		assertTrue(highDpiWidth > lowDpiWidth);
+	}
+
+	@Test
+	void extractPdfThumbnailsReturnsDataUriPerPageInPdfOrder() throws IOException {
+		Path inputPath = createPdf("thumbnails.pdf", "first page", "second page", "third page");
+		PdfDocumentAnalysisLogic analysisLogic = new PdfDocumentAnalysisLogic();
+
+		List<PdfPageThumbnail> thumbnails = analysisLogic.extractPdfThumbnails(inputPath, 40, 100);
+
+		assertTrue(Files.exists(inputPath));
+		assertEquals(3, thumbnails.size());
+		assertEquals(List.of(1, 2, 3), thumbnails.stream().map(PdfPageThumbnail::pageNumber).toList());
+		for (PdfPageThumbnail thumbnail : thumbnails) {
+			// 画面のimgタグへそのまま渡せる形にする。
+			assertTrue(thumbnail.dataUri().startsWith("data:image/png;base64,"));
+			BufferedImage image = readDataUriImage(thumbnail.dataUri());
+			assertNotNull(image);
+			assertEquals(image.getWidth(), thumbnail.width());
+			assertEquals(image.getHeight(), thumbnail.height());
+		}
+	}
+
+	@Test
+	void extractPdfThumbnailsUsesGivenDpiForImageSize() throws IOException {
+		Path inputPath = createPdf("thumbnail-dpi.pdf", "first page");
+		PdfDocumentAnalysisLogic analysisLogic = new PdfDocumentAnalysisLogic();
+
+		PdfPageThumbnail lowDpiThumbnail = analysisLogic.extractPdfThumbnails(inputPath, 40, 100).get(0);
+		PdfPageThumbnail highDpiThumbnail = analysisLogic.extractPdfThumbnails(inputPath, 80, 100).get(0);
+
+		// DPIを2倍にすれば辺の長さも約2倍になる。ページサイズは入力PDF依存のため、絶対値ではなく比で見る。
+		assertTrue(highDpiThumbnail.width() > lowDpiThumbnail.width());
+		assertTrue(highDpiThumbnail.height() > lowDpiThumbnail.height());
+		assertTrue(Math.abs(highDpiThumbnail.width() - lowDpiThumbnail.width() * 2) <= 2);
+		assertTrue(Math.abs(highDpiThumbnail.height() - lowDpiThumbnail.height() * 2) <= 2);
+	}
+
+	@Test
+	void extractPdfThumbnailsRejectsWhenPageCountExceedsMaxPages() throws IOException {
+		Path inputPath = createPdf("thumbnail-limit.pdf", "first page", "second page", "third page");
+		PdfDocumentAnalysisLogic analysisLogic = new PdfDocumentAnalysisLogic();
+
+		// 上限判定はレンダリング前に行うため、1ページも画像化せずに例外で止まる。
+		PdfPageLimitExceededException exception = assertThrows(PdfPageLimitExceededException.class,
+				() -> analysisLogic.extractPdfThumbnails(inputPath, 40, 2));
+
+		assertEquals(3, exception.getTargetPageCount());
+		assertEquals(2, exception.getMaxPages());
+		assertTrue(Files.exists(inputPath));
+	}
+
+	/**
+	 * data URIのサムネイルをデコードして画像として読み込む。
+	 *
+	 * @param dataUri data URI形式のサムネイル
+	 * @return 読み込んだ画像
+	 * @throws IOException PNGとして読み込めない場合
+	 */
+	private BufferedImage readDataUriImage(String dataUri) throws IOException {
+		byte[] pngBytes = Base64.getDecoder().decode(dataUri.substring(dataUri.indexOf(',') + 1));
+		return ImageIO.read(new ByteArrayInputStream(pngBytes));
 	}
 
 	/**
