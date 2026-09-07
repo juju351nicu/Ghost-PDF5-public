@@ -28,18 +28,34 @@ const requestPdfAndOpen = async (url, payload) => {
 /**
  * PDF操作APIへmultipart requestを送り、成功時は返却ファイルをダウンロードする。
  *
+ * 保存先の選択（`FileResponseHandler.requestSaveTarget`）はこの関数では行わない。
+ * File System Access APIはtransient activationを要求し、fetch完了後では失効しているため、
+ * 呼び出し元がクリック直後に取得したものを受け取る。
+ *
  * @param {string} url PDF操作APIのURL
  * @param {{key: string, value: unknown}[]} payload multipart formとして送信する値
  * @param {string} defaultFileName Content-Dispositionが無い場合のファイル名
+ * @param {FileSystemFileHandle} [saveTarget] 利用者が選んだ保存先
  * @returns {Promise<string[]>} エラーメッセージ。成功時は空配列
  */
-const requestFileAndDownload = async (url, payload, defaultFileName) => {
+const requestFileAndDownload = async (
+  url,
+  payload,
+  defaultFileName,
+  saveTarget
+) => {
   const response = await FetchClient.multipartRequest(url, payload);
   if (!response.ok) {
     return ApiErrorUtils.extractErrorMessages(response, PDF_ERROR_MESSAGE);
   }
   const fileBlob = await response.blob();
-  FileResponseHandler.downloadBlob(fileBlob, response.headers, defaultFileName);
+  // 書き込み失敗を成功扱いにしないため、awaitして例外を呼び出し元へ伝える。
+  await FileResponseHandler.downloadBlob(
+    fileBlob,
+    response.headers,
+    defaultFileName,
+    saveTarget
+  );
   return [];
 };
 

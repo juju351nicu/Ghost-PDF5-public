@@ -39,6 +39,8 @@ class CodingConventionTest {
 	private static final Path FRONTEND_FETCH_CLIENT_SCRIPT = FRONTEND_SOURCE.resolve("api/fetch-client.js");
 	private static final Path FRONTEND_API_ERROR_UTILS_SCRIPT = FRONTEND_SOURCE.resolve("api/api-error-utils.js");
 	private static final Path FRONTEND_API_RESULT_UTILS_SCRIPT = FRONTEND_SOURCE.resolve("api/api-result-utils.js");
+	private static final Path FRONTEND_FILE_RESPONSE_HANDLER_SCRIPT = FRONTEND_SOURCE
+			.resolve("api/file-response-handler.js");
 	private static final Path TEST_SOURCE = Paths.get("src/test/java");
 	private static final Path TEST_RESOURCES = Paths.get("src/test/resources");
 	private static final String BASE_PACKAGE = "com.clip.ghost";
@@ -246,6 +248,18 @@ class CodingConventionTest {
 		targetFiles.remove(FRONTEND_UTIL_SCRIPT);
 
 		assertNoToken(targetFiles, List.of("localStorage", "sessionStorage"));
+	}
+
+	@Test
+	void frontendCodeDoesNotUseFileSystemAccessApiOutsideFileResponseHandler() throws IOException {
+		// File System Access APIはChrome / Edgeのみ対応で、Firefox / Safariは未対応。
+		// 対応ブラウザ差の分岐が複数箇所へ散ると、フォールバックの挙動が場所によってずれるため、
+		// 呼び出し口をfile-response-handler.jsだけに保つ。
+		List<Path> targetFiles = new ArrayList<>(scriptFiles(FRONTEND_SOURCE));
+		targetFiles.remove(FRONTEND_FILE_RESPONSE_HANDLER_SCRIPT);
+
+		assertNoToken(targetFiles,
+				List.of("showSaveFilePicker", "showOpenFilePicker", "showDirectoryPicker", "createWritable"));
 	}
 
 	@Test
