@@ -62,11 +62,14 @@ public class MarkdownDocumentService {
 
 	/**
 	 * Markdown保存先ディレクトリを設定から受け取る。
+	 * <p>
+	 * 既定値はホーム配下にする。保存したMarkdownは利用者の成果物であり、
+	 * {@code java.io.tmpdir} 配下はOS（Windowsのストレージセンサーなど）が自動削除するため使わない。
 	 *
 	 * @param storageDirectory Markdown保存先ディレクトリ
 	 */
 	public MarkdownDocumentService(
-			@Value("${ghost.markdown.storage-directory:${java.io.tmpdir}/ghost-pdf5/markdown}") String storageDirectory) {
+			@Value("${ghost.markdown.storage-directory:${user.home}/ghost-pdf5/markdown}") String storageDirectory) {
 		this.storageDirectory = Paths.get(storageDirectory).toAbsolutePath().normalize();
 		// commonmarkの素のParserはGFMの表を解釈しないため、表拡張をParserとHtmlRendererの両方へ渡す。
 		// 片方だけに渡すと表として描画されない。生HTMLはescapeHtml(true)でエスケープし、その後jsoupでsanitizeする。
