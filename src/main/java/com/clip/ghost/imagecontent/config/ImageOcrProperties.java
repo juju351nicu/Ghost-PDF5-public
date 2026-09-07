@@ -10,6 +10,8 @@ import lombok.Setter;
  * <p>
  * provider別の詳細設定は {@link AnthropicProperties}（anthropic）や {@code OpenAiProperties}（openai）が持ち、
  * このクラスはどのproviderを使うかだけを保持する。
+ * 画像PDFのAUTO下書き固有の設定（{@code ghost.ocr.pdf.*}）は、内容がPDF固有のため
+ * {@code com.clip.ghost.pdfcontent.config.PdfOcrProperties} が持つ。
  */
 @ConfigurationProperties(prefix = "ghost.ocr")
 @Getter

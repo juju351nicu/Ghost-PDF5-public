@@ -1,12 +1,16 @@
 package com.clip.ghost.pdfcontent.controller;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+
+import java.nio.charset.StandardCharsets;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -28,6 +32,7 @@ import com.clip.ghost.common.exceptions.handler.GlobalExceptionErrorHandler;
 import com.clip.ghost.common.security.AccessTokenValidator;
 import com.clip.ghost.pdfcontent.dto.PdfMarkdownDraftRequest;
 import com.clip.ghost.pdfcontent.dto.PdfMarkdownDraftResponse;
+import com.clip.ghost.pdfcontent.exception.PdfPageLimitExceededException;
 import com.clip.ghost.pdfcontent.service.PdfMarkdownDraftService;
 
 /**
@@ -90,6 +95,22 @@ class PdfMarkdownDraftControllerTest {
 
 		verify(markdownDraftService, never()).generateMarkdownDraft(any(PdfMarkdownDraftRequest.class));
 		assertEquals(HttpStatus.BAD_REQUEST.value(), result.getResponse().getStatus());
+	}
+
+	@Test
+	@DisplayName("AUTOで画像変換の対象ページ数が上限を超えた場合に400と対象ページ数・上限を返す")
+	void generateMarkdownDraftReturnsBadRequestWhenPageLimitExceeded() throws Exception {
+		doThrow(new PdfPageLimitExceededException(30, 20)).when(markdownDraftService)
+				.generateMarkdownDraft(any(PdfMarkdownDraftRequest.class));
+
+		MvcResult result = performRequest(createOriginalPdfFile(), ACCESS_TOKEN, session);
+
+		assertEquals(HttpStatus.BAD_REQUEST.value(), result.getResponse().getStatus());
+		assertEquals(MediaType.APPLICATION_JSON_VALUE, result.getResponse().getContentType());
+		String responseBody = result.getResponse().getContentAsString(StandardCharsets.UTF_8);
+		assertTrue(responseBody.contains("pdfPageLimitExceeded"));
+		assertTrue(responseBody.contains("30"));
+		assertTrue(responseBody.contains("20"));
 	}
 
 	@Test

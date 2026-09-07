@@ -19,6 +19,7 @@ import com.clip.ghost.common.exceptions.ErrorResponse;
 import com.clip.ghost.imagecontent.exception.ImageInputException;
 import com.clip.ghost.imagecontent.exception.ImageProcessingException;
 import com.clip.ghost.imagecontent.exception.OcrUnavailableException;
+import com.clip.ghost.pdfcontent.exception.PdfPageLimitExceededException;
 import com.clip.ghost.pdfcontent.exception.PdfProcessingException;
 
 /**
@@ -32,8 +33,10 @@ public class GlobalExceptionErrorHandler extends ResponseEntityExceptionHandler 
 	private static final String CACHE_CONTROL_VALUE = "must-revalidate, post-check=0, pre-check=0";
 	private static final String MULTIPART_ERROR_CODE = "multipartError";
 	private static final String PDF_PROCESSING_ERROR_CODE = "pdfProcessingError";
+	private static final String PDF_PAGE_LIMIT_ERROR_CODE = "pdfPageLimitExceeded";
 	private static final String MULTIPART_ERROR_MESSAGE = "許可されないサイズのファイルが入っております。";
 	private static final String PDF_PROCESSING_ERROR_MESSAGE = "PDF処理に失敗しました。入力ファイルを確認してください。";
+	private static final String PDF_PAGE_LIMIT_ERROR_MESSAGE = "画像変換の対象ページ数が上限を超えています。対象 %d ページ / 上限 %d ページ";
 	private static final String IMAGE_INPUT_ERROR_CODE = "imageInputError";
 	private static final String IMAGE_PROCESSING_ERROR_CODE = "imageProcessingError";
 	private static final String OCR_UNAVAILABLE_ERROR_CODE = "ocrUnavailable";
@@ -70,6 +73,25 @@ public class GlobalExceptionErrorHandler extends ResponseEntityExceptionHandler 
 		LOGGER.debug("PDF処理例外の詳細です。", ex);
 		return createErrorResponse(PDF_PROCESSING_ERROR_CODE, PDF_PROCESSING_ERROR_MESSAGE,
 				HttpStatus.INTERNAL_SERVER_ERROR);
+	}
+
+	/**
+	 * AUTOモードで画像変換の対象ページ数が上限を超えた場合、レスポンスステータスを400にする。
+	 * <p>
+	 * 外部AIの課金が発生する前に止めるコストガードで、利用者が自分で対処できるエラーのため、対象ページ数と上限を
+	 * メッセージへ含める。ページ数は文書の内容ではないため、レスポンス・ログへ出しても情報漏洩にならない。
+	 *
+	 * @param ex ページ上限超過例外
+	 * @return ページ上限超過エラーのレスポンス
+	 */
+	@ResponseStatus(HttpStatus.BAD_REQUEST)
+	@ExceptionHandler(PdfPageLimitExceededException.class)
+	protected ResponseEntity<ErrorResponse> handlePdfPageLimitExceeded(PdfPageLimitExceededException ex) {
+		LOGGER.warn("画像変換の対象ページ数が上限を超えました。targetPageCount={}, maxPages={}", ex.getTargetPageCount(),
+				ex.getMaxPages());
+		return createErrorResponse(PDF_PAGE_LIMIT_ERROR_CODE,
+				PDF_PAGE_LIMIT_ERROR_MESSAGE.formatted(ex.getTargetPageCount(), ex.getMaxPages()),
+				HttpStatus.BAD_REQUEST);
 	}
 
 	/**

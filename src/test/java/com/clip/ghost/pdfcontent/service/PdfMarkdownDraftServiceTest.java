@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -18,6 +19,7 @@ import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -30,11 +32,14 @@ import org.springframework.mock.web.MockMultipartFile;
 import com.clip.ghost.imagecontent.exception.OcrUnavailableException;
 import com.clip.ghost.imagecontent.logic.ImageConverterResolver;
 import com.clip.ghost.imagecontent.logic.ImageToMarkdownConverter;
+import com.clip.ghost.pdfcontent.config.PdfOcrProperties;
 import com.clip.ghost.pdfcontent.dto.PdfMarkdownDraftPageResponse;
 import com.clip.ghost.pdfcontent.dto.PdfMarkdownDraftRequest;
 import com.clip.ghost.pdfcontent.dto.PdfMarkdownDraftResponse;
 import com.clip.ghost.pdfcontent.dto.PdfPageContent;
+import com.clip.ghost.pdfcontent.exception.PdfPageLimitExceededException;
 import com.clip.ghost.pdfcontent.logic.GhostPdfLogic;
+import com.clip.ghost.pdfcontent.logic.PdfPageImageConverter;
 
 /**
  * {@link PdfMarkdownDraftService} のページ番号付与、テキスト正規化、Markdown生成、AUTO時の画像変換を検証するテスト。
@@ -43,6 +48,7 @@ import com.clip.ghost.pdfcontent.logic.GhostPdfLogic;
 class PdfMarkdownDraftServiceTest {
 
 	private static final int OCR_RENDER_DPI = 200;
+	private static final int OCR_MAX_PAGES = 20;
 
 	@InjectMocks
 	private PdfMarkdownDraftService service;
@@ -55,6 +61,9 @@ class PdfMarkdownDraftServiceTest {
 
 	@Mock
 	private ImageToMarkdownConverter converter;
+
+	@Mock
+	private PdfOcrProperties properties;
 
 	@Test
 	@DisplayName("PDF情報とページ順を維持したMarkdown下書きレスポンスを返す")
@@ -111,10 +120,12 @@ class PdfMarkdownDraftServiceTest {
 		form.setMode("AUTO");
 		when(converterResolver.resolve()).thenReturn(converter);
 		when(converter.isEnabled()).thenReturn(true);
+		when(properties.getRenderDpi()).thenReturn(OCR_RENDER_DPI);
+		when(properties.getMaxPages()).thenReturn(OCR_MAX_PAGES);
 		doReturn(inputPath).when(pdfLogic).loadPdf(originalFile);
-		doReturn(List.of(new PdfPageContent(1, "text page", null), new PdfPageContent(2, "", new byte[] { 9, 9 })))
-				.when(pdfLogic).extractPdfPageContents(inputPath, OCR_RENDER_DPI);
-		doReturn("scanned\r\nmarkdown  ").when(converter).convert(any(byte[].class), eq("image/png"));
+		doReturn(List.of(new PdfPageContent(1, "text page", null),
+				new PdfPageContent(2, "", "scanned\r\nmarkdown  "))).when(pdfLogic)
+				.extractPdfPageContents(eq(inputPath), eq(OCR_RENDER_DPI), eq(OCR_MAX_PAGES), any());
 
 		PdfMarkdownDraftResponse response = service.generateMarkdownDraft(form).getBody();
 
@@ -123,6 +134,52 @@ class PdfMarkdownDraftServiceTest {
 		assertPageWithSource(response.getPages().get(0), 1, "text page", "TEXT");
 		assertPageWithSource(response.getPages().get(1), 2, "scanned\nmarkdown", "OCR");
 		assertEquals("## Page 1\n\ntext page\n\n## Page 2\n\nscanned\nmarkdown", response.getMarkdown());
+	}
+
+	@Test
+	@DisplayName("AUTOは設定のDPIとページ上限をLogicへ渡し、変換自体は共有の画像変換器へ委譲する")
+	void generateMarkdownDraftAutoPassesSettingsAndDelegatesConversion() {
+		Path inputPath = Path.of("temporary", "settings.pdf");
+		MockMultipartFile originalFile = createPdfFile("settings.pdf", new byte[] { 1 });
+		PdfMarkdownDraftRequest form = createRequest(originalFile);
+		form.setMode("AUTO");
+		byte[] pngBytes = new byte[] { 9, 9 };
+		when(converterResolver.resolve()).thenReturn(converter);
+		when(converter.isEnabled()).thenReturn(true);
+		when(properties.getRenderDpi()).thenReturn(150);
+		when(properties.getMaxPages()).thenReturn(5);
+		doReturn(inputPath).when(pdfLogic).loadPdf(originalFile);
+		doReturn("converted markdown").when(converter).convert(pngBytes, "image/png");
+		ArgumentCaptor<PdfPageImageConverter> pageImageConverterCaptor = ArgumentCaptor
+				.forClass(PdfPageImageConverter.class);
+		doReturn(List.of(new PdfPageContent(1, "text page", null))).when(pdfLogic).extractPdfPageContents(eq(inputPath),
+				eq(150), eq(5), pageImageConverterCaptor.capture());
+
+		service.generateMarkdownDraft(form);
+
+		// Logicへ渡すlambdaが、共有の画像変換器をimage/pngで呼ぶことを確認する。
+		assertEquals("converted markdown", pageImageConverterCaptor.getValue().convert(pngBytes));
+		verify(converter).convert(pngBytes, "image/png");
+	}
+
+	@Test
+	@DisplayName("AUTOでページ上限を超えた場合はLogicの例外をそのまま伝播する")
+	void generateMarkdownDraftAutoPropagatesPageLimitException() {
+		Path inputPath = Path.of("temporary", "limit.pdf");
+		MockMultipartFile originalFile = createPdfFile("limit.pdf", new byte[] { 1 });
+		PdfMarkdownDraftRequest form = createRequest(originalFile);
+		form.setMode("AUTO");
+		when(converterResolver.resolve()).thenReturn(converter);
+		when(converter.isEnabled()).thenReturn(true);
+		when(properties.getRenderDpi()).thenReturn(OCR_RENDER_DPI);
+		when(properties.getMaxPages()).thenReturn(1);
+		doReturn(inputPath).when(pdfLogic).loadPdf(originalFile);
+		doThrow(new PdfPageLimitExceededException(2, 1)).when(pdfLogic).extractPdfPageContents(eq(inputPath),
+				eq(OCR_RENDER_DPI), eq(1), any());
+
+		assertThrows(PdfPageLimitExceededException.class, () -> service.generateMarkdownDraft(form));
+
+		verify(converter, never()).convert(any(byte[].class), any(String.class));
 	}
 
 	@Test

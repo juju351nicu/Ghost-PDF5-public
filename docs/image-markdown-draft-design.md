@@ -18,6 +18,7 @@ Excel の表・チャット・ソースコードのスクリーンショット�
 - 変換結果の自動保存・自動プレビューは行わず、既存 Markdown 操作を利用者が明示的に行う。
 - provider は anthropic / openai / tesseract を実装済みで、`ghost.ocr.provider` で切り替える。
 - 画像PDFの文字が無いページへの適用は、別途 `POST /markdownDraftPdf` の `mode=AUTO` として実装済み（同じ変換器を共有する）。
+  - `mode=AUTO` のページ数上限・レンダリング解像度・ページ単位処理は第13節を参照。
 
 ## 3. API概要
 
@@ -92,6 +93,15 @@ Tesseract provider は `ghost.ocr.tesseract.*`（`enabled` 既定 `false`、`com
 
 API キーはコード・`application.yml`・ログに出さない。SDK は環境変数から読む。選択した provider が無効、またはキー未設定なら 503。
 
+画像PDFの `mode=AUTO` 固有の設定は `ghost.ocr.pdf.*`（`PdfOcrProperties`）が持つ。設定キーは運用者から見て OCR 設定が
+1箇所に集まるよう `ghost.ocr` 配下にそろえるが、内容が PDF 固有のためクラスは `pdfcontent.config` に置く
+（`imagecontent` 側へ PDF の概念を持ち込むと、`pdfcontent` → `imagecontent` の一方向依存が逆流するため）。
+
+| キー | 既定 | 用途 |
+| --- | --- | --- |
+| `ghost.ocr.pdf.max-pages` | `20` | 画像変換にかけるページ数の上限。超過は変換前に 400 |
+| `ghost.ocr.pdf.render-dpi` | `200` | 文字が無いページを画像化する解像度（DPI） |
+
 ## 8. HTTP status
 
 | Status | 条件 | レスポンス |
@@ -126,6 +136,17 @@ com.clip.ghost.imagecontent
 依存方向は既存と同じ Controller → Service → Logic。外部 AI SDK やOCRエンジンの詳細は各 provider の変換器に閉じ込める。
 画像PDFの `markdownDraftPdf` の `mode=AUTO` は、機能横断で共有の `ImageConverterResolver` を `pdfcontent.service` から使う（`CodingConventionTest` の層ルールでその横断利用だけを許可）。
 
+`mode=AUTO` のページ上限とレンダリングに関わるクラスは `pdfcontent` 側に置く。
+
+```text
+com.clip.ghost.pdfcontent
+  config.PdfOcrProperties                  -> ghost.ocr.pdf.max-pages / render-dpi
+  exception.PdfPageLimitExceededException  -> ページ上限超過(400)。対象ページ数と上限を持つ
+  logic.PdfPageImageConverter (if)         -> 画像化した1ページ分をテキストへ変換する処理の抽象
+```
+
+`config` はどの層にも属さないため、`pdfcontent.service` から参照しても層ルールに違反しない。
+
 ## 10. セキュリティ
 
 - 既定無効。外部送信は明示的に有効化した場合のみ。
@@ -154,3 +175,53 @@ com.clip.ghost.imagecontent
 - `mvn test` が緑（tesseract 統合テストは未導入環境で skip）。
 
 すべて達成済み。受け入れ確認（表 → Markdown表 → プレビュー `<table>` → 印刷）の実測は `../成果物/09_OCRエンジン評価結果.md` の実測節に記録している。
+
+## 13. 画像PDF AUTOモードのページ上限とコストガード
+
+`mode=AUTO` は文字レイヤーが無いページ数だけ外部 AI を呼ぶため、ページ数がそのまま課金額になる。
+歯止めとして `ghost.ocr.pdf.max-pages` を設け、**課金が発生する前に**拒否する。
+
+### 判定順序
+
+1. 変換器が無効 / provider 未対応 → 503（入力一時ファイルを保存する前に判定する）
+2. 変換対象ページ数が `max-pages` 超過 → 400（1ページも画像化せず、変換器を1度も呼ばない）
+3. 変換実行
+
+上限の対象は**変換にかけるページ数**（文字レイヤーが空のページ数）で、総ページ数ではない。コストを決めるのはこの数のため。
+
+### 2段走査を Logic 内に閉じる
+
+変換対象ページ数は文書を最後まで走査しないと確定しない。したがって「課金前に拒否する」には、画像化も変換もしない
+安価な走査を先に1回入れる必要がある。この2段を `PdfDocumentAnalysisLogic#extractPdfPageContents` の中で、
+1つの `PDDocument` を開いたまま行う。
+
+- 1段目: 全ページのテキスト抽出のみ（画像化・変換なし）。ここで対象ページと上限判定を確定する。
+- 2段目: 対象ページだけを画像化し、`PdfPageImageConverter` へ渡して即変換し、PNG の参照を捨てる。
+
+Service 側で2段に分けない。`GhostPdfLogic` の public メソッドは `finally` で入力一時ファイルを削除する規約であり、
+1段目の呼び出しでファイルが消えて2段目が読めなくなる。Logic 内へ閉じることで、`Loader.loadPDF` は1回、
+同時にメモリへ載る画像は1ページ分、一時ファイル削除は Facade の `finally` 1回（上限超過で拒否した場合も削除）になる。
+
+2段目は `PDDocument` を開いたまま変換器をページ数分だけ呼ぶため、その間 PDF がメモリに載り続ける。
+呼び出し回数が `max-pages` で有界になるため許容する。
+
+### 文字レイヤー判定の一元化
+
+「文字レイヤーが空か」の判定は Logic の `collectBlankPageNumbers`（`String#isBlank`）だけが持つ。
+Service は `PdfPageContent#convertedText` が `null` かどうかだけで `TEXT` / `OCR` を決める。
+上限チェックで数えるページ集合と実際に課金されるページ集合がズレると、コストガードが意味を失うため。
+
+### 例外の扱い
+
+`PdfPageLimitExceededException` は `RuntimeException` を直接継承する。`IllegalStateException` を継承すると
+Logic の `catch (IllegalStateException | IOException)` に拾われて `PdfProcessingException`（500）へ化け、
+コストガードが 500 として見えてしまう。`GlobalExceptionErrorHandler` が 400 へ変換し、対象ページ数と上限を
+メッセージへ含める（利用者が対処できる情報であり、文書内容ではないため）。
+
+### テスト
+
+- `PdfDocumentAnalysisLogicTest`: 空ページだけ変換される / ページ順に1ページずつ変換される / **上限超過時に変換器が1度も呼ばれない** / DPI が反映される。
+- `GhostPdfLogicTest`: 上限超過で拒否した場合も入力一時ファイルを削除する。
+- `PdfMarkdownDraftServiceTest`: 設定値が Logic へ渡る / lambda が共有変換器を `image/png` で呼ぶ / 上限例外を伝播する / 変換器無効は PDF 読み込み前に 503。
+- `PdfMarkdownDraftControllerTest`: 上限超過で 400 と `pdfPageLimitExceeded`、対象ページ数と上限を返す。
+- OpenAPI は既に 400 を宣言済みのため、`description` の更新のみ。

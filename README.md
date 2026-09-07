@@ -87,6 +87,7 @@ Public repository化後も、当面はlocal development / portfolio用途を前�
   - `PdfInsertLogic`: 差し込み・置換・末尾挿入
 - 分割済みLogicのJavadocと理由コメントを整理し、単純コンストラクタをLombokへ統一
 - AIなしの `POST /markdownDraftPdf` を追加し、API設計、request / response DTO、ページ単位抽出Logic、Facade、下書き生成Service、専用Controller、OpenAPI契約テスト、最小UI接続まで完了
+- `mode=AUTO` のページ上限とコストガードを追加（`ghost.ocr.pdf.max-pages` / `render-dpi`、課金前に400で拒否、ページ単位の画像処理、`PdfPageLimitExceededException`）
 - `JsonUtils` のログ処理整理
 - 旧 `StorageUtils` の責務分割と削除
   - `PathUtils`: パス文字列・拡張子・PDF拡張子判定
@@ -311,6 +312,7 @@ Markdown保存を含むJava 25の全286テストが成功しています。
 
 - 画像Markdown下書き `POST /markdownDraftImage`（vision / OpenAI provider、既定無効）を追加済み。
   - `POST /markdownDraftPdf` に `mode=AUTO` を追加済み。文字レイヤーが無いページを画像化し、共有の画像変換器（OCR/vision）で補完する。`mode` 省略時は従来動作。
+  - `mode=AUTO` のコストガードとして `ghost.ocr.pdf.max-pages`（既定20）と `ghost.ocr.pdf.render-dpi`（既定200）を追加済み。上限超過は1ページも変換せず400で拒否し、画像はページ単位で処理して溜めない。
   - provider `anthropic` / `openai` / `tesseract` を `ghost.ocr.provider` で切替。Tesseractはオフライン/バッチ用のローカル実装で、既定無効。
   - 設計は [画像Markdown下書きAPI設計](docs/image-markdown-draft-design.md) を参照。
 - package renameは `pdfcontent` / `pdfcontent.dto` / `common.validation` / `common.utils` / `common.exceptions` の責務別構成へ整理済み。
