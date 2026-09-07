@@ -5,7 +5,10 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.IntStream;
 
 import javax.imageio.ImageIO;
 
@@ -14,11 +17,14 @@ import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.rendering.ImageType;
 import org.apache.pdfbox.rendering.PDFRenderer;
 import org.apache.pdfbox.text.PDFTextStripper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.clip.ghost.pdfcontent.constant.PdfConstants;
 import com.clip.ghost.pdfcontent.dto.PdfMetadataResponse;
 import com.clip.ghost.pdfcontent.dto.PdfPageContent;
 import com.clip.ghost.pdfcontent.dto.PdfTextResponse;
+import com.clip.ghost.pdfcontent.exception.PdfPageLimitExceededException;
 import com.clip.ghost.pdfcontent.exception.PdfProcessingException;
 
 import lombok.NoArgsConstructor;
@@ -30,6 +36,7 @@ import lombok.NoArgsConstructor;
  */
 @NoArgsConstructor
 final class PdfDocumentAnalysisLogic {
+	private static final Logger LOGGER = LoggerFactory.getLogger(PdfDocumentAnalysisLogic.class);
 
 	/**
 	 * PDFのファイル名、サイズ、ページ数、暗号化状態を取得する。
@@ -79,7 +86,6 @@ final class PdfDocumentAnalysisLogic {
 	/**
 	 * PDFからページ単位でテキストを抽出する。
 	 * <p>
-	 * PDFBoxのページ指定は1始まりのため、開始・終了ページを同じ値に設定してPDF順に抽出する。
 	 * 空ページも省略せず、PDFの総ページ数と同じ要素数を返す。入力ファイルは削除しない。
 	 *
 	 * @param inputPath 読み込むPDFのパス
@@ -88,49 +94,106 @@ final class PdfDocumentAnalysisLogic {
 	 */
 	List<String> extractPdfPageTexts(Path inputPath) {
 		try (PDDocument document = Loader.loadPDF(inputPath.toFile())) {
-			PDFTextStripper textStripper = new PDFTextStripper();
-			int totalPages = document.getNumberOfPages();
-			List<String> pageTexts = new ArrayList<>(totalPages);
-			for (int pageNumber = PdfConstants.START_PAGE; pageNumber <= totalPages; pageNumber++) {
-				textStripper.setStartPage(pageNumber);
-				textStripper.setEndPage(pageNumber);
-				pageTexts.add(textStripper.getText(document));
-			}
-			return pageTexts;
+			return extractPageTexts(document);
 		} catch (IllegalStateException | IOException e) {
 			throw new PdfProcessingException("PDFページ単位テキスト抽出に失敗しました。path=" + inputPath, e);
 		}
 	}
 
 	/**
-	 * PDFからページ単位でテキストを抽出し、文字を取得できないページはPNGへ画像化して返す。
+	 * PDFからページ単位でテキストを抽出し、文字を取得できないページはPNGへ画像化して変換器へ渡す。
 	 * <p>
-	 * 1つの {@code PDDocument} でテキスト抽出とレンダリングを行う。文字レイヤーが空白のページだけを画像化し、
-	 * それ以外のページの {@code imageBytes} はnullにする。ページ順を維持し、空ページも省略しない。入力ファイルは削除しない。
+	 * 1つの {@code PDDocument} で2段の走査を行う。1段目はテキスト抽出だけで、画像化も変換もしないため安価。
+	 * そこで確定した変換対象ページ数が上限を超える場合は、1ページも画像化せず、変換器を1度も呼ばずに例外で止める。
+	 * 外部AIの課金は変換器の呼び出しで発生するため、この順序がコストガードの前提になる。
+	 * <p>
+	 * 2段目は対象ページだけを画像化し、その場で変換してPNGの参照を捨てる。同時にメモリへ載る画像は1ページ分に収まる。
+	 * 2段目は {@code PDDocument} を開いたまま変換器をページ数分だけ呼ぶため、変換に時間がかかる間はPDFがメモリに載り続けるが、
+	 * 呼び出し回数が {@code maxPages} で有界になるため許容する。
+	 * <p>
+	 * ページ順を維持し、空ページも省略しない。入力ファイルは削除しない。
 	 *
-	 * @param inputPath 読み込むPDFのパス
-	 * @param renderDpi 画像化する解像度（DPI）
-	 * @return PDF順のページ内容（テキストと、必要なページのPNGバイト列）
-	 * @throws PdfProcessingException PDFの読み込み、テキスト抽出、または画像化に失敗した場合
+	 * @param inputPath          読み込むPDFのパス
+	 * @param renderDpi          画像化する解像度（DPI）
+	 * @param maxPages           画像変換にかけるページ数の上限
+	 * @param pageImageConverter 画像化した1ページ分をテキストへ変換する処理
+	 * @return PDF順のページ内容（テキストと、変換したページの変換結果）
+	 * @throws PdfPageLimitExceededException 変換対象ページ数が上限を超えた場合
+	 * @throws PdfProcessingException        PDFの読み込み、テキスト抽出、または画像化に失敗した場合
 	 */
-	List<PdfPageContent> extractPdfPageContents(Path inputPath, int renderDpi) {
+	List<PdfPageContent> extractPdfPageContents(Path inputPath, int renderDpi, int maxPages,
+			PdfPageImageConverter pageImageConverter) {
 		try (PDDocument document = Loader.loadPDF(inputPath.toFile())) {
-			PDFTextStripper textStripper = new PDFTextStripper();
-			PDFRenderer renderer = new PDFRenderer(document);
-			int totalPages = document.getNumberOfPages();
-			List<PdfPageContent> contents = new ArrayList<>(totalPages);
-			for (int pageNumber = PdfConstants.START_PAGE; pageNumber <= totalPages; pageNumber++) {
-				textStripper.setStartPage(pageNumber);
-				textStripper.setEndPage(pageNumber);
-				String text = textStripper.getText(document);
-				// 文字レイヤーが空白のページだけ画像化する。PDFBoxのレンダリングは0始まりのため1を引く。
-				byte[] imageBytes = text.isBlank() ? renderPageToPng(renderer, pageNumber - 1, renderDpi) : null;
-				contents.add(new PdfPageContent(pageNumber, text, imageBytes));
+			List<String> pageTexts = extractPageTexts(document);
+			List<Integer> renderTargetPages = collectBlankPageNumbers(pageTexts);
+			if (renderTargetPages.size() > maxPages) {
+				LOGGER.warn("変換対象ページ数が上限を超えたため画像変換を行いません。targetPageCount={}, maxPages={}", renderTargetPages.size(),
+						maxPages);
+				throw new PdfPageLimitExceededException(renderTargetPages.size(), maxPages);
 			}
-			return contents;
+			LOGGER.info("画像PDFのページ変換を開始します。targetPageCount={}, pageCount={}, renderDpi={}", renderTargetPages.size(),
+					pageTexts.size(), renderDpi);
+
+			PDFRenderer renderer = new PDFRenderer(document);
+			Map<Integer, String> convertedTexts = new HashMap<>();
+			for (Integer pageNumber : renderTargetPages) {
+				// PDFBoxのレンダリングは0始まりのため、1始まりのページ番号から開始ページ番号を引く。
+				byte[] pngBytes = renderPageToPng(renderer, pageNumber - PdfConstants.START_PAGE, renderDpi);
+				convertedTexts.put(pageNumber, pageImageConverter.convert(pngBytes));
+			}
+			return buildPageContents(pageTexts, convertedTexts);
 		} catch (IllegalStateException | IOException e) {
 			throw new PdfProcessingException("PDFページ内容の抽出に失敗しました。path=" + inputPath, e);
 		}
+	}
+
+	/**
+	 * 読み込み済みのPDFドキュメントからページ単位のテキストを抽出する。
+	 * <p>
+	 * PDFBoxのページ指定は1始まりのため、開始・終了ページを同じ値に設定してPDF順に抽出する。
+	 *
+	 * @param document 読み込み済みのPDFドキュメント
+	 * @return PDF順のページ単位テキスト
+	 * @throws IOException テキスト抽出に失敗した場合
+	 */
+	private List<String> extractPageTexts(PDDocument document) throws IOException {
+		PDFTextStripper textStripper = new PDFTextStripper();
+		int totalPages = document.getNumberOfPages();
+		List<String> pageTexts = new ArrayList<>(totalPages);
+		for (int pageNumber = PdfConstants.START_PAGE; pageNumber <= totalPages; pageNumber++) {
+			textStripper.setStartPage(pageNumber);
+			textStripper.setEndPage(pageNumber);
+			pageTexts.add(textStripper.getText(document));
+		}
+		return pageTexts;
+	}
+
+	/**
+	 * 文字レイヤーが空白のページ番号を抽出する。
+	 * <p>
+	 * 画像化するかどうかの判定はこのメソッドだけが持つ。上限チェックで数えるページ集合と実際に変換するページ集合が
+	 * ズレると、コストガードが意味を失うため。
+	 *
+	 * @param pageTexts PDF順のページ単位テキスト
+	 * @return 文字レイヤーが空白のページ番号（1始まり）
+	 */
+	private List<Integer> collectBlankPageNumbers(List<String> pageTexts) {
+		return IntStream.rangeClosed(PdfConstants.START_PAGE, pageTexts.size())
+				.filter(pageNumber -> pageTexts.get(pageNumber - PdfConstants.START_PAGE).isBlank()).boxed().toList();
+	}
+
+	/**
+	 * ページ単位テキストと変換結果からページ内容を組み立てる。
+	 *
+	 * @param pageTexts      PDF順のページ単位テキスト
+	 * @param convertedTexts 変換したページ番号と変換結果
+	 * @return PDF順のページ内容
+	 */
+	private List<PdfPageContent> buildPageContents(List<String> pageTexts, Map<Integer, String> convertedTexts) {
+		return IntStream.rangeClosed(PdfConstants.START_PAGE, pageTexts.size())
+				.mapToObj(pageNumber -> new PdfPageContent(pageNumber,
+						pageTexts.get(pageNumber - PdfConstants.START_PAGE), convertedTexts.get(pageNumber)))
+				.toList();
 	}
 
 	/**

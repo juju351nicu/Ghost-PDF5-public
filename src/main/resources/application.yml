@@ -16,6 +16,9 @@ ghost:
     storage-directory: ${GHOST_MARKDOWN_STORAGE_DIRECTORY:${java.io.tmpdir}/ghost-pdf5/markdown}
   ocr:
     provider: ${GHOST_OCR_PROVIDER:anthropic}
+    pdf:
+      max-pages: ${GHOST_OCR_PDF_MAX_PAGES:20}
+      render-dpi: ${GHOST_OCR_PDF_RENDER_DPI:200}
     anthropic:
       enabled: ${GHOST_OCR_ANTHROPIC_ENABLED:false}
       model: ${GHOST_OCR_ANTHROPIC_MODEL:claude-opus-5}

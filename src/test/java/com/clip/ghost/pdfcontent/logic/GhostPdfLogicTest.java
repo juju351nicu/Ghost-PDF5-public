@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -35,9 +36,11 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.clip.ghost.pdfcontent.constant.PdfConstants;
+import com.clip.ghost.pdfcontent.exception.PdfPageLimitExceededException;
 import com.clip.ghost.pdfcontent.exception.PdfProcessingException;
 import com.clip.ghost.pdfcontent.dto.GhostPdfDto;
 import com.clip.ghost.pdfcontent.dto.PdfMetadataResponse;
+import com.clip.ghost.pdfcontent.dto.PdfPageContent;
 import com.clip.ghost.pdfcontent.dto.PdfTextResponse;
 
 /**
@@ -123,6 +126,31 @@ class GhostPdfLogicTest {
 		assertThrows(PdfProcessingException.class, () -> pdfLogic.extractPdfPageTexts(inputPath));
 
 		assertFalse(inputPath.toFile().exists());
+	}
+
+	@Test
+	void extractPdfPageContentsConvertsBlankPagesAndDeletesTemporaryFile() throws IOException {
+		Path inputPath = createBlankPdf("page-contents.pdf", 1);
+
+		List<PdfPageContent> contents = pdfLogic.extractPdfPageContents(inputPath, 72, 20,
+				pngBytes -> "converted markdown");
+
+		assertFalse(inputPath.toFile().exists());
+		assertEquals(1, contents.size());
+		assertEquals("converted markdown", contents.get(0).convertedText());
+	}
+
+	@Test
+	void extractPdfPageContentsDeletesTemporaryFileAndSkipsConverterWhenPageLimitExceeded() throws IOException {
+		Path inputPath = createBlankPdf("page-limit.pdf", 2);
+		AtomicInteger convertedCount = new AtomicInteger();
+
+		assertThrows(PdfPageLimitExceededException.class, () -> pdfLogic.extractPdfPageContents(inputPath, 72, 1,
+				pngBytes -> "converted-" + convertedCount.incrementAndGet()));
+
+		// 上限超過で拒否した場合も一時ファイルを残さず、課金の起点となる変換器も呼ばない。
+		assertFalse(inputPath.toFile().exists());
+		assertEquals(0, convertedCount.get());
 	}
 
 	@Test
@@ -419,6 +447,17 @@ class GhostPdfLogicTest {
 					page.setResources(null);
 				}
 				document.getPages().getCOSObject().setItem(COSName.RESOURCES, inheritedResources);
+			}
+			document.save(path.toFile());
+		}
+		return path;
+	}
+
+	private Path createBlankPdf(String fileName, int pageCount) throws IOException {
+		Path path = tempDirectory.resolve(fileName);
+		try (PDDocument document = new PDDocument()) {
+			for (int index = 0; index < pageCount; index++) {
+				document.addPage(new PDPage(new PDRectangle(100, 200)));
 			}
 			document.save(path.toFile());
 		}

@@ -13,11 +13,13 @@ import org.springframework.web.multipart.MultipartFile;
 import com.clip.ghost.imagecontent.exception.OcrUnavailableException;
 import com.clip.ghost.imagecontent.logic.ImageConverterResolver;
 import com.clip.ghost.imagecontent.logic.ImageToMarkdownConverter;
+import com.clip.ghost.pdfcontent.config.PdfOcrProperties;
 import com.clip.ghost.pdfcontent.constant.PdfConstants;
 import com.clip.ghost.pdfcontent.dto.PdfMarkdownDraftPageResponse;
 import com.clip.ghost.pdfcontent.dto.PdfMarkdownDraftRequest;
 import com.clip.ghost.pdfcontent.dto.PdfMarkdownDraftResponse;
 import com.clip.ghost.pdfcontent.dto.PdfPageContent;
+import com.clip.ghost.pdfcontent.exception.PdfPageLimitExceededException;
 import com.clip.ghost.pdfcontent.logic.GhostPdfLogic;
 
 import lombok.RequiredArgsConstructor;
@@ -28,6 +30,7 @@ import lombok.RequiredArgsConstructor;
  * PDFの保存とテキスト抽出は {@link GhostPdfLogic} へ委譲し、このクラスはページ番号の付与、
  * 抽出テキストの正規化、Markdown下書きとレスポンスDTOの組み立てを担当する。
  * {@code mode=AUTO} では、文字を取得できないページを画像化し、共有の画像変換器（OCR/vision）で補完する。
+ * 変換にかけるページ数の上限とレンダリング解像度は {@link PdfOcrProperties}（{@code ghost.ocr.pdf}）から取る。
  */
 @Service
 @RequiredArgsConstructor
@@ -38,17 +41,18 @@ public class PdfMarkdownDraftService {
 	private static final String SOURCE_TEXT = "TEXT";
 	private static final String SOURCE_OCR = "OCR";
 	private static final String IMAGE_MEDIA_TYPE = "image/png";
-	private static final int OCR_RENDER_DPI = 200;
 
 	private final GhostPdfLogic pdfLogic;
 	private final ImageConverterResolver converterResolver;
+	private final PdfOcrProperties properties;
 
 	/**
 	 * アップロードされたPDFからページ単位のMarkdown下書きを生成する。
 	 *
 	 * @param form Markdown下書きの生成元PDFと変換モードを含むフォーム
 	 * @return PDF情報、ページ単位テキスト、Markdown下書きを含むレスポンス
-	 * @throws OcrUnavailableException AUTOモードで画像変換が無効、またはproviderが未対応の場合
+	 * @throws OcrUnavailableException       AUTOモードで画像変換が無効、またはproviderが未対応の場合
+	 * @throws PdfPageLimitExceededException AUTOモードで変換対象ページ数が {@code ghost.ocr.pdf.max-pages} を超えた場合
 	 */
 	public ResponseEntity<PdfMarkdownDraftResponse> generateMarkdownDraft(PdfMarkdownDraftRequest form) {
 		MultipartFile originalFile = form.getOriginalFile();
@@ -88,10 +92,12 @@ public class PdfMarkdownDraftService {
 	 * 文字を取得できないページを画像化し、共有の画像変換器で補完してページレスポンスを生成する。
 	 * <p>
 	 * 変換器の有効性は入力PDFを保存する前に確認し、無効時は入力一時ファイルを作らずに503相当で止める。
+	 * 変換対象ページ数の上限判定はLogic側が画像化前に行うため、上限超過時は変換器が1度も呼ばれない。
 	 *
 	 * @param originalFile アップロードされた元PDF
 	 * @return PDF順のページレスポンス
-	 * @throws OcrUnavailableException 画像変換が無効、またはproviderが未対応の場合
+	 * @throws OcrUnavailableException       画像変換が無効、またはproviderが未対応の場合
+	 * @throws PdfPageLimitExceededException 変換対象ページ数が上限を超えた場合
 	 */
 	private List<PdfMarkdownDraftPageResponse> buildAutoPages(MultipartFile originalFile) {
 		ImageToMarkdownConverter converter = converterResolver.resolve();
@@ -99,28 +105,29 @@ public class PdfMarkdownDraftService {
 			throw new OcrUnavailableException("画像PDFのOCRは無効です。providerを有効化してください。");
 		}
 		Path inputPath = pdfLogic.loadPdf(originalFile);
-		List<PdfPageContent> contents = pdfLogic.extractPdfPageContents(inputPath, OCR_RENDER_DPI);
+		List<PdfPageContent> contents = pdfLogic.extractPdfPageContents(inputPath, properties.getRenderDpi(),
+				properties.getMaxPages(), pngBytes -> converter.convert(pngBytes, IMAGE_MEDIA_TYPE));
 		List<PdfMarkdownDraftPageResponse> pages = new ArrayList<>(contents.size());
 		for (PdfPageContent content : contents) {
-			pages.add(buildAutoPage(content, converter));
+			pages.add(buildAutoPage(content));
 		}
 		return pages;
 	}
 
 	/**
 	 * 1ページ分の内容を、文字レイヤー優先で、無ければ画像変換結果でページレスポンスへ変換する。
+	 * <p>
+	 * 文字レイヤーが空かどうかの判定はLogic側の1箇所に固定しているため、ここでは変換結果の有無だけで取得元を決める。
+	 * 上限チェックで数えるページ集合と実際に変換されたページ集合をズラさないための分担。
 	 *
-	 * @param content   1ページ分の抽出内容
-	 * @param converter 画像変換器
+	 * @param content 1ページ分の抽出内容
 	 * @return ページレスポンス
 	 */
-	private PdfMarkdownDraftPageResponse buildAutoPage(PdfPageContent content, ImageToMarkdownConverter converter) {
-		String normalizedText = normalizePageText(content.text());
-		if (normalizedText.isEmpty() && content.imageBytes() != null) {
-			String converted = normalizePageText(converter.convert(content.imageBytes(), IMAGE_MEDIA_TYPE));
-			return buildPageResponse(content.pageNumber(), converted, SOURCE_OCR);
+	private PdfMarkdownDraftPageResponse buildAutoPage(PdfPageContent content) {
+		if (content.convertedText() != null) {
+			return buildPageResponse(content.pageNumber(), normalizePageText(content.convertedText()), SOURCE_OCR);
 		}
-		return buildPageResponse(content.pageNumber(), normalizedText, SOURCE_TEXT);
+		return buildPageResponse(content.pageNumber(), normalizePageText(content.text()), SOURCE_TEXT);
 	}
 
 	/**

@@ -7,10 +7,16 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import javax.imageio.ImageIO;
 
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
@@ -23,6 +29,7 @@ import org.junit.jupiter.api.io.TempDir;
 import com.clip.ghost.pdfcontent.dto.PdfMetadataResponse;
 import com.clip.ghost.pdfcontent.dto.PdfPageContent;
 import com.clip.ghost.pdfcontent.dto.PdfTextResponse;
+import com.clip.ghost.pdfcontent.exception.PdfPageLimitExceededException;
 import com.clip.ghost.pdfcontent.exception.PdfProcessingException;
 
 /**
@@ -88,21 +95,91 @@ class PdfDocumentAnalysisLogicTest {
 	}
 
 	@Test
-	void extractPdfPageContentsRendersBlankPagesToPngAndKeepsSource() throws IOException {
+	void extractPdfPageContentsConvertsOnlyBlankPagesAndKeepsSource() throws IOException {
 		Path inputPath = createPdf("contents.pdf", "first page", "");
 		PdfDocumentAnalysisLogic analysisLogic = new PdfDocumentAnalysisLogic();
+		List<byte[]> convertedImages = new ArrayList<>();
 
-		List<PdfPageContent> contents = analysisLogic.extractPdfPageContents(inputPath, 100);
+		List<PdfPageContent> contents = analysisLogic.extractPdfPageContents(inputPath, 100, 20, pngBytes -> {
+			convertedImages.add(pngBytes);
+			return "converted markdown";
+		});
 
 		assertTrue(Files.exists(inputPath));
 		assertEquals(2, contents.size());
 		assertTrue(contents.get(0).text().contains("first page"));
-		assertNull(contents.get(0).imageBytes());
+		assertNull(contents.get(0).convertedText());
 		assertTrue(contents.get(1).text().isBlank());
-		byte[] png = contents.get(1).imageBytes();
+		assertEquals("converted markdown", contents.get(1).convertedText());
+		assertEquals(1, convertedImages.size());
+		byte[] png = convertedImages.get(0);
 		assertNotNull(png);
-		// PNGシグネチャ（0x89 'P' 'N' 'G'）を確認し、画像化されていることを検証する。
+		// PNGシグネチャ（0x89 'P' 'N' 'G'）を確認し、画像化されたページが変換器へ渡っていることを検証する。
 		assertTrue(png.length > 8 && (png[0] & 0xFF) == 0x89 && png[1] == 'P' && png[2] == 'N' && png[3] == 'G');
+	}
+
+	@Test
+	void extractPdfPageContentsConvertsBlankPagesOneByOneInPageOrder() throws IOException {
+		Path inputPath = createPdf("order.pdf", "", "second page", "");
+		PdfDocumentAnalysisLogic analysisLogic = new PdfDocumentAnalysisLogic();
+		AtomicInteger convertedCount = new AtomicInteger();
+
+		List<PdfPageContent> contents = analysisLogic.extractPdfPageContents(inputPath, 100, 20,
+				pngBytes -> "converted-" + convertedCount.incrementAndGet());
+
+		assertEquals(2, convertedCount.get());
+		assertEquals("converted-1", contents.get(0).convertedText());
+		assertNull(contents.get(1).convertedText());
+		assertEquals("converted-2", contents.get(2).convertedText());
+	}
+
+	@Test
+	void extractPdfPageContentsRejectsWithoutCallingConverterWhenBlankPagesExceedMaxPages() throws IOException {
+		Path inputPath = createPdf("limit.pdf", "first page", "", "");
+		PdfDocumentAnalysisLogic analysisLogic = new PdfDocumentAnalysisLogic();
+		AtomicInteger convertedCount = new AtomicInteger();
+
+		// PdfProcessingExceptionへ化けると400ではなく500になるため、例外型そのものを固定する。
+		PdfPageLimitExceededException exception = assertThrows(PdfPageLimitExceededException.class,
+				() -> analysisLogic.extractPdfPageContents(inputPath, 100, 1,
+						pngBytes -> "converted-" + convertedCount.incrementAndGet()));
+
+		// 課金は変換器の呼び出しで発生するため、1度も呼ばれないことがコストガードの中核。
+		assertEquals(0, convertedCount.get());
+		assertEquals(2, exception.getTargetPageCount());
+		assertEquals(1, exception.getMaxPages());
+		assertTrue(Files.exists(inputPath));
+	}
+
+	@Test
+	void extractPdfPageContentsRendersWithGivenDpi() throws IOException {
+		Path inputPath = createPdf("dpi.pdf", "");
+		PdfDocumentAnalysisLogic analysisLogic = new PdfDocumentAnalysisLogic();
+
+		int lowDpiWidth = readConvertedImageWidth(analysisLogic, inputPath, 72);
+		int highDpiWidth = readConvertedImageWidth(analysisLogic, inputPath, 144);
+
+		assertTrue(highDpiWidth > lowDpiWidth);
+	}
+
+	/**
+	 * 指定DPIで画像化されたページの画像幅を取得する。
+	 *
+	 * @param analysisLogic 検証対象のロジック
+	 * @param inputPath     読み込むPDFのパス
+	 * @param renderDpi     画像化する解像度（DPI）
+	 * @return 画像化されたPNGの幅（px）
+	 * @throws IOException PNGの読み込みに失敗した場合
+	 */
+	private int readConvertedImageWidth(PdfDocumentAnalysisLogic analysisLogic, Path inputPath, int renderDpi)
+			throws IOException {
+		List<byte[]> convertedImages = new ArrayList<>();
+		analysisLogic.extractPdfPageContents(inputPath, renderDpi, 20, pngBytes -> {
+			convertedImages.add(pngBytes);
+			return "converted markdown";
+		});
+		BufferedImage image = ImageIO.read(new ByteArrayInputStream(convertedImages.get(0)));
+		return image.getWidth();
 	}
 
 	private Path createPdf(String fileName, String... pageTexts) throws IOException {
