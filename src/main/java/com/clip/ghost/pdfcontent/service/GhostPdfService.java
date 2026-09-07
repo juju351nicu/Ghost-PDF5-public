@@ -18,6 +18,7 @@ import com.clip.ghost.pdfcontent.dto.OriginalPdfRequest;
 import com.clip.ghost.pdfcontent.dto.PdfMetadataResponse;
 import com.clip.ghost.pdfcontent.dto.PdfTextResponse;
 import com.clip.ghost.pdfcontent.dto.SplitPdfRequest;
+import com.clip.ghost.common.response.ApiResult;
 import com.clip.ghost.common.utils.ResponseUtils;
 
 import lombok.RequiredArgsConstructor;
@@ -55,12 +56,12 @@ public class GhostPdfService {
 	 * @param form 編集元PDFを含むフォーム
 	 * @return PDFの基本情報レスポンス
 	 */
-	public ResponseEntity<PdfMetadataResponse> getPdfMetadata(OriginalPdfRequest form) {
+	public ResponseEntity<ApiResult<PdfMetadataResponse>> getPdfMetadata(OriginalPdfRequest form) {
 		MultipartFile originalFile = form.getOriginalFile();
 		Path originalFilePath = pdfLogic.loadPdf(originalFile);
 		PdfMetadataResponse metadata = pdfLogic.getPdfMetadata(originalFilePath, originalFile.getOriginalFilename(),
 				originalFile.getSize());
-		return ResponseEntity.ok(metadata);
+		return ResponseEntity.ok(ApiResult.of(metadata));
 	}
 
 	/**
@@ -69,12 +70,12 @@ public class GhostPdfService {
 	 * @param form 編集元PDFを含むフォーム
 	 * @return PDFテキスト抽出レスポンス
 	 */
-	public ResponseEntity<PdfTextResponse> extractPdfText(OriginalPdfRequest form) {
+	public ResponseEntity<ApiResult<PdfTextResponse>> extractPdfText(OriginalPdfRequest form) {
 		MultipartFile originalFile = form.getOriginalFile();
 		Path originalFilePath = pdfLogic.loadPdf(originalFile);
 		PdfTextResponse textResponse = pdfLogic.extractPdfText(originalFilePath, originalFile.getOriginalFilename(),
 				originalFile.getSize());
-		return ResponseEntity.ok(textResponse);
+		return ResponseEntity.ok(ApiResult.of(textResponse));
 	}
 
 	/**

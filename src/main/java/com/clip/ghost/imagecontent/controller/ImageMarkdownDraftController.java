@@ -15,6 +15,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.clip.ghost.common.exceptions.ErrorResponse;
 import com.clip.ghost.common.security.AccessTokenValidator;
+import com.clip.ghost.common.response.ApiResult;
 import com.clip.ghost.imagecontent.dto.ImageMarkdownDraftRequest;
 import com.clip.ghost.imagecontent.dto.ImageMarkdownDraftResponse;
 import com.clip.ghost.imagecontent.service.ImageMarkdownDraftService;
@@ -59,7 +60,7 @@ public class ImageMarkdownDraftController {
 	 */
 	@Operation(summary = "画像Markdown下書き生成", description = "アップロードされた画像を外部visionモデルで文字起こしし、Markdown下書きを返却します。既定では無効で、有効化した場合のみ外部AIへ画像を送信します。自動保存は行いません。", requestBody = @RequestBody(content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE, schema = @Schema(implementation = ImageMarkdownDraftRequest.class))))
 	@ApiResponses({
-			@ApiResponse(responseCode = "200", description = "画像Markdown下書き", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ImageMarkdownDraftResponse.class))),
+			@ApiResponse(responseCode = "200", description = "画像Markdown下書き"),
 			@ApiResponse(responseCode = "400", description = "入力値が不正です。", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
 			@ApiResponse(responseCode = "403", description = "access-tokenが不正です。"),
 			@ApiResponse(responseCode = "413", description = "アップロードファイルサイズが上限を超えています。", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
@@ -67,7 +68,7 @@ public class ImageMarkdownDraftController {
 			@ApiResponse(responseCode = "503", description = "画像Markdown下書き機能が無効です。", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))) })
 	@PostMapping(value = "/markdownDraftImage", consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
 	@ResponseBody
-	public ResponseEntity<ImageMarkdownDraftResponse> generateMarkdownDraft(
+	public ResponseEntity<ApiResult<ImageMarkdownDraftResponse>> generateMarkdownDraft(
 			@Parameter(name = ACCESS_TOKEN_HEADER_NAME, in = ParameterIn.HEADER, required = true, description = ACCESS_TOKEN_HEADER_DESCRIPTION) @RequestHeader(ACCESS_TOKEN_HEADER_NAME) String accessToken,
 			@Valid @ModelAttribute ImageMarkdownDraftRequest form, HttpSession session) {
 		LOGGER.info("画像Markdown下書きを生成します。");

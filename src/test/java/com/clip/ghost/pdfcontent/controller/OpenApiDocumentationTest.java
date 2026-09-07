@@ -101,6 +101,9 @@ class OpenApiDocumentationTest {
 	private static final String SCHEMA_MARKDOWN_PREVIEW_RESPONSE = "MarkdownPreviewResponse";
 	private static final String SCHEMA_MARKDOWN_PREVIEW_CONTENT_RESPONSE = "MarkdownPreviewContentResponse";
 	private static final String SCHEMA_MARKDOWN_DELETE_RESPONSE = "MarkdownDeleteResponse";
+	private static final String SCHEMA_API_MESSAGE = "ApiMessage";
+	private static final String SCHEMA_API_RESULT_PREFIX = "ApiResult";
+	private static final String SCHEMA_LIST_PREFIX = "List";
 	private static final String SCHEMA_ERROR_RESPONSE = "ErrorResponse";
 	private static final String SCHEMA_CUSTOM_FIELD_ERROR = "CustomFieldError";
 	private static final int MARKDOWN_FILE_NAME_MAX_LENGTH = 255;
@@ -230,7 +233,7 @@ class OpenApiDocumentationTest {
 		assertAll(() -> assertFalse(operation.isMissingNode(), PATH_METADATA_PDF + " post operation should exist."),
 				() -> assertAccessTokenHeader(operation, PATH_METADATA_PDF),
 				() -> assertMultipartRequestBody(operation, PATH_METADATA_PDF),
-				() -> assertJsonOkResponse(operation, PATH_METADATA_PDF),
+				() -> assertApiResultOkResponse(openApi, operation, PATH_METADATA_PDF, SCHEMA_PDF_METADATA_RESPONSE),
 				() -> assertJsonErrorResponse(operation, PATH_METADATA_PDF, HTTP_STATUS_BAD_REQUEST),
 				() -> assertTrue(operation.path("responses").has(HTTP_STATUS_FORBIDDEN),
 						PATH_METADATA_PDF + " should define 403 response."),
@@ -250,7 +253,7 @@ class OpenApiDocumentationTest {
 		assertAll(() -> assertFalse(operation.isMissingNode(), PATH_TEXT_PDF + " post operation should exist."),
 				() -> assertAccessTokenHeader(operation, PATH_TEXT_PDF),
 				() -> assertMultipartRequestBody(operation, PATH_TEXT_PDF),
-				() -> assertJsonOkResponse(operation, PATH_TEXT_PDF),
+				() -> assertApiResultOkResponse(openApi, operation, PATH_TEXT_PDF, SCHEMA_PDF_TEXT_RESPONSE),
 				() -> assertJsonErrorResponse(operation, PATH_TEXT_PDF, HTTP_STATUS_BAD_REQUEST),
 				() -> assertTrue(operation.path("responses").has(HTTP_STATUS_FORBIDDEN),
 						PATH_TEXT_PDF + " should define 403 response."),
@@ -265,17 +268,13 @@ class OpenApiDocumentationTest {
 	 */
 	private void assertMarkdownDraftEndpoint(JsonNode openApi) {
 		JsonNode operation = openApi.path("paths").path(PATH_MARKDOWN_DRAFT_PDF).path(HTTP_METHOD_POST);
-		JsonNode responseSchema = operation.path("responses").path(HTTP_STATUS_OK).path("content")
-				.path(MediaType.APPLICATION_JSON_VALUE).path("schema");
-
 		assertAll(
 				() -> assertFalse(operation.isMissingNode(),
 						PATH_MARKDOWN_DRAFT_PDF + " post operation should exist."),
 				() -> assertAccessTokenHeader(operation, PATH_MARKDOWN_DRAFT_PDF),
 				() -> assertMultipartRequestBody(operation, PATH_MARKDOWN_DRAFT_PDF),
-				() -> assertJsonOkResponse(operation, PATH_MARKDOWN_DRAFT_PDF),
-				() -> assertEquals("#/components/schemas/" + SCHEMA_PDF_MARKDOWN_DRAFT_RESPONSE,
-						responseSchema.path("$ref").asString()),
+				() -> assertApiResultOkResponse(openApi, operation, PATH_MARKDOWN_DRAFT_PDF,
+						SCHEMA_PDF_MARKDOWN_DRAFT_RESPONSE),
 				() -> assertJsonErrorResponse(operation, PATH_MARKDOWN_DRAFT_PDF, HTTP_STATUS_BAD_REQUEST),
 				() -> assertTrue(operation.path("responses").has(HTTP_STATUS_FORBIDDEN),
 						PATH_MARKDOWN_DRAFT_PDF + " should define 403 response."),
@@ -294,17 +293,13 @@ class OpenApiDocumentationTest {
 	 */
 	private void assertMarkdownDraftImageEndpoint(JsonNode openApi) {
 		JsonNode operation = openApi.path("paths").path(PATH_MARKDOWN_DRAFT_IMAGE).path(HTTP_METHOD_POST);
-		JsonNode responseSchema = operation.path("responses").path(HTTP_STATUS_OK).path("content")
-				.path(MediaType.APPLICATION_JSON_VALUE).path("schema");
-
 		assertAll(
 				() -> assertFalse(operation.isMissingNode(),
 						PATH_MARKDOWN_DRAFT_IMAGE + " post operation should exist."),
 				() -> assertAccessTokenHeader(operation, PATH_MARKDOWN_DRAFT_IMAGE),
 				() -> assertMultipartRequestBody(operation, PATH_MARKDOWN_DRAFT_IMAGE),
-				() -> assertJsonOkResponse(operation, PATH_MARKDOWN_DRAFT_IMAGE),
-				() -> assertEquals("#/components/schemas/" + SCHEMA_IMAGE_MARKDOWN_DRAFT_RESPONSE,
-						responseSchema.path("$ref").asString()),
+				() -> assertApiResultOkResponse(openApi, operation, PATH_MARKDOWN_DRAFT_IMAGE,
+						SCHEMA_IMAGE_MARKDOWN_DRAFT_RESPONSE),
 				() -> assertJsonErrorResponse(operation, PATH_MARKDOWN_DRAFT_IMAGE, HTTP_STATUS_BAD_REQUEST),
 				() -> assertTrue(operation.path("responses").has(HTTP_STATUS_FORBIDDEN),
 						PATH_MARKDOWN_DRAFT_IMAGE + " should define 403 response."),
@@ -348,7 +343,7 @@ class OpenApiDocumentationTest {
 		assertAll(() -> assertFalse(operation.isMissingNode(), PATH_SAVE_MARKDOWN + " post operation should exist."),
 				() -> assertAccessTokenHeader(operation, PATH_SAVE_MARKDOWN),
 				() -> assertJsonRequestBody(operation, PATH_SAVE_MARKDOWN),
-				() -> assertJsonOkResponse(operation, PATH_SAVE_MARKDOWN),
+				() -> assertApiResultOkResponse(openApi, operation, PATH_SAVE_MARKDOWN, SCHEMA_MARKDOWN_FILE_RESPONSE),
 				() -> assertJsonErrorResponse(operation, PATH_SAVE_MARKDOWN, HTTP_STATUS_BAD_REQUEST),
 				() -> assertTrue(operation.path("responses").has(HTTP_STATUS_FORBIDDEN),
 						PATH_SAVE_MARKDOWN + " should define 403 response."),
@@ -365,7 +360,8 @@ class OpenApiDocumentationTest {
 
 		assertAll(() -> assertFalse(operation.isMissingNode(), PATH_MARKDOWN_FILES + " get operation should exist."),
 				() -> assertAccessTokenHeader(operation, PATH_MARKDOWN_FILES),
-				() -> assertJsonOkResponse(operation, PATH_MARKDOWN_FILES),
+				() -> assertApiResultListOkResponse(openApi, operation, PATH_MARKDOWN_FILES,
+						SCHEMA_MARKDOWN_FILE_RESPONSE),
 				() -> assertTrue(operation.path("responses").has(HTTP_STATUS_FORBIDDEN),
 						PATH_MARKDOWN_FILES + " should define 403 response."),
 				() -> assertJsonErrorResponse(operation, PATH_MARKDOWN_FILES, HTTP_STATUS_INTERNAL_SERVER_ERROR));
@@ -383,7 +379,7 @@ class OpenApiDocumentationTest {
 		assertAll(() -> assertFalse(operation.isMissingNode(), PATH_MARKDOWN_FILE + " get operation should exist."),
 				() -> assertAccessTokenHeader(operation, PATH_MARKDOWN_FILE),
 				() -> assertQueryParameter(operation, PATH_MARKDOWN_FILE, "fileName"),
-				() -> assertJsonOkResponse(operation, PATH_MARKDOWN_FILE),
+				() -> assertApiResultOkResponse(openApi, operation, PATH_MARKDOWN_FILE, SCHEMA_MARKDOWN_DOCUMENT_RESPONSE),
 				() -> assertTrue(operation.path("responses").has(HTTP_STATUS_BAD_REQUEST),
 						PATH_MARKDOWN_FILE + " should define 400 response."),
 				() -> assertTrue(operation.path("responses").has(HTTP_STATUS_FORBIDDEN),
@@ -406,7 +402,7 @@ class OpenApiDocumentationTest {
 				() -> assertAccessTokenHeader(operation, PATH_MARKDOWN_FILE),
 				() -> assertQueryParameter(operation, PATH_MARKDOWN_FILE, "fileName"),
 				() -> assertJsonRequestBody(operation, PATH_MARKDOWN_FILE),
-				() -> assertJsonOkResponse(operation, PATH_MARKDOWN_FILE),
+				() -> assertApiResultOkResponse(openApi, operation, PATH_MARKDOWN_FILE, SCHEMA_MARKDOWN_FILE_RESPONSE),
 				() -> assertJsonErrorResponse(operation, PATH_MARKDOWN_FILE, HTTP_STATUS_BAD_REQUEST),
 				() -> assertTrue(operation.path("responses").has(HTTP_STATUS_FORBIDDEN),
 						PATH_MARKDOWN_FILE + " should define 403 response."),
@@ -426,7 +422,7 @@ class OpenApiDocumentationTest {
 		assertAll(() -> assertFalse(operation.isMissingNode(), PATH_MARKDOWN_FILE + " delete operation should exist."),
 				() -> assertAccessTokenHeader(operation, PATH_MARKDOWN_FILE),
 				() -> assertQueryParameter(operation, PATH_MARKDOWN_FILE, "fileName"),
-				() -> assertJsonOkResponse(operation, PATH_MARKDOWN_FILE),
+				() -> assertApiResultOkResponse(openApi, operation, PATH_MARKDOWN_FILE, SCHEMA_MARKDOWN_DELETE_RESPONSE),
 				() -> assertTrue(operation.path("responses").has(HTTP_STATUS_BAD_REQUEST),
 						PATH_MARKDOWN_FILE + " should define 400 response."),
 				() -> assertTrue(operation.path("responses").has(HTTP_STATUS_FORBIDDEN),
@@ -448,7 +444,8 @@ class OpenApiDocumentationTest {
 		assertAll(() -> assertFalse(operation.isMissingNode(), PATH_MARKDOWN_PREVIEW + " get operation should exist."),
 				() -> assertAccessTokenHeader(operation, PATH_MARKDOWN_PREVIEW),
 				() -> assertQueryParameter(operation, PATH_MARKDOWN_PREVIEW, "fileName"),
-				() -> assertJsonOkResponse(operation, PATH_MARKDOWN_PREVIEW),
+				() -> assertApiResultOkResponse(openApi, operation, PATH_MARKDOWN_PREVIEW,
+						SCHEMA_MARKDOWN_PREVIEW_RESPONSE),
 				() -> assertTrue(operation.path("responses").has(HTTP_STATUS_BAD_REQUEST),
 						PATH_MARKDOWN_PREVIEW + " should define 400 response."),
 				() -> assertTrue(operation.path("responses").has(HTTP_STATUS_FORBIDDEN),
@@ -470,7 +467,8 @@ class OpenApiDocumentationTest {
 		assertAll(() -> assertFalse(operation.isMissingNode(), PATH_MARKDOWN_PREVIEW + " post operation should exist."),
 				() -> assertAccessTokenHeader(operation, PATH_MARKDOWN_PREVIEW),
 				() -> assertJsonRequestBody(operation, PATH_MARKDOWN_PREVIEW),
-				() -> assertJsonOkResponse(operation, PATH_MARKDOWN_PREVIEW),
+				() -> assertApiResultOkResponse(openApi, operation, PATH_MARKDOWN_PREVIEW,
+						SCHEMA_MARKDOWN_PREVIEW_CONTENT_RESPONSE),
 				() -> assertJsonErrorResponse(operation, PATH_MARKDOWN_PREVIEW, HTTP_STATUS_BAD_REQUEST),
 				() -> assertTrue(operation.path("responses").has(HTTP_STATUS_FORBIDDEN),
 						PATH_MARKDOWN_PREVIEW + " should define 403 response."),
@@ -568,6 +566,83 @@ class OpenApiDocumentationTest {
 				.path(MediaType.APPLICATION_JSON_VALUE);
 
 		assertFalse(jsonContent.isMissingNode(), path + " should define application/json 200 response.");
+	}
+
+	/**
+	 * 200レスポンスが共通ラッパー {@code ApiResult<T>} の構造で公開され、{@code data} が用途別Responseになっていることを確認する。
+	 * <p>
+	 * Springdocのgeneric schema表現は崩れやすいため、ラッパーのschema名と {@code data} の中身の両方を固定する。
+	 * 200の {@code @ApiResponse} に {@code content} を書くと戻り型からの推論が上書きされ、schemaが消えることを検知する狙いもある。
+	 *
+	 * @param openApi        OpenAPI JSON
+	 * @param operation      OpenAPI operation
+	 * @param path           API path
+	 * @param dataSchemaName {@code data} に現れる用途別Responseのschema名
+	 */
+	private void assertApiResultOkResponse(JsonNode openApi, JsonNode operation, String path, String dataSchemaName) {
+		String wrapperSchemaName = SCHEMA_API_RESULT_PREFIX + dataSchemaName;
+		JsonNode responseSchema = operation.path("responses").path(HTTP_STATUS_OK).path("content")
+				.path(MediaType.APPLICATION_JSON_VALUE).path("schema");
+		JsonNode wrapperProperties = openApi.path("components").path("schemas").path(wrapperSchemaName)
+				.path("properties");
+
+		assertAll(
+				() -> assertEquals("#/components/schemas/" + wrapperSchemaName, responseSchema.path("$ref").asString(),
+						path + " 200 response should be wrapped by " + wrapperSchemaName + "."),
+				() -> assertEquals("#/components/schemas/" + dataSchemaName,
+						wrapperProperties.path("data").path("$ref").asString(),
+						wrapperSchemaName + " data should reference " + dataSchemaName + "."),
+				() -> assertApiResultCommonProperties(wrapperProperties, wrapperSchemaName));
+	}
+
+	/**
+	 * 200レスポンスが共通ラッパーの構造で公開され、{@code data} が用途別Responseの配列になっていることを確認する。
+	 *
+	 * @param openApi        OpenAPI JSON
+	 * @param operation      OpenAPI operation
+	 * @param path           API path
+	 * @param dataSchemaName {@code data} の配列要素に現れる用途別Responseのschema名
+	 */
+	private void assertApiResultListOkResponse(JsonNode openApi, JsonNode operation, String path,
+			String dataSchemaName) {
+		String wrapperSchemaName = SCHEMA_API_RESULT_PREFIX + SCHEMA_LIST_PREFIX + dataSchemaName;
+		JsonNode responseSchema = operation.path("responses").path(HTTP_STATUS_OK).path("content")
+				.path(MediaType.APPLICATION_JSON_VALUE).path("schema");
+		JsonNode wrapperProperties = openApi.path("components").path("schemas").path(wrapperSchemaName)
+				.path("properties");
+
+		assertAll(
+				() -> assertEquals("#/components/schemas/" + wrapperSchemaName, responseSchema.path("$ref").asString(),
+						path + " 200 response should be wrapped by " + wrapperSchemaName + "."),
+				() -> assertEquals("array", wrapperProperties.path("data").path("type").asString(),
+						wrapperSchemaName + " data should be an array."),
+				() -> assertEquals("#/components/schemas/" + dataSchemaName,
+						wrapperProperties.path("data").path("items").path("$ref").asString(),
+						wrapperSchemaName + " data items should reference " + dataSchemaName + "."),
+				() -> assertApiResultCommonProperties(wrapperProperties, wrapperSchemaName));
+	}
+
+	/**
+	 * 共通ラッパーの {@code resultType} と {@code messageList} の定義を確認する。
+	 *
+	 * @param wrapperProperties ラッパーschemaのproperties
+	 * @param wrapperSchemaName ラッパーschema名
+	 */
+	private void assertApiResultCommonProperties(JsonNode wrapperProperties, String wrapperSchemaName) {
+		JsonNode resultTypeValues = wrapperProperties.path("resultType").path("enum");
+
+		assertAll(
+				() -> assertTrue(
+						StreamSupport.stream(resultTypeValues.spliterator(), false)
+								.anyMatch(value -> "INFO".equals(value.asString())),
+						wrapperSchemaName + " resultType should contain INFO."),
+				() -> assertTrue(
+						StreamSupport.stream(resultTypeValues.spliterator(), false)
+								.anyMatch(value -> "WARNING".equals(value.asString())),
+						wrapperSchemaName + " resultType should contain WARNING."),
+				() -> assertEquals("#/components/schemas/" + SCHEMA_API_MESSAGE,
+						wrapperProperties.path("messageList").path("items").path("$ref").asString(),
+						wrapperSchemaName + " messageList items should reference " + SCHEMA_API_MESSAGE + "."));
 	}
 
 	/**

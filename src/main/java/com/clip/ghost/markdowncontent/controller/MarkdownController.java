@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 
 import com.clip.ghost.common.exceptions.ErrorResponse;
+import com.clip.ghost.common.response.ApiResult;
 import com.clip.ghost.common.security.AccessTokenValidator;
 import com.clip.ghost.markdowncontent.dto.MarkdownDeleteResponse;
 import com.clip.ghost.markdowncontent.dto.MarkdownDocumentResponse;
@@ -66,12 +67,12 @@ public class MarkdownController {
 	 */
 	@Operation(summary = "Markdown一覧取得", description = "保存済みMarkdownファイルの一覧と最小ファイル情報を返却します。")
 	@ApiResponses({
-			@ApiResponse(responseCode = "200", description = "Markdownファイル一覧", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, array = @ArraySchema(schema = @Schema(implementation = MarkdownFileResponse.class)))),
+			@ApiResponse(responseCode = "200", description = "Markdownファイル一覧"),
 			@ApiResponse(responseCode = "403", description = "access-tokenが不正です。"),
 			@ApiResponse(responseCode = "500", description = "Markdown一覧取得に失敗しました。", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))) })
 	@GetMapping(value = "/markdownFiles", produces = MediaType.APPLICATION_JSON_VALUE)
 	@ResponseBody
-	public ResponseEntity<List<MarkdownFileResponse>> listMarkdownFiles(
+	public ResponseEntity<ApiResult<List<MarkdownFileResponse>>> listMarkdownFiles(
 			@Parameter(name = ACCESS_TOKEN_HEADER_NAME, in = ParameterIn.HEADER, required = true, description = ACCESS_TOKEN_HEADER_DESCRIPTION) @RequestHeader(ACCESS_TOKEN_HEADER_NAME) String accessToken,
 			HttpSession session) {
 		LOGGER.info("Markdown一覧を取得します。");
@@ -89,14 +90,14 @@ public class MarkdownController {
 	 */
 	@Operation(summary = "Markdown本文取得", description = "保存済みMarkdownファイルの本文と最小ファイル情報を返却します。")
 	@ApiResponses({
-			@ApiResponse(responseCode = "200", description = "Markdown本文", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = MarkdownDocumentResponse.class))),
+			@ApiResponse(responseCode = "200", description = "Markdown本文"),
 			@ApiResponse(responseCode = "400", description = "ファイル名が不正です。"),
 			@ApiResponse(responseCode = "403", description = "access-tokenが不正です。"),
 			@ApiResponse(responseCode = "404", description = "Markdownファイルが見つかりません。"),
 			@ApiResponse(responseCode = "500", description = "Markdown本文取得に失敗しました。", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))) })
 	@GetMapping(value = "/markdownFile", produces = MediaType.APPLICATION_JSON_VALUE)
 	@ResponseBody
-	public ResponseEntity<MarkdownDocumentResponse> getMarkdownFile(
+	public ResponseEntity<ApiResult<MarkdownDocumentResponse>> getMarkdownFile(
 			@Parameter(name = ACCESS_TOKEN_HEADER_NAME, in = ParameterIn.HEADER, required = true, description = ACCESS_TOKEN_HEADER_DESCRIPTION) @RequestHeader(ACCESS_TOKEN_HEADER_NAME) String accessToken,
 			@Parameter(description = "読み取り対象Markdownファイル名。", required = true) @RequestParam String fileName,
 			HttpSession session) {
@@ -115,14 +116,14 @@ public class MarkdownController {
 	 */
 	@Operation(summary = "Markdownプレビュー取得", description = "保存済みMarkdownファイルをHTMLへ変換し、最小ファイル情報とともに返却します。")
 	@ApiResponses({
-			@ApiResponse(responseCode = "200", description = "Markdown HTMLプレビュー", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = MarkdownPreviewResponse.class))),
+			@ApiResponse(responseCode = "200", description = "Markdown HTMLプレビュー"),
 			@ApiResponse(responseCode = "400", description = "ファイル名が不正です。"),
 			@ApiResponse(responseCode = "403", description = "access-tokenが不正です。"),
 			@ApiResponse(responseCode = "404", description = "Markdownファイルが見つかりません。"),
 			@ApiResponse(responseCode = "500", description = "Markdownプレビュー取得に失敗しました。", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))) })
 	@GetMapping(value = "/markdownPreview", produces = MediaType.APPLICATION_JSON_VALUE)
 	@ResponseBody
-	public ResponseEntity<MarkdownPreviewResponse> previewMarkdownFile(
+	public ResponseEntity<ApiResult<MarkdownPreviewResponse>> previewMarkdownFile(
 			@Parameter(name = ACCESS_TOKEN_HEADER_NAME, in = ParameterIn.HEADER, required = true, description = ACCESS_TOKEN_HEADER_DESCRIPTION) @RequestHeader(ACCESS_TOKEN_HEADER_NAME) String accessToken,
 			@Parameter(description = "プレビュー対象Markdownファイル名。", required = true) @RequestParam String fileName,
 			HttpSession session) {
@@ -141,13 +142,13 @@ public class MarkdownController {
 	 */
 	@Operation(summary = "Markdown本文プレビュー", description = "入力中のMarkdown本文をHTMLへ変換して返却します。保存済みファイルは更新しません。")
 	@ApiResponses({
-			@ApiResponse(responseCode = "200", description = "Markdown本文HTMLプレビュー", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = MarkdownPreviewContentResponse.class))),
+			@ApiResponse(responseCode = "200", description = "Markdown本文HTMLプレビュー"),
 			@ApiResponse(responseCode = "400", description = "入力値が不正です。", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
 			@ApiResponse(responseCode = "403", description = "access-tokenが不正です。"),
 			@ApiResponse(responseCode = "500", description = "Markdown本文プレビューに失敗しました。", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))) })
 	@PostMapping(value = "/markdownPreview", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
 	@ResponseBody
-	public ResponseEntity<MarkdownPreviewContentResponse> previewMarkdownContent(
+	public ResponseEntity<ApiResult<MarkdownPreviewContentResponse>> previewMarkdownContent(
 			@Parameter(name = ACCESS_TOKEN_HEADER_NAME, in = ParameterIn.HEADER, required = true, description = ACCESS_TOKEN_HEADER_DESCRIPTION) @RequestHeader(ACCESS_TOKEN_HEADER_NAME) String accessToken,
 			@Valid @RequestBody MarkdownPreviewRequest request, HttpSession session) {
 		LOGGER.info("Markdown本文プレビューを取得します。");
@@ -166,14 +167,14 @@ public class MarkdownController {
 	 */
 	@Operation(summary = "Markdown更新", description = "保存済みMarkdownファイルの本文をUTF-8で更新し、更新後のファイル情報を返却します。")
 	@ApiResponses({
-			@ApiResponse(responseCode = "200", description = "Markdown更新レスポンス", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = MarkdownFileResponse.class))),
+			@ApiResponse(responseCode = "200", description = "Markdown更新レスポンス"),
 			@ApiResponse(responseCode = "400", description = "入力値またはファイル名が不正です。", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
 			@ApiResponse(responseCode = "403", description = "access-tokenが不正です。"),
 			@ApiResponse(responseCode = "404", description = "Markdownファイルが見つかりません。"),
 			@ApiResponse(responseCode = "500", description = "Markdown更新に失敗しました。", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))) })
 	@PutMapping(value = "/markdownFile", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
 	@ResponseBody
-	public ResponseEntity<MarkdownFileResponse> updateMarkdownFile(
+	public ResponseEntity<ApiResult<MarkdownFileResponse>> updateMarkdownFile(
 			@Parameter(name = ACCESS_TOKEN_HEADER_NAME, in = ParameterIn.HEADER, required = true, description = ACCESS_TOKEN_HEADER_DESCRIPTION) @RequestHeader(ACCESS_TOKEN_HEADER_NAME) String accessToken,
 			@Parameter(description = "更新対象Markdownファイル名。", required = true) @RequestParam String fileName,
 			@Valid @RequestBody MarkdownUpdateRequest request, HttpSession session) {
@@ -192,14 +193,14 @@ public class MarkdownController {
 	 */
 	@Operation(summary = "Markdown削除", description = "保存済みMarkdownファイルを削除し、削除結果を返却します。")
 	@ApiResponses({
-			@ApiResponse(responseCode = "200", description = "Markdown削除レスポンス", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = MarkdownDeleteResponse.class))),
+			@ApiResponse(responseCode = "200", description = "Markdown削除レスポンス"),
 			@ApiResponse(responseCode = "400", description = "ファイル名が不正です。"),
 			@ApiResponse(responseCode = "403", description = "access-tokenが不正です。"),
 			@ApiResponse(responseCode = "404", description = "Markdownファイルが見つかりません。"),
 			@ApiResponse(responseCode = "500", description = "Markdown削除に失敗しました。", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))) })
 	@DeleteMapping(value = "/markdownFile", produces = MediaType.APPLICATION_JSON_VALUE)
 	@ResponseBody
-	public ResponseEntity<MarkdownDeleteResponse> deleteMarkdownFile(
+	public ResponseEntity<ApiResult<MarkdownDeleteResponse>> deleteMarkdownFile(
 			@Parameter(name = ACCESS_TOKEN_HEADER_NAME, in = ParameterIn.HEADER, required = true, description = ACCESS_TOKEN_HEADER_DESCRIPTION) @RequestHeader(ACCESS_TOKEN_HEADER_NAME) String accessToken,
 			@Parameter(description = "削除対象Markdownファイル名。", required = true) @RequestParam String fileName,
 			HttpSession session) {
@@ -218,13 +219,13 @@ public class MarkdownController {
 	 */
 	@Operation(summary = "Markdown保存", description = "Markdown本文をUTF-8の.mdファイルとして保存し、保存後のファイル情報を返却します。")
 	@ApiResponses({
-			@ApiResponse(responseCode = "200", description = "Markdown保存レスポンス", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = MarkdownFileResponse.class))),
+			@ApiResponse(responseCode = "200", description = "Markdown保存レスポンス"),
 			@ApiResponse(responseCode = "400", description = "入力値が不正です。", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
 			@ApiResponse(responseCode = "403", description = "access-tokenが不正です。"),
 			@ApiResponse(responseCode = "500", description = "Markdown保存に失敗しました。", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))) })
 	@PostMapping(value = "/saveMarkdown", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
 	@ResponseBody
-	public ResponseEntity<MarkdownFileResponse> saveMarkdown(
+	public ResponseEntity<ApiResult<MarkdownFileResponse>> saveMarkdown(
 			@Parameter(name = ACCESS_TOKEN_HEADER_NAME, in = ParameterIn.HEADER, required = true, description = ACCESS_TOKEN_HEADER_DESCRIPTION) @RequestHeader(ACCESS_TOKEN_HEADER_NAME) String accessToken,
 			@Valid @RequestBody MarkdownSaveRequest request, HttpSession session) {
 		LOGGER.info("Markdownを保存します。");

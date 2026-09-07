@@ -38,6 +38,7 @@ class CodingConventionTest {
 	private static final Path FRONTEND_UTIL_SCRIPT = FRONTEND_SOURCE.resolve("util.js");
 	private static final Path FRONTEND_FETCH_CLIENT_SCRIPT = FRONTEND_SOURCE.resolve("api/fetch-client.js");
 	private static final Path FRONTEND_API_ERROR_UTILS_SCRIPT = FRONTEND_SOURCE.resolve("api/api-error-utils.js");
+	private static final Path FRONTEND_API_RESULT_UTILS_SCRIPT = FRONTEND_SOURCE.resolve("api/api-result-utils.js");
 	private static final Path TEST_SOURCE = Paths.get("src/test/java");
 	private static final Path TEST_RESOURCES = Paths.get("src/test/resources");
 	private static final String BASE_PACKAGE = "com.clip.ghost";
@@ -269,6 +270,16 @@ class CodingConventionTest {
 		targetFiles.remove(FRONTEND_API_ERROR_UTILS_SCRIPT);
 
 		assertNoToken(targetFiles, List.of("fieldErrors"));
+	}
+
+	@Test
+	void frontendCodeUsesApiResultUtilsForSuccessEnvelope() throws IOException {
+		// JSON成功レスポンスの共通ラッパー(resultType / messageList)の解釈をapi-result-utils.jsへ閉じる。
+		// api clientごとにラッパーを直接読むと、構造変更時の修正漏れが起きるため。
+		List<Path> targetFiles = new ArrayList<>(scriptFiles(FRONTEND_SOURCE));
+		targetFiles.remove(FRONTEND_API_RESULT_UTILS_SCRIPT);
+
+		assertNoToken(targetFiles, List.of("resultType", "messageList"));
 	}
 
 	@Test
