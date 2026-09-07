@@ -9,6 +9,7 @@ import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.io.Resource;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.clip.ghost.common.utils.PathUtils;
@@ -49,18 +50,20 @@ final class PdfTemporaryFileStorage {
 	}
 
 	/**
-	 * 一時ファイルの内容をbyte配列として読み込む。
+	 * 一時ファイルを、レスポンス送信後に削除されるリソースとして開く。
+	 * <p>
+	 * 内容をbyte配列へ読み込まないため、出力サイズに比例したヒープ消費が起きない。
+	 * 削除はリソースの読み込みストリームがcloseされた時点で行われる。
 	 *
-	 * @param filePath 読み込む一時ファイルのパス
-	 * @return 一時ファイルのbyte配列
-	 * @throws PdfProcessingException 一時ファイルの読み込みに失敗した場合
+	 * @param filePath レスポンスへ流す一時ファイルのパス
+	 * @return レスポンス送信後に一時ファイルを削除するリソース
+	 * @throws PdfProcessingException 一時ファイルが存在しない場合
 	 */
-	byte[] readBytes(Path filePath) {
-		try {
-			return Files.readAllBytes(filePath);
-		} catch (IOException e) {
-			throw new PdfProcessingException("PDFの読み込みに失敗しました。path=" + filePath, e);
+	Resource openForResponse(Path filePath) {
+		if (filePath == null || !Files.isRegularFile(filePath)) {
+			throw new PdfProcessingException("レスポンスへ流すPDF一時ファイルが見つかりません。path=" + filePath);
 		}
+		return new PdfTemporaryFileResource(filePath);
 	}
 
 	/**

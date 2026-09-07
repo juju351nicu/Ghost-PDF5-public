@@ -6,6 +6,7 @@ import java.util.Objects;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -52,30 +53,18 @@ public class GhostPdfLogic {
 	}
 
 	/**
-	 * 一時保存されたPDFをbyte配列に変換して返却する。
+	 * 一時保存されたファイルを、レスポンス送信後に削除されるリソースとして開く。
+	 * <p>
+	 * byte配列へ読み込まずにストリームで返すため、出力サイズに比例したヒープ消費が起きない。
+	 * 一時ファイルの削除は、他のpublicメソッドと違いこのメソッドから戻った時点では行われない。
+	 * レスポンス本文の送信が終わり、リソースの読み込みストリームがcloseされた時点で削除される。
 	 *
-	 * @param originalFilePath 読み込むPDFのパス
-	 * @return PDFのbyte配列
-	 * @throws PdfProcessingException PDFの読み込みに失敗した場合
+	 * @param temporaryFilePath レスポンスへ流す一時ファイルのパス
+	 * @return レスポンス送信後に一時ファイルを削除するリソース
+	 * @throws PdfProcessingException 一時ファイルが存在しない場合
 	 */
-	public byte[] convertPdf(Path originalFilePath) {
-		return convertTemporaryFile(originalFilePath);
-	}
-
-	/**
-	 * 一時保存されたファイルをbyte配列に変換して返却する。
-	 *
-	 * @param temporaryFilePath 読み込む一時ファイルのパス
-	 * @return 一時ファイルのbyte配列
-	 * @throws PdfProcessingException 一時ファイルの読み込みに失敗した場合
-	 */
-	public byte[] convertTemporaryFile(Path temporaryFilePath) {
-		PdfTemporaryFileStorage temporaryFileStorage = temporaryFileStorage();
-		try {
-			return temporaryFileStorage.readBytes(temporaryFilePath);
-		} finally {
-			temporaryFileStorage.delete(temporaryFilePath);
-		}
+	public Resource openTemporaryFileForResponse(Path temporaryFilePath) {
+		return temporaryFileStorage().openForResponse(temporaryFilePath);
 	}
 
 	/**
