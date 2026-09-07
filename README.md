@@ -148,6 +148,10 @@ Public repository化後も、当面はlocal development / portfolio用途を前�
 - `CodingConventionTest` にStorage直接参照とdeprecated utility aliasの再混入検知を追加
 - `CodingConventionTest` にFetchClient迂回の再混入検知を追加
 - `api/api-error-utils.js` へAPIエラーメッセージ変換を集約し、`fieldErrors` 直接参照の再混入検知を追加
+- 想定外エラーのモーダルに生の例外メッセージ（`TypeError: Failed to fetch` など）が出ていた不具合を修正
+  - `error.message` を優先していたため日本語のfallbackが到達していなかった。例外の内容は画面へ出さない方針へ統一
+  - サーバーへ到達できなかった場合だけは利用者が対処できるため、「サーバーに接続できません。アプリが起動しているか確認してください。」を専用に表示
+  - `FrontendErrorMessageContractTest` で再混入を検知（JSテストランナーが無い構成のためソーススキャン）
 - `deletePdf` / `insertPdf` のファイルサイズ検証をOpenAPIの413定義と整合させ、Controller単体テストで固定
 - `CodingConventionTest` にDOM直接操作とHTML直接挿入の再混入検知を追加
 - `CodingConventionTest` にfield injection の `@Autowired` 再混入検知を追加
