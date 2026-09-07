@@ -26,6 +26,7 @@
  * @property {string} fileSize 画面表示用ファイルサイズ
  * @property {string} fileType 画面表示用ファイル種別
  * @property {File|null} fileObject 選択された編集元PDF
+ * @property {string} previewUrl 選択された編集元PDFのプレビュー用Object URL
  * @property {CheckboxState} delPagesChecked 削除ページ指定チェック状態
  * @property {TextInputState} delPagesText 削除ページ入力状態
  * @property {boolean} fileFlag 既存画面互換のファイル選択フラグ
@@ -69,6 +70,7 @@ const createOriginalFileState = () => ({
   fileSize: "",
   fileType: "",
   fileObject: null,
+  previewUrl: "",
   delPagesChecked: { checked: false, disabled: "disabled", message: "" },
   delPagesText: { text: "", disabled: false, message: "" },
   fileFlag: false,

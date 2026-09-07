@@ -12,16 +12,6 @@
  */
 
 /**
- * PDFプレビューAPI用のmultipart payloadを生成する。
- *
- * @param {File} fileObject プレビュー対象PDF
- * @returns {{key: string, value: unknown}[]} multipart payload
- */
-const buildPreviewPayload = (fileObject) => {
-  return [{ key: "originalFile", value: fileObject }];
-};
-
-/**
  * PDFメタデータAPI用のmultipart payloadを生成する。
  *
  * @param {File} fileObject メタデータ取得対象PDF
@@ -151,7 +141,6 @@ const buildInsertPayload = (originalFile, deletePages, insertFiles) => {
 };
 
 export default {
-  buildPreviewPayload,
   buildMetadataPayload,
   buildTextPayload,
   buildMarkdownDraftPayload,

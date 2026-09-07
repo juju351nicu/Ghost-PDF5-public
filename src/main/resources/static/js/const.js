@@ -10,7 +10,6 @@ const DELIMITER = {
  * PDF / Markdown操作APIのURL。
  */
 const REST_PATH = {
-  SHOW_PDF: "/showPdf",
   METADATA_PDF: "/metadataPdf",
   TEXT_PDF: "/textPdf",
   MARKDOWN_DRAFT_PDF: "/markdownDraftPdf",

@@ -30,21 +30,33 @@ const buildPdfSizeLimitMessage = (fileObject) => {
     "「" +
     fileObject.name +
     "」は " +
-    formatMegabytes(fileObject.size) +
+    formatExceededMegabytes(fileObject.size) +
     "MB です。アップロードできるPDFは1ファイル " +
-    formatMegabytes(CONST.FILE_SIZE.MAX_PDF_BYTES) +
+    formatLimitMegabytes(CONST.FILE_SIZE.MAX_PDF_BYTES) +
     "MB 未満です。ページを分割してから指定してください。"
   );
 };
 
 /**
- * byte数をMB表記へ整形する。
+ * 超過したファイルサイズをMB表記へ整形する。
+ *
+ * 上限をわずかに超えた場合に上限と同じ表記になると矛盾して見えるため、小数第1位へ切り上げる。
  *
  * @param {number} bytes byte数
- * @returns {string} 小数第1位までのMB表記
+ * @returns {string} 小数第1位まで切り上げたMB表記
  */
-const formatMegabytes = (bytes) => {
-  return (bytes / BYTES_PER_MEGABYTE).toFixed(1);
+const formatExceededMegabytes = (bytes) => {
+  return (Math.ceil((bytes / BYTES_PER_MEGABYTE) * 10) / 10).toFixed(1);
+};
+
+/**
+ * 上限サイズをMB表記へ整形する。
+ *
+ * @param {number} bytes byte数
+ * @returns {string} 小数を含まないMB表記
+ */
+const formatLimitMegabytes = (bytes) => {
+  return String(Math.floor(bytes / BYTES_PER_MEGABYTE));
 };
 
 export default {

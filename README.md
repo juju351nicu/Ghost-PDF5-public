@@ -128,6 +128,12 @@ Public repository化後も、当面はlocal development / portfolio用途を前�
 - `pdf-app.js` の差し込みページvalidationをhelper methodへ切り出し、JSDocを追加
 - `CodingConventionTest` にVue template / HTMLの `button type` / `v-for key` / inline style再混入検知を追加
 - `rest.js` を責務が分かる `api/fetch-client.js` へ移動
+- アップロードサイズ上限を `PdfConstants.MAX_PDF_FILE_SIZE_BYTES`（20MB）へ集約し、multipart / Tomcat設定と噛み合わせて超過時に413を画面へ返すよう修正
+  - 以前は `application.yml` の10MBが先に効き、Tomcatが接続を切るためブラウザには `Failed to fetch` しか出なかった
+  - FEの `validation/file-size-validator.js` で送信前に停止し、`FrontendUploadSizeContractTest` でFE / コンテナ / BEの値の整合を固定
+- 編集元PDFのプレビューを `/showPdf` へのアップロード往復から、ローカルObject URLのiframe表示へ変更
+  - ページ番号を指定する加工機能では入力PDFを見られることが前提のため、カード内に表示枠と「別タブで開く」を用意
+  - `FrontendPdfPreviewContractTest` でプレビューのためにアップロードしないことを固定
 - `const.js` のJSDocとフォーマットをES Modules側の書き方へ統一
 - `util.js` の互換関数を維持したままJSDocと保存キー定数を整理
 - `typingGame` のutility設計を参考に、`util.js` のlocalStorage操作安全化とブラウザ判定を整理
@@ -328,8 +334,9 @@ Markdown保存を含むJava 25の全286テストが成功しています。
   - TypeScript は API client、入力フォーム、エラー表示を型で守りたくなった段階で導入を検討する。
   - Vuetify などのUIライブラリは、Vite + TypeScript の足場が安定した後に検討する。
 - `pdf.js` 導入は当分先にする。
-  - 現状のPDF表示はブラウザ標準のPDF表示とPDF/ZIPレスポンスで足りる。
-  - ページサムネイル、ページ単位選択、範囲指定UI、テキストレイヤー、注釈表示などが必要になった段階で検討する。
+  - 編集元PDFはブラウザ標準ビューアをiframeで表示しており、ページ番号とサムネイルはその機能で確認できる。
+  - クリックでページ選択、範囲指定UI、テキストレイヤー、注釈表示が必要になった段階で検討する。
+  - サムネイル一覧からのページ選択は、`PDFRenderer` で低DPIのページ画像を返すendpointでも実装できるため、pdf.jsは必須ではない。
 - APIが増えた場合、`typingGame/src/utils/fetchClient.ts` / `apiErrorUtils.ts` を参考に、
   `HttpError` の導入を検討する。
   - 現状のGhost-PDF5はPDF API中心のため、`api/fetch-client.js` / `api/pdf-api-client.js` / `api/api-error-utils.js` の分離で十分。
