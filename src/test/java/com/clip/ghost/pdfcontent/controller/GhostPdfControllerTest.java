@@ -37,6 +37,7 @@ import org.springframework.web.multipart.MultipartException;
 
 import jakarta.servlet.http.Cookie;
 
+import com.clip.ghost.pdfcontent.constant.PdfConstants;
 import com.clip.ghost.pdfcontent.dto.InsertPdfRequest;
 import com.clip.ghost.pdfcontent.dto.OriginalPdfRequest;
 import com.clip.ghost.pdfcontent.dto.PdfMetadataResponse;
@@ -82,7 +83,6 @@ class GhostPdfControllerTest {
 	private static final String INSERT_PAGE_PARAM_NAME_0 = "insertPdfForm[0].insertPage";
 	private static final String INSERT_OPTION_PARAM_NAME_0 = "insertPdfForm[0].insertOption";
 	private static final int COOKIE_MAX_AGE_SECONDS = 365 * 24 * 60 * 60;
-	private static final long MAX_PDF_FILE_SIZE_BYTES = 20_559_957L;
 
 	private GhostPdfController controller;
 
@@ -768,7 +768,7 @@ class GhostPdfControllerTest {
 		return new MockMultipartFile(ORIGINAL_FILE_PART_NAME, "", MediaType.APPLICATION_PDF_VALUE, contents) {
 			@Override
 			public long getSize() {
-				return MAX_PDF_FILE_SIZE_BYTES;
+				return PdfConstants.MAX_PDF_FILE_SIZE_BYTES;
 			}
 		};
 	}
@@ -777,7 +777,7 @@ class GhostPdfControllerTest {
 		return new MockMultipartFile(INSERT_FILE_PART_NAME_0, "", MediaType.APPLICATION_PDF_VALUE, contents) {
 			@Override
 			public long getSize() {
-				return MAX_PDF_FILE_SIZE_BYTES;
+				return PdfConstants.MAX_PDF_FILE_SIZE_BYTES;
 			}
 		};
 	}

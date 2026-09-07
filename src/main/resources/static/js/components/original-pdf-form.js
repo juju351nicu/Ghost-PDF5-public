@@ -15,6 +15,7 @@ export default {
   },
   emits: [
     "file-change",
+    "request-open-original-pdf",
     "request-delete-pdf",
     "request-extract-pdf",
     "request-markdown-draft-pdf",
@@ -29,6 +30,14 @@ export default {
       <div class="pdf-card__body">
         <div class="file-control">
           <input type="file" @change="handleFileChange($event)" accept=".pdf" />
+        </div>
+        <div class="pdf-card__preview" v-if="originalFile.previewUrl">
+          <div class="pdf-card__preview-head">
+            <span>{{ originalFile.fileName }}</span>
+            <button type="button" @click="requestOpenOriginalPdf">別タブで開く</button>
+          </div>
+          <iframe class="pdf-card__preview-frame" :src="originalFile.previewUrl"
+            title="選択した編集元PDFのプレビュー"></iframe>
         </div>
         <div class="pdf-action-row">
           <input type="checkbox" v-model="originalFile.delPagesChecked.checked"
@@ -77,6 +86,12 @@ export default {
      */
     handleFileChange(event) {
       this.$emit("file-change", event);
+    },
+    /**
+     * 選択中の編集元PDFを別タブで開くリクエストを親コンポーネントへ通知する。
+     */
+    requestOpenOriginalPdf() {
+      this.$emit("request-open-original-pdf");
     },
     /**
      * 削除ページ入力欄からフォーカスが外れた時に入力値を検証する。

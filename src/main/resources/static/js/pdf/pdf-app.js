@@ -7,12 +7,14 @@ import OriginalPdfForm from "../components/original-pdf-form.js";
 import InsertPdfRow from "../components/insert-pdf-row.js";
 import ImageOcrForm from "../components/image-ocr-form.js";
 import PdfApiClient from "../api/pdf-api-client.js";
+import FileResponseHandler from "../api/file-response-handler.js";
 import ImageApiClient from "../api/image-api-client.js";
 import MarkdownApiClient from "../api/markdown-api-client.js";
 import PdfPayload from "../api/pdf-payload.js";
 import ImagePayload from "../api/image-payload.js";
 import PdfFormState from "../models/pdf-form-state.js";
 import PageNumberValidator from "../validation/page-number-validator.js";
+import FileSizeValidator from "../validation/file-size-validator.js";
 
 const draggable = window["vuedraggable"];
 
@@ -148,6 +150,8 @@ const pdfApp = {
      * 編集元PDFと差し込みPDF行を初期状態へ戻す。
      */
     clearAll() {
+      // 画面状態を作り直す前に、プレビュー用Object URLを解放する。
+      this.clearOriginalPdfPreview();
       this.originalFile = PdfFormState.createOriginalFileState();
       this.pdfMetadata = PdfFormState.createPdfMetadataState();
       // 既存仕様に合わせ、全クリア後は削除ページ入力欄をdisabled扱いに戻す。
@@ -185,18 +189,60 @@ const pdfApp = {
       if (Util.isEmpty(fileObject)) {
         return;
       }
+      if (!FileSizeValidator.isWithinPdfSizeLimit(fileObject)) {
+        // 上限超過はサーバーへ送らずここで止める。送るとTomcatが上限検知時に接続を切るため、
+        // ブラウザには413ではなく理由の分からないネットワークエラーだけが残る。
+        this.errorMessages = [
+          FileSizeValidator.buildPdfSizeLimitMessage(fileObject),
+        ];
+        this.showMessageModal();
+        // 受け付けなかったファイル名が選択欄に残ると、保持中のPDFと表示が食い違うため戻す。
+        event.target.value = "";
+        return;
+      }
       if (index !== -1) {
         this.insertFiles[index].fileObject = fileObject;
         this.insertFiles[index].fileName = fileObject.name;
-      } else {
-        this.originalFile.fileObject = fileObject;
-        this.originalFile.fileName = fileObject.name;
-        this.pdfMetadata = PdfFormState.createPdfMetadataState();
+        // 差し込みPDFはカード内に表示枠を持たないため、従来どおり別タブで開く。
+        FileResponseHandler.openPdfBlob(fileObject);
+        return;
       }
-      this.requestPdfAndOpen(
-        CONST.REST_PATH.SHOW_PDF,
-        PdfPayload.buildPreviewPayload(fileObject)
-      );
+      this.originalFile.fileObject = fileObject;
+      this.originalFile.fileName = fileObject.name;
+      this.pdfMetadata = PdfFormState.createPdfMetadataState();
+      this.updateOriginalPdfPreview(fileObject);
+    },
+    /**
+     * 編集元PDFのプレビュー用Object URLを差し替える。
+     *
+     * ローカルのFileをそのまま表示するため、プレビューのためにPDFをアップロードしない。
+     * 以前のURLはメモリを掴み続けるため、差し替え前に必ず解放する。
+     *
+     * @param {File} fileObject 選択された編集元PDF
+     */
+    updateOriginalPdfPreview(fileObject) {
+      this.clearOriginalPdfPreview();
+      this.originalFile.previewUrl = URL.createObjectURL(fileObject);
+    },
+    /**
+     * 編集元PDFのプレビュー用Object URLを解放する。
+     */
+    clearOriginalPdfPreview() {
+      if (!Util.isEmpty(this.originalFile.previewUrl)) {
+        URL.revokeObjectURL(this.originalFile.previewUrl);
+        this.originalFile.previewUrl = "";
+      }
+    },
+    /**
+     * 選択中の編集元PDFを別タブで開く。
+     *
+     * カード内の表示枠では小さいページを確認しづらいため、大きく見る導線を用意する。
+     */
+    openOriginalPdfInNewTab() {
+      if (Util.isEmpty(this.originalFile.fileObject)) {
+        return;
+      }
+      FileResponseHandler.openPdfBlob(this.originalFile.fileObject);
     },
     /**
      * 編集元PDFから指定ページを削除し、生成されたPDFを別タブで開く。

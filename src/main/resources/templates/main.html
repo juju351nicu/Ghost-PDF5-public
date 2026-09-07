@@ -26,6 +26,7 @@
 				:pdf-metadata="pdfMetadata"
 				:is-processing="isProcessing"
 				@file-change="handlePdfFileChange($event, -1)"
+				@request-open-original-pdf="openOriginalPdfInNewTab"
 				@request-delete-pdf="requestDeletePdf"
 					@request-extract-pdf="requestExtractPdf"
 					@request-markdown-draft-pdf="requestMarkdownDraftPdf"

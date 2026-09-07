@@ -21,6 +21,16 @@ public final class PdfConstants {
 	/** 画面・内部処理で扱う最初のページ番号。 */
 	public static final int START_PAGE = 1;
 
+	/**
+	 * アップロードを許容するPDF 1ファイルの上限（byte）。この値以上は413で拒否する。
+	 * <p>
+	 * 利用者から見える上限をこの1箇所に集約する。{@code spring.servlet.multipart.max-file-size} は
+	 * この値より大きく設定し、コンテナが接続を切る前にアプリ側が413を返せるようにする。
+	 * フロントエンドの {@code const.js} の {@code FILE_SIZE.MAX_PDF_BYTES} は同じ値を保つ
+	 * （`FrontendUploadSizeContractTest` が一致を検証する）。
+	 */
+	public static final long MAX_PDF_FILE_SIZE_BYTES = 20_971_520L;
+
 	/** 差し込みオプション: 対象ページの後に差し込む。 */
 	public static final int OPTION_INSERT = 1;
 
