@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.clip.ghost.common.response.ApiResult;
 import com.clip.ghost.imagecontent.exception.OcrUnavailableException;
 import com.clip.ghost.imagecontent.logic.ImageConverterResolver;
 import com.clip.ghost.imagecontent.logic.ImageToMarkdownConverter;
@@ -50,11 +51,11 @@ public class PdfMarkdownDraftService {
 	 * @return PDF情報、ページ単位テキスト、Markdown下書きを含むレスポンス
 	 * @throws OcrUnavailableException AUTOモードで画像変換が無効、またはproviderが未対応の場合
 	 */
-	public ResponseEntity<PdfMarkdownDraftResponse> generateMarkdownDraft(PdfMarkdownDraftRequest form) {
+	public ResponseEntity<ApiResult<PdfMarkdownDraftResponse>> generateMarkdownDraft(PdfMarkdownDraftRequest form) {
 		MultipartFile originalFile = form.getOriginalFile();
 		List<PdfMarkdownDraftPageResponse> pages = isAutoMode(form.getMode()) ? buildAutoPages(originalFile)
 				: buildTextPages(originalFile);
-		return ResponseEntity.ok(buildResponse(originalFile, pages));
+		return ResponseEntity.ok(ApiResult.of(buildResponse(originalFile, pages)));
 	}
 
 	/**

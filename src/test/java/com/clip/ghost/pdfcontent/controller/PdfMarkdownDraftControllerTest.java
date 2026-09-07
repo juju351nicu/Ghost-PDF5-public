@@ -1,12 +1,16 @@
 package com.clip.ghost.pdfcontent.controller;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+
+import java.nio.charset.StandardCharsets;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -26,9 +30,13 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import com.clip.ghost.common.exceptions.handler.ControllerValidationErrorHandler;
 import com.clip.ghost.common.exceptions.handler.GlobalExceptionErrorHandler;
 import com.clip.ghost.common.security.AccessTokenValidator;
+import com.clip.ghost.common.response.ApiResult;
 import com.clip.ghost.pdfcontent.dto.PdfMarkdownDraftRequest;
 import com.clip.ghost.pdfcontent.dto.PdfMarkdownDraftResponse;
 import com.clip.ghost.pdfcontent.service.PdfMarkdownDraftService;
+
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * {@link PdfMarkdownDraftController} のHTTP endpoint、token検証、validation入口を検証するテスト。
@@ -64,7 +72,7 @@ class PdfMarkdownDraftControllerTest {
 		MockMultipartFile originalFile = createOriginalPdfFile();
 		PdfMarkdownDraftResponse response = new PdfMarkdownDraftResponse();
 		response.setFileName("sample.pdf");
-		doReturn(ResponseEntity.ok(response)).when(markdownDraftService)
+		doReturn(ResponseEntity.ok(ApiResult.of(response))).when(markdownDraftService)
 				.generateMarkdownDraft(any(PdfMarkdownDraftRequest.class));
 
 		MvcResult result = performRequest(originalFile, ACCESS_TOKEN, session);
@@ -72,6 +80,7 @@ class PdfMarkdownDraftControllerTest {
 		verify(markdownDraftService, times(1)).generateMarkdownDraft(any(PdfMarkdownDraftRequest.class));
 		assertEquals(HttpStatus.OK.value(), result.getResponse().getStatus());
 		assertEquals(MediaType.APPLICATION_JSON_VALUE, result.getResponse().getContentType());
+		assertApiResultEnvelope(result);
 	}
 
 	@Test
@@ -154,4 +163,21 @@ class PdfMarkdownDraftControllerTest {
 			}
 		};
 	}
+
+	/**
+	 * 成功レスポンスが共通ラッパー（data / resultType / messageList）の形であることを確認する。
+	 *
+	 * @param result HTTP実行結果
+	 * @return ラッパー内のdataノード
+	 * @throws Exception レスポンス本文を読み取れない場合
+	 */
+	private JsonNode assertApiResultEnvelope(MvcResult result) throws Exception {
+		JsonNode body = new ObjectMapper().readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8));
+		assertEquals("INFO", body.path("resultType").asString());
+		assertTrue(body.path("messageList").isArray());
+		assertEquals(0, body.path("messageList").size());
+		assertFalse(body.path("data").isMissingNode());
+		return body.path("data");
+	}
+
 }

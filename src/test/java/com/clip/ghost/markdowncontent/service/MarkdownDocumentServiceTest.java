@@ -21,6 +21,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.clip.ghost.common.response.ApiResult;
+import com.clip.ghost.common.response.ApiResultType;
 import com.clip.ghost.markdowncontent.dto.MarkdownDeleteResponse;
 import com.clip.ghost.markdowncontent.dto.MarkdownDocumentResponse;
 import com.clip.ghost.markdowncontent.dto.MarkdownFileResponse;
@@ -63,11 +65,14 @@ class MarkdownDocumentServiceTest {
 		MarkdownDocumentService service = new MarkdownDocumentService(tempDir.toString());
 		MarkdownSaveRequest request = createRequest("design-note", "# Title\nbody");
 
-		ResponseEntity<MarkdownFileResponse> response = service.saveMarkdown(request);
+		ResponseEntity<ApiResult<MarkdownFileResponse>> response = service.saveMarkdown(request);
 
 		Path savedPath = tempDir.resolve("design-note.md");
-		MarkdownFileResponse body = response.getBody();
+		MarkdownFileResponse body = extractData(response);
 		assertEquals(HttpStatus.OK, response.getStatusCode());
+		// 共通ラッパーの既定値（INFO・メッセージ空）を1本で固定する。
+		assertEquals(ApiResultType.INFO, response.getBody().getResultType());
+		assertTrue(response.getBody().getMessageList().isEmpty());
 		assertTrue(Files.isRegularFile(savedPath));
 		assertEquals("# Title\nbody", Files.readString(savedPath, StandardCharsets.UTF_8));
 		assertNotNull(body);
@@ -93,10 +98,10 @@ class MarkdownDocumentServiceTest {
 		MarkdownDocumentService service = new MarkdownDocumentService(tempDir.toString());
 		MarkdownSaveRequest request = createRequest("empty-content.md", null);
 
-		ResponseEntity<MarkdownFileResponse> response = service.saveMarkdown(request);
+		ResponseEntity<ApiResult<MarkdownFileResponse>> response = service.saveMarkdown(request);
 
 		Path savedPath = tempDir.resolve("empty-content.md");
-		MarkdownFileResponse body = response.getBody();
+		MarkdownFileResponse body = extractData(response);
 		assertEquals(HttpStatus.OK, response.getStatusCode());
 		assertTrue(Files.isRegularFile(savedPath));
 		assertEquals("", Files.readString(savedPath, StandardCharsets.UTF_8));
@@ -113,9 +118,9 @@ class MarkdownDocumentServiceTest {
 		MarkdownDocumentService service = new MarkdownDocumentService(tempDir.toString());
 		MarkdownSaveRequest request = createRequest("../unsafe:name.txt", "body");
 
-		ResponseEntity<MarkdownFileResponse> response = service.saveMarkdown(request);
+		ResponseEntity<ApiResult<MarkdownFileResponse>> response = service.saveMarkdown(request);
 
-		MarkdownFileResponse body = response.getBody();
+		MarkdownFileResponse body = extractData(response);
 		assertNotNull(body);
 		assertEquals("unsafe_name.md", body.getFileName());
 		assertTrue(Files.isRegularFile(tempDir.resolve("unsafe_name.md")));
@@ -127,9 +132,9 @@ class MarkdownDocumentServiceTest {
 		MarkdownDocumentService service = new MarkdownDocumentService(tempDir.toString());
 		MarkdownSaveRequest request = createRequest("  design-note.md  ", "body");
 
-		ResponseEntity<MarkdownFileResponse> response = service.saveMarkdown(request);
+		ResponseEntity<ApiResult<MarkdownFileResponse>> response = service.saveMarkdown(request);
 
-		MarkdownFileResponse body = response.getBody();
+		MarkdownFileResponse body = extractData(response);
 		assertNotNull(body);
 		assertEquals("design-note.md", body.getFileName());
 		assertTrue(Files.isRegularFile(tempDir.resolve("design-note.md")));
@@ -141,9 +146,9 @@ class MarkdownDocumentServiceTest {
 		MarkdownDocumentService service = new MarkdownDocumentService(tempDir.toString());
 		MarkdownSaveRequest request = createRequest(null, "body");
 
-		ResponseEntity<MarkdownFileResponse> response = service.saveMarkdown(request);
+		ResponseEntity<ApiResult<MarkdownFileResponse>> response = service.saveMarkdown(request);
 
-		MarkdownFileResponse body = response.getBody();
+		MarkdownFileResponse body = extractData(response);
 		assertEquals(HttpStatus.OK, response.getStatusCode());
 		assertNotNull(body);
 		assertEquals("document.md", body.getFileName());
@@ -156,9 +161,9 @@ class MarkdownDocumentServiceTest {
 		MarkdownDocumentService service = new MarkdownDocumentService(tempDir.toString());
 		MarkdownSaveRequest request = createRequest("   ", "body");
 
-		ResponseEntity<MarkdownFileResponse> response = service.saveMarkdown(request);
+		ResponseEntity<ApiResult<MarkdownFileResponse>> response = service.saveMarkdown(request);
 
-		MarkdownFileResponse body = response.getBody();
+		MarkdownFileResponse body = extractData(response);
 		assertEquals(HttpStatus.OK, response.getStatusCode());
 		assertNotNull(body);
 		assertEquals("document.md", body.getFileName());
@@ -172,9 +177,9 @@ class MarkdownDocumentServiceTest {
 		MarkdownDocumentService service = new MarkdownDocumentService(storageDirectory.toString());
 		MarkdownSaveRequest request = createRequest("design-note.md", "body");
 
-		ResponseEntity<MarkdownFileResponse> response = service.saveMarkdown(request);
+		ResponseEntity<ApiResult<MarkdownFileResponse>> response = service.saveMarkdown(request);
 
-		MarkdownFileResponse body = response.getBody();
+		MarkdownFileResponse body = extractData(response);
 		assertEquals(HttpStatus.OK, response.getStatusCode());
 		assertTrue(Files.isDirectory(storageDirectory));
 		assertTrue(Files.isRegularFile(storageDirectory.resolve("design-note.md")));
@@ -210,9 +215,9 @@ class MarkdownDocumentServiceTest {
 		Files.writeString(nestedDir.resolve("nested.md"), "nested", StandardCharsets.UTF_8);
 		createSymbolicLinkOrSkip(tempDir.resolve("linked.md"), nestedDir.resolve("nested.md"));
 
-		ResponseEntity<List<MarkdownFileResponse>> response = service.listMarkdownFiles();
+		ResponseEntity<ApiResult<List<MarkdownFileResponse>>> response = service.listMarkdownFiles();
 
-		List<MarkdownFileResponse> files = response.getBody();
+		List<MarkdownFileResponse> files = extractData(response);
 		assertEquals(HttpStatus.OK, response.getStatusCode());
 		assertNotNull(files);
 		assertEquals(List.of("a.MD", "b.md"), files.stream().map(MarkdownFileResponse::getFileName).toList());
@@ -226,9 +231,9 @@ class MarkdownDocumentServiceTest {
 		Path storageDirectory = tempDir.resolve("missing").resolve("markdown");
 		MarkdownDocumentService service = new MarkdownDocumentService(storageDirectory.toString());
 
-		ResponseEntity<List<MarkdownFileResponse>> response = service.listMarkdownFiles();
+		ResponseEntity<ApiResult<List<MarkdownFileResponse>>> response = service.listMarkdownFiles();
 
-		List<MarkdownFileResponse> files = response.getBody();
+		List<MarkdownFileResponse> files = extractData(response);
 		assertEquals(HttpStatus.OK, response.getStatusCode());
 		assertNotNull(files);
 		assertTrue(files.isEmpty());
@@ -242,9 +247,9 @@ class MarkdownDocumentServiceTest {
 		Path markdownPath = tempDir.resolve("design-note.md");
 		Files.writeString(markdownPath, "# Title\nbody", StandardCharsets.UTF_8);
 
-		ResponseEntity<MarkdownDocumentResponse> response = service.getMarkdownFile("design-note.md");
+		ResponseEntity<ApiResult<MarkdownDocumentResponse>> response = service.getMarkdownFile("design-note.md");
 
-		MarkdownDocumentResponse body = response.getBody();
+		MarkdownDocumentResponse body = extractData(response);
 		assertEquals(HttpStatus.OK, response.getStatusCode());
 		assertNotNull(body);
 		assertEquals("design-note.md", body.getFileName());
@@ -261,9 +266,9 @@ class MarkdownDocumentServiceTest {
 		Path markdownPath = tempDir.resolve("design-note.md");
 		Files.writeString(markdownPath, "body", StandardCharsets.UTF_8);
 
-		ResponseEntity<MarkdownDocumentResponse> response = service.getMarkdownFile("  design-note.md  ");
+		ResponseEntity<ApiResult<MarkdownDocumentResponse>> response = service.getMarkdownFile("  design-note.md  ");
 
-		MarkdownDocumentResponse body = response.getBody();
+		MarkdownDocumentResponse body = extractData(response);
 		assertEquals(HttpStatus.OK, response.getStatusCode());
 		assertNotNull(body);
 		assertEquals("design-note.md", body.getFileName());
@@ -328,9 +333,9 @@ class MarkdownDocumentServiceTest {
 				"# Title\n\n**bold**\n\n<script>alert('x')</script>\n\n[bad](javascript:alert(1))",
 				StandardCharsets.UTF_8);
 
-		ResponseEntity<MarkdownPreviewResponse> response = service.previewMarkdownFile("design-note.md");
+		ResponseEntity<ApiResult<MarkdownPreviewResponse>> response = service.previewMarkdownFile("design-note.md");
 
-		MarkdownPreviewResponse body = response.getBody();
+		MarkdownPreviewResponse body = extractData(response);
 		assertEquals(HttpStatus.OK, response.getStatusCode());
 		assertNotNull(body);
 		assertEquals("design-note.md", body.getFileName());
@@ -350,9 +355,9 @@ class MarkdownDocumentServiceTest {
 		Path markdownPath = tempDir.resolve("design-note.md");
 		Files.writeString(markdownPath, "# Title", StandardCharsets.UTF_8);
 
-		ResponseEntity<MarkdownPreviewResponse> response = service.previewMarkdownFile("  design-note.md  ");
+		ResponseEntity<ApiResult<MarkdownPreviewResponse>> response = service.previewMarkdownFile("  design-note.md  ");
 
-		MarkdownPreviewResponse body = response.getBody();
+		MarkdownPreviewResponse body = extractData(response);
 		assertEquals(HttpStatus.OK, response.getStatusCode());
 		assertNotNull(body);
 		assertEquals("design-note.md", body.getFileName());
@@ -401,9 +406,9 @@ class MarkdownDocumentServiceTest {
 		MarkdownPreviewRequest request = createPreviewRequest(
 				"# Title\n\n**bold**\n\n<script>alert('x')</script>\n\n[bad](javascript:alert(1))");
 
-		ResponseEntity<MarkdownPreviewContentResponse> response = service.previewMarkdownContent(request);
+		ResponseEntity<ApiResult<MarkdownPreviewContentResponse>> response = service.previewMarkdownContent(request);
 
-		MarkdownPreviewContentResponse body = response.getBody();
+		MarkdownPreviewContentResponse body = extractData(response);
 		assertEquals(HttpStatus.OK, response.getStatusCode());
 		assertNotNull(body);
 		assertTrue(body.getHtml().contains("<h1>Title</h1>"));
@@ -419,9 +424,9 @@ class MarkdownDocumentServiceTest {
 		MarkdownPreviewRequest request = createPreviewRequest(
 				"| 項目 | 判定 |\n| --- | :---: |\n| A-1 | OK |\n\n<script>alert('x')</script>");
 
-		ResponseEntity<MarkdownPreviewContentResponse> response = service.previewMarkdownContent(request);
+		ResponseEntity<ApiResult<MarkdownPreviewContentResponse>> response = service.previewMarkdownContent(request);
 
-		MarkdownPreviewContentResponse body = response.getBody();
+		MarkdownPreviewContentResponse body = extractData(response);
 		assertEquals(HttpStatus.OK, response.getStatusCode());
 		assertNotNull(body);
 		String html = body.getHtml();
@@ -441,9 +446,9 @@ class MarkdownDocumentServiceTest {
 		MarkdownDocumentService service = new MarkdownDocumentService(tempDir.toString());
 		MarkdownPreviewRequest request = createPreviewRequest(null);
 
-		ResponseEntity<MarkdownPreviewContentResponse> response = service.previewMarkdownContent(request);
+		ResponseEntity<ApiResult<MarkdownPreviewContentResponse>> response = service.previewMarkdownContent(request);
 
-		MarkdownPreviewContentResponse body = response.getBody();
+		MarkdownPreviewContentResponse body = extractData(response);
 		assertEquals(HttpStatus.OK, response.getStatusCode());
 		assertNotNull(body);
 		assertEquals("", body.getHtml());
@@ -468,9 +473,9 @@ class MarkdownDocumentServiceTest {
 		Files.writeString(markdownPath, "old", StandardCharsets.UTF_8);
 		MarkdownUpdateRequest request = createUpdateRequest("# Updated\nbody");
 
-		ResponseEntity<MarkdownFileResponse> response = service.updateMarkdownFile("design-note.md", request);
+		ResponseEntity<ApiResult<MarkdownFileResponse>> response = service.updateMarkdownFile("design-note.md", request);
 
-		MarkdownFileResponse body = response.getBody();
+		MarkdownFileResponse body = extractData(response);
 		assertEquals(HttpStatus.OK, response.getStatusCode());
 		assertEquals("# Updated\nbody", Files.readString(markdownPath, StandardCharsets.UTF_8));
 		assertNotNull(body);
@@ -499,9 +504,9 @@ class MarkdownDocumentServiceTest {
 		Files.writeString(markdownPath, "old", StandardCharsets.UTF_8);
 		MarkdownUpdateRequest request = createUpdateRequest(null);
 
-		ResponseEntity<MarkdownFileResponse> response = service.updateMarkdownFile("design-note.md", request);
+		ResponseEntity<ApiResult<MarkdownFileResponse>> response = service.updateMarkdownFile("design-note.md", request);
 
-		MarkdownFileResponse body = response.getBody();
+		MarkdownFileResponse body = extractData(response);
 		assertEquals(HttpStatus.OK, response.getStatusCode());
 		assertEquals("", Files.readString(markdownPath, StandardCharsets.UTF_8));
 		assertNotNull(body);
@@ -519,9 +524,9 @@ class MarkdownDocumentServiceTest {
 		Files.writeString(markdownPath, "old", StandardCharsets.UTF_8);
 		MarkdownUpdateRequest request = createUpdateRequest("updated");
 
-		ResponseEntity<MarkdownFileResponse> response = service.updateMarkdownFile("  design-note.md  ", request);
+		ResponseEntity<ApiResult<MarkdownFileResponse>> response = service.updateMarkdownFile("  design-note.md  ", request);
 
-		MarkdownFileResponse body = response.getBody();
+		MarkdownFileResponse body = extractData(response);
 		assertEquals(HttpStatus.OK, response.getStatusCode());
 		assertEquals("updated", Files.readString(markdownPath, StandardCharsets.UTF_8));
 		assertNotNull(body);
@@ -575,9 +580,9 @@ class MarkdownDocumentServiceTest {
 		Path markdownPath = tempDir.resolve("design-note.md");
 		Files.writeString(markdownPath, "body", StandardCharsets.UTF_8);
 
-		ResponseEntity<MarkdownDeleteResponse> response = service.deleteMarkdownFile("design-note.md");
+		ResponseEntity<ApiResult<MarkdownDeleteResponse>> response = service.deleteMarkdownFile("design-note.md");
 
-		MarkdownDeleteResponse body = response.getBody();
+		MarkdownDeleteResponse body = extractData(response);
 		assertEquals(HttpStatus.OK, response.getStatusCode());
 		assertFalse(Files.exists(markdownPath));
 		assertNotNull(body);
@@ -592,9 +597,9 @@ class MarkdownDocumentServiceTest {
 		Path markdownPath = tempDir.resolve("design-note.md");
 		Files.writeString(markdownPath, "body", StandardCharsets.UTF_8);
 
-		ResponseEntity<MarkdownDeleteResponse> response = service.deleteMarkdownFile("  design-note.md  ");
+		ResponseEntity<ApiResult<MarkdownDeleteResponse>> response = service.deleteMarkdownFile("  design-note.md  ");
 
-		MarkdownDeleteResponse body = response.getBody();
+		MarkdownDeleteResponse body = extractData(response);
 		assertEquals(HttpStatus.OK, response.getStatusCode());
 		assertFalse(Files.exists(markdownPath));
 		assertNotNull(body);
@@ -655,4 +660,17 @@ class MarkdownDocumentServiceTest {
 		request.setContent(content);
 		return request;
 	}
+
+	/**
+	 * 共通ラッパーからレスポンスデータを取り出す。
+	 *
+	 * @param <T>      レスポンスデータの型
+	 * @param response 共通ラッパーを含むレスポンス
+	 * @return ラッパー内のレスポンスデータ
+	 */
+	private <T> T extractData(ResponseEntity<ApiResult<T>> response) {
+		assertNotNull(response.getBody());
+		return response.getBody().getData();
+	}
+
 }

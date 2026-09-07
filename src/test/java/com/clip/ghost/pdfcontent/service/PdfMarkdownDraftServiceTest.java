@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
@@ -30,6 +31,8 @@ import org.springframework.mock.web.MockMultipartFile;
 import com.clip.ghost.imagecontent.exception.OcrUnavailableException;
 import com.clip.ghost.imagecontent.logic.ImageConverterResolver;
 import com.clip.ghost.imagecontent.logic.ImageToMarkdownConverter;
+import com.clip.ghost.common.response.ApiResult;
+import com.clip.ghost.common.response.ApiResultType;
 import com.clip.ghost.pdfcontent.dto.PdfMarkdownDraftPageResponse;
 import com.clip.ghost.pdfcontent.dto.PdfMarkdownDraftRequest;
 import com.clip.ghost.pdfcontent.dto.PdfMarkdownDraftResponse;
@@ -65,9 +68,12 @@ class PdfMarkdownDraftServiceTest {
 		doReturn(inputPath).when(pdfLogic).loadPdf(originalFile);
 		doReturn(List.of("first page", "second page")).when(pdfLogic).extractPdfPageTexts(inputPath);
 
-		ResponseEntity<PdfMarkdownDraftResponse> result = service.generateMarkdownDraft(form);
+		ResponseEntity<ApiResult<PdfMarkdownDraftResponse>> result = service.generateMarkdownDraft(form);
 
-		PdfMarkdownDraftResponse response = result.getBody();
+		assertNotNull(result.getBody());
+		assertEquals(ApiResultType.INFO, result.getBody().getResultType());
+		assertTrue(result.getBody().getMessageList().isEmpty());
+		PdfMarkdownDraftResponse response = result.getBody().getData();
 		assertNotNull(response);
 		assertEquals(HttpStatus.OK, result.getStatusCode());
 		assertEquals("sample.pdf", response.getFileName());
@@ -92,7 +98,7 @@ class PdfMarkdownDraftServiceTest {
 		doReturn(List.of("first\r\nline  \r\n", " \t\r\n", "third\rline\t  ")).when(pdfLogic)
 				.extractPdfPageTexts(inputPath);
 
-		PdfMarkdownDraftResponse response = service.generateMarkdownDraft(form).getBody();
+		PdfMarkdownDraftResponse response = extractData(service.generateMarkdownDraft(form));
 
 		assertNotNull(response);
 		assertPage(response.getPages().get(0), 1, "first\nline");
@@ -116,7 +122,7 @@ class PdfMarkdownDraftServiceTest {
 				.when(pdfLogic).extractPdfPageContents(inputPath, OCR_RENDER_DPI);
 		doReturn("scanned\r\nmarkdown  ").when(converter).convert(any(byte[].class), eq("image/png"));
 
-		PdfMarkdownDraftResponse response = service.generateMarkdownDraft(form).getBody();
+		PdfMarkdownDraftResponse response = extractData(service.generateMarkdownDraft(form));
 
 		assertNotNull(response);
 		assertEquals(2, response.getPageCount());
@@ -137,6 +143,17 @@ class PdfMarkdownDraftServiceTest {
 		assertThrows(OcrUnavailableException.class, () -> service.generateMarkdownDraft(form));
 
 		verify(pdfLogic, never()).loadPdf(any());
+	}
+
+	/**
+	 * 共通ラッパーからレスポンスデータを取り出す。
+	 *
+	 * @param result Markdown下書きレスポンス
+	 * @return ラッパー内のレスポンスデータ
+	 */
+	private PdfMarkdownDraftResponse extractData(ResponseEntity<ApiResult<PdfMarkdownDraftResponse>> result) {
+		assertNotNull(result.getBody());
+		return result.getBody().getData();
 	}
 
 	/**

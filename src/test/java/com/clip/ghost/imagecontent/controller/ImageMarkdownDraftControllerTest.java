@@ -1,6 +1,8 @@
 package com.clip.ghost.imagecontent.controller;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
@@ -8,6 +10,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+
+import java.nio.charset.StandardCharsets;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -27,10 +31,14 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import com.clip.ghost.common.exceptions.handler.ControllerValidationErrorHandler;
 import com.clip.ghost.common.exceptions.handler.GlobalExceptionErrorHandler;
 import com.clip.ghost.common.security.AccessTokenValidator;
+import com.clip.ghost.common.response.ApiResult;
 import com.clip.ghost.imagecontent.dto.ImageMarkdownDraftRequest;
 import com.clip.ghost.imagecontent.dto.ImageMarkdownDraftResponse;
 import com.clip.ghost.imagecontent.exception.OcrUnavailableException;
 import com.clip.ghost.imagecontent.service.ImageMarkdownDraftService;
+
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * {@link ImageMarkdownDraftController} のHTTP endpoint、token検証、validation入口、無効時応答を検証するテスト。
@@ -66,7 +74,7 @@ class ImageMarkdownDraftControllerTest {
 		MockMultipartFile imageFile = createImageFile();
 		ImageMarkdownDraftResponse response = new ImageMarkdownDraftResponse();
 		response.setFileName("shot.png");
-		doReturn(ResponseEntity.ok(response)).when(imageMarkdownDraftService)
+		doReturn(ResponseEntity.ok(ApiResult.of(response))).when(imageMarkdownDraftService)
 				.generateMarkdownDraft(any(ImageMarkdownDraftRequest.class));
 
 		MvcResult result = performRequest(imageFile, ACCESS_TOKEN, session);
@@ -74,6 +82,7 @@ class ImageMarkdownDraftControllerTest {
 		verify(imageMarkdownDraftService, times(1)).generateMarkdownDraft(any(ImageMarkdownDraftRequest.class));
 		assertEquals(HttpStatus.OK.value(), result.getResponse().getStatus());
 		assertEquals(MediaType.APPLICATION_JSON_VALUE, result.getResponse().getContentType());
+		assertApiResultEnvelope(result);
 	}
 
 	@Test
@@ -166,4 +175,21 @@ class ImageMarkdownDraftControllerTest {
 			}
 		};
 	}
+
+	/**
+	 * 成功レスポンスが共通ラッパー（data / resultType / messageList）の形であることを確認する。
+	 *
+	 * @param result HTTP実行結果
+	 * @return ラッパー内のdataノード
+	 * @throws Exception レスポンス本文を読み取れない場合
+	 */
+	private JsonNode assertApiResultEnvelope(MvcResult result) throws Exception {
+		JsonNode body = new ObjectMapper().readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8));
+		assertEquals("INFO", body.path("resultType").asString());
+		assertTrue(body.path("messageList").isArray());
+		assertEquals(0, body.path("messageList").size());
+		assertFalse(body.path("data").isMissingNode());
+		return body.path("data");
+	}
+
 }

@@ -128,6 +128,13 @@ Public repository化後も、当面はlocal development / portfolio用途を前�
 - `pdf-app.js` の差し込みページvalidationをhelper methodへ切り出し、JSDocを追加
 - `CodingConventionTest` にVue template / HTMLの `button type` / `v-for key` / inline style再混入検知を追加
 - `rest.js` を責務が分かる `api/fetch-client.js` へ移動
+- JSON成功レスポンスを共通ラッパー `ApiResult<T>`（`data` / `resultType` / `messageList`）へ統一
+  - 対象はJSONの11本（`metadataPdf` / `textPdf` / `markdownDraftPdf` / `markdownDraftImage` / `saveMarkdown` / `markdownFiles` / `markdownFile` GET・PUT・DELETE / `markdownPreview` GET・POST）
+  - `GET /markdownFiles` はトップレベル配列をやめ、`data` の中を配列にした
+  - バイナリ（PDF / ZIP）・CSV・エラー（`ErrorResponse` の `fieldErrors`）は従来どおり包まない
+  - 「成功したが伝えたいことがある」を返せるよう `resultType` と `messageList` を用意。今フェーズは全エンドポイントが `INFO` + 空リストで、実際の利用は次フェーズ
+  - FEはラッパーの構造を `api/api-result-utils.js` だけで解釈し、他ファイルからの参照は `CodingConventionTest` で検出
+  - `OpenApiDocumentationTest` で11本すべての200が `ApiResult〇〇` schemaになり、`data` が用途別Responseを指すことを固定
 - `const.js` のJSDocとフォーマットをES Modules側の書き方へ統一
 - `util.js` の互換関数を維持したままJSDocと保存キー定数を整理
 - `typingGame` のutility設計を参考に、`util.js` のlocalStorage操作安全化とブラウザ判定を整理
@@ -334,11 +341,9 @@ Markdown保存を含むJava 25の全286テストが成功しています。
   `HttpError` の導入を検討する。
   - 現状のGhost-PDF5はPDF API中心のため、`api/fetch-client.js` / `api/pdf-api-client.js` / `api/api-error-utils.js` の分離で十分。
   - 複数APIでエラー表示がさらに増えた時点で、例外型やHTTP status別メッセージへの変換を拡張する。
-- JSON APIの成功レスポンス共通化は今すぐ導入しない。
-  - PDF/ZIPなどのバイナリレスポンスは `ApiResult<T>` のような共通JSONで包まない。
-  - 将来JSON APIが増え、`data` / `resultType` / `messageList` のような共通構造が必要になった時点で、名称は `CommonResponse` ではなく `ApiResult<T>` を候補にする。
-  - 導入候補になる場面は、PDF処理履歴、ジョブ状態確認、Markdown変換結果、AI要約結果、設定保存結果、複数画面/APIで同じ成功メッセージを返したくなった時。
-  - `ApiResult<T>` の雛形と構造案は [コーディング規約](docs/coding-guidelines.md) に将来案として記載する。
+- JSON APIの成功レスポンス共通化は `ApiResult<T>` として導入済み（下記「実施済み」参照）。
+  - `messageList` の実際の利用（`mode=AUTO` で変換に失敗したページの通知など）と、その画面表示導線は次フェーズ。
+  - PDF/ZIP/CSVなどのバイナリレスポンスは引き続き共通JSONで包まない。
   - `JsonUtils` はJSON文字列変換・parse用の補助であり、APIレスポンス共通化とは責務を分ける。
 - PDF基本API拡張は、資料のPhase 1に沿って `metadataPdf`、ページ抽出、PDF結合、1ページずつのPDF分割を追加済み。
   - 指定範囲ごとの分割は、画面入力とAPI仕様を整理してから検討する。

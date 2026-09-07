@@ -40,7 +40,10 @@ class FrontendMarkdownDraftContractTest {
 				() -> assertTrue(payload.contains("const buildMarkdownDraftPayload")),
 				() -> assertTrue(apiClient.contains("const requestPdfMarkdownDraft")),
 				() -> assertTrue(pdfApp.contains("PdfApiClient.requestPdfMarkdownDraft(")),
-				() -> assertTrue(pdfApp.contains("this.markdownContent = draftResponse.markdown || \"\";")));
+				() -> assertTrue(pdfApp.contains("this.markdownContent = draftResponse.markdown || \"\";")),
+				// 成功レスポンスは共通ラッパー越しに読む。ラッパーの解釈はapi-result-utils.jsへ閉じる。
+				() -> assertTrue(apiClient.contains("ApiResultUtils.readApiResult(response)")),
+				() -> assertTrue(apiClient.contains("markdownDraftResponse: apiResult.data")));
 	}
 
 	/**

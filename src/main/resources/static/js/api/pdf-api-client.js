@@ -1,6 +1,7 @@
 import FetchClient from "./fetch-client.js";
 import FileResponseHandler from "./file-response-handler.js";
 import ApiErrorUtils from "./api-error-utils.js";
+import ApiResultUtils from "./api-result-utils.js";
 
 const PDF_ERROR_MESSAGE =
   "PDF処理に失敗しました。入力内容を確認してください。";
@@ -47,21 +48,24 @@ const requestFileAndDownload = async (url, payload, defaultFileName) => {
  *
  * @param {string} url PDFメタデータAPIのURL
  * @param {{key: string, value: unknown}[]} payload multipart formとして送信する値
- * @returns {Promise<{metadata: Object|null, errorMessages: string[]}>} PDFメタデータ取得結果
+ * @returns {Promise<{metadata: Object|null, messages: Object[], errorMessages: string[]}>} PDFメタデータ取得結果
  */
 const requestPdfMetadata = async (url, payload) => {
   const response = await FetchClient.multipartRequest(url, payload);
   if (!response.ok) {
     return {
       metadata: null,
+      messages: [],
       errorMessages: await ApiErrorUtils.extractErrorMessages(
         response,
         PDF_ERROR_MESSAGE
       ),
     };
   }
+  const apiResult = await ApiResultUtils.readApiResult(response);
   return {
-    metadata: await response.json(),
+    metadata: apiResult.data,
+    messages: apiResult.messages,
     errorMessages: [],
   };
 };
@@ -71,21 +75,24 @@ const requestPdfMetadata = async (url, payload) => {
  *
  * @param {string} url PDFテキスト抽出APIのURL
  * @param {{key: string, value: unknown}[]} payload multipart formとして送信する値
- * @returns {Promise<{textResponse: Object|null, errorMessages: string[]}>} PDFテキスト抽出結果
+ * @returns {Promise<{textResponse: Object|null, messages: Object[], errorMessages: string[]}>} PDFテキスト抽出結果
  */
 const requestPdfText = async (url, payload) => {
   const response = await FetchClient.multipartRequest(url, payload);
   if (!response.ok) {
     return {
       textResponse: null,
+      messages: [],
       errorMessages: await ApiErrorUtils.extractErrorMessages(
         response,
         PDF_ERROR_MESSAGE
       ),
     };
   }
+  const apiResult = await ApiResultUtils.readApiResult(response);
   return {
-    textResponse: await response.json(),
+    textResponse: apiResult.data,
+    messages: apiResult.messages,
     errorMessages: [],
   };
 };
@@ -95,21 +102,24 @@ const requestPdfText = async (url, payload) => {
  *
  * @param {string} url Markdown下書きAPIのURL
  * @param {{key: string, value: unknown}[]} payload multipart formとして送信する値
- * @returns {Promise<{markdownDraftResponse: Object|null, errorMessages: string[]}>} Markdown下書き生成結果
+ * @returns {Promise<{markdownDraftResponse: Object|null, messages: Object[], errorMessages: string[]}>} Markdown下書き生成結果
  */
 const requestPdfMarkdownDraft = async (url, payload) => {
   const response = await FetchClient.multipartRequest(url, payload);
   if (!response.ok) {
     return {
       markdownDraftResponse: null,
+      messages: [],
       errorMessages: await ApiErrorUtils.extractErrorMessages(
         response,
         PDF_ERROR_MESSAGE
       ),
     };
   }
+  const apiResult = await ApiResultUtils.readApiResult(response);
   return {
-    markdownDraftResponse: await response.json(),
+    markdownDraftResponse: apiResult.data,
+    messages: apiResult.messages,
     errorMessages: [],
   };
 };

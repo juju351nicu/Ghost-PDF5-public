@@ -21,6 +21,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.clip.ghost.common.exceptions.ErrorResponse;
+import com.clip.ghost.common.response.ApiResult;
 import com.clip.ghost.common.security.AccessTokenValidator;
 import com.clip.ghost.pdfcontent.dto.ExtractPdfRequest;
 import com.clip.ghost.pdfcontent.dto.InsertPdfRequest;
@@ -125,14 +126,14 @@ public class GhostPdfController {
 	 */
 	@Operation(summary = "PDFメタデータ取得", description = "アップロードされたPDFのファイル名、サイズ、ページ数、暗号化有無を返却します。", requestBody = @RequestBody(content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE, schema = @Schema(implementation = OriginalPdfRequest.class))))
 	@ApiResponses({
-			@ApiResponse(responseCode = "200", description = "PDFメタデータ", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = PdfMetadataResponse.class))),
+			@ApiResponse(responseCode = "200", description = "PDFメタデータ"),
 			@ApiResponse(responseCode = "400", description = "入力値が不正です。", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
 			@ApiResponse(responseCode = "403", description = "access-tokenが不正です。"),
 			@ApiResponse(responseCode = "413", description = "アップロードファイルサイズが上限を超えています。", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
 			@ApiResponse(responseCode = "500", description = "PDF処理に失敗しました。", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))) })
 	@PostMapping(value = "/metadataPdf", produces = MediaType.APPLICATION_JSON_VALUE)
 	@ResponseBody
-	public ResponseEntity<PdfMetadataResponse> getPdfMetadata(
+	public ResponseEntity<ApiResult<PdfMetadataResponse>> getPdfMetadata(
 			@Parameter(name = ACCESS_TOKEN_HEADER_NAME, in = ParameterIn.HEADER, required = true, description = ACCESS_TOKEN_HEADER_DESCRIPTION) @RequestHeader(ACCESS_TOKEN_HEADER_NAME) String accessToken,
 			@Valid @ModelAttribute OriginalPdfRequest form, HttpSession session) {
 		LOGGER.info("PDFメタデータを取得します。");
@@ -151,14 +152,14 @@ public class GhostPdfController {
 	 */
 	@Operation(summary = "PDFテキスト抽出", description = "アップロードされたPDFからPDFBoxで取得できるテキストを抽出して返却します。", requestBody = @RequestBody(content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE, schema = @Schema(implementation = OriginalPdfRequest.class))))
 	@ApiResponses({
-			@ApiResponse(responseCode = "200", description = "PDFテキスト抽出レスポンス", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = PdfTextResponse.class))),
+			@ApiResponse(responseCode = "200", description = "PDFテキスト抽出レスポンス"),
 			@ApiResponse(responseCode = "400", description = "入力値が不正です。", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
 			@ApiResponse(responseCode = "403", description = "access-tokenが不正です。"),
 			@ApiResponse(responseCode = "413", description = "アップロードファイルサイズが上限を超えています。", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
 			@ApiResponse(responseCode = "500", description = "PDFテキスト抽出に失敗しました。", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))) })
 	@PostMapping(value = "/textPdf", produces = MediaType.APPLICATION_JSON_VALUE)
 	@ResponseBody
-	public ResponseEntity<PdfTextResponse> extractPdfText(
+	public ResponseEntity<ApiResult<PdfTextResponse>> extractPdfText(
 			@Parameter(name = ACCESS_TOKEN_HEADER_NAME, in = ParameterIn.HEADER, required = true, description = ACCESS_TOKEN_HEADER_DESCRIPTION) @RequestHeader(ACCESS_TOKEN_HEADER_NAME) String accessToken,
 			@Valid @ModelAttribute OriginalPdfRequest form, HttpSession session) {
 		LOGGER.info("PDFテキストを抽出します。");

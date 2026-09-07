@@ -34,6 +34,8 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.clip.ghost.pdfcontent.constant.PdfConstants;
 import com.clip.ghost.pdfcontent.logic.GhostPdfLogic;
+import com.clip.ghost.common.response.ApiResult;
+import com.clip.ghost.common.response.ApiResultType;
 import com.clip.ghost.pdfcontent.dto.ExtractPdfRequest;
 import com.clip.ghost.pdfcontent.dto.GhostPdfDto;
 import com.clip.ghost.pdfcontent.dto.InsertPdfRequest;
@@ -96,12 +98,15 @@ class GhostPdfServiceTest {
 		doReturn(path).when(pdfLogic).loadPdf(any(MultipartFile.class));
 		doReturn(metadata).when(pdfLogic).getPdfMetadata(path, "sample.pdf", originalFile.getSize());
 
-		ResponseEntity<PdfMetadataResponse> result = pdfService.getPdfMetadata(form);
+		ResponseEntity<ApiResult<PdfMetadataResponse>> result = pdfService.getPdfMetadata(form);
 
 		verify(pdfLogic, times(1)).loadPdf(originalFile);
 		verify(pdfLogic, times(1)).getPdfMetadata(path, "sample.pdf", originalFile.getSize());
 		assertEquals(HttpStatus.OK, result.getStatusCode());
-		assertEquals(metadata, result.getBody());
+		assertNotNull(result.getBody());
+		assertEquals(metadata, result.getBody().getData());
+		assertEquals(ApiResultType.INFO, result.getBody().getResultType());
+		assertTrue(result.getBody().getMessageList().isEmpty());
 	}
 
 	@Test
@@ -121,12 +126,13 @@ class GhostPdfServiceTest {
 		doReturn(path).when(pdfLogic).loadPdf(originalFile);
 		doReturn(textResponse).when(pdfLogic).extractPdfText(path, "sample.pdf", originalFile.getSize());
 
-		ResponseEntity<PdfTextResponse> result = pdfService.extractPdfText(form);
+		ResponseEntity<ApiResult<PdfTextResponse>> result = pdfService.extractPdfText(form);
 
 		verify(pdfLogic, times(1)).loadPdf(originalFile);
 		verify(pdfLogic, times(1)).extractPdfText(path, "sample.pdf", originalFile.getSize());
 		assertEquals(HttpStatus.OK, result.getStatusCode());
-		assertEquals(textResponse, result.getBody());
+		assertNotNull(result.getBody());
+		assertEquals(textResponse, result.getBody().getData());
 	}
 
 	@Test

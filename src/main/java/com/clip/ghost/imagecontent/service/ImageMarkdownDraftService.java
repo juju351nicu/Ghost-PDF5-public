@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.clip.ghost.common.response.ApiResult;
 import com.clip.ghost.imagecontent.dto.ImageMarkdownDraftRequest;
 import com.clip.ghost.imagecontent.dto.ImageMarkdownDraftResponse;
 import com.clip.ghost.imagecontent.exception.ImageInputException;
@@ -41,7 +42,7 @@ public class ImageMarkdownDraftService {
 	 * @throws ImageInputException     対応していない画像形式の場合
 	 * @throws ImageProcessingException 画像読み込みまたは変換に失敗した場合
 	 */
-	public ResponseEntity<ImageMarkdownDraftResponse> generateMarkdownDraft(ImageMarkdownDraftRequest form) {
+	public ResponseEntity<ApiResult<ImageMarkdownDraftResponse>> generateMarkdownDraft(ImageMarkdownDraftRequest form) {
 		ImageToMarkdownConverter converter = converterResolver.resolve();
 		if (!converter.isEnabled()) {
 			throw new OcrUnavailableException("画像Markdown下書き機能は無効です。");
@@ -49,7 +50,7 @@ public class ImageMarkdownDraftService {
 		MultipartFile imageFile = form.getImageFile();
 		validateImageContentType(imageFile);
 		String markdown = normalizeMarkdown(converter.convert(readBytes(imageFile), imageFile.getContentType()));
-		return ResponseEntity.ok(buildResponse(imageFile, markdown));
+		return ResponseEntity.ok(ApiResult.of(buildResponse(imageFile, markdown)));
 	}
 
 	/**
