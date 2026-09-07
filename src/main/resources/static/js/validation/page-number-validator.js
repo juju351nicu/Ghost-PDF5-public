@@ -23,6 +23,36 @@ const INVALID_SPLIT_RANGE_MESSAGE =
 const POSITIVE_INTEGER_PATTERN = /^[1-9][0-9]*$/;
 /** `1-3` のような昇順ページ範囲候補を判定する。大小関係はparse時に検証する。 */
 const PAGE_RANGE_PATTERN = /^[1-9][0-9]*-[1-9][0-9]*$/;
+/** 全角カンマと読点を半角カンマとして扱う。入力欄のplaceholderが全角カンマで案内している。 */
+const COMMA_LIKE_PATTERN = /[，、]/g;
+/** 全角ハイフン・ダッシュ・長音を半角ハイフンとして扱う。日本語入力では半角ハイフンより出やすい。 */
+const HYPHEN_LIKE_PATTERN = /[－‐‑‒–—―ー]/g;
+/** 半角・全角スペース、タブ、改行をすべて除去する対象。 */
+const WHITESPACE_PATTERN = /\s+/g;
+
+/**
+ * ページ指定入力を、判定・変換で扱える表記へそろえる。
+ *
+ * 利用者が入れうる表記の揺れをここだけで吸収する。判定と変換で別々に処理すると、
+ * 「入力欄では正しいと言われたのに送信でエラーになる」といったズレが起きる。
+ *
+ * - 全角英数字を半角へ（既存の `toHalfWidth`）
+ * - 全角カンマ・読点を半角カンマへ（入力欄のplaceholderが全角カンマで案内している）
+ * - 全角ハイフン・ダッシュ・長音を半角ハイフンへ（日本語入力では半角ハイフンより出やすい）
+ * - 空白をすべて除去（`"2, 3-5"` のように区切りの後ろへ空白を入れる書き方を許容する）
+ *
+ * @param {string} pagesText ページ指定入力
+ * @returns {string} 正規化したページ指定入力。空値の場合は空文字
+ */
+const normalizePagesText = (pagesText) => {
+  if (Util.isEmpty(pagesText)) {
+    return "";
+  }
+  return Util.toHalfWidth(pagesText)
+    .replace(COMMA_LIKE_PATTERN, CONST.DELIMITER.COMMA)
+    .replace(HYPHEN_LIKE_PATTERN, CONST.DELIMITER.HYPHEN)
+    .replace(WHITESPACE_PATTERN, "");
+};
 
 /**
  * 削除ページ入力がページ番号またはページ範囲として扱えるか判定する。
@@ -34,7 +64,7 @@ const isValidDeletePagesText = (pagesText) => {
   if (Util.isEmpty(pagesText)) {
     return false;
   }
-  const pageItems = Util.trimSpace(pagesText).split(CONST.DELIMITER.COMMA);
+  const pageItems = normalizePagesText(pagesText).split(CONST.DELIMITER.COMMA);
   for (const pageItem of pageItems) {
     if (Util.isEmpty(pageItem)) {
       continue;
@@ -57,7 +87,7 @@ const isValidDeletePagesText = (pagesText) => {
  */
 const parseDeletePagesText = (pagesText) => {
   const numericPageList = [];
-  for (const pageItem of Util.getStrPageList(pagesText, CONST.DELIMITER.COMMA)) {
+  for (const pageItem of normalizePagesText(pagesText).split(CONST.DELIMITER.COMMA)) {
     if (Util.isEmpty(pageItem)) {
       continue;
     }
@@ -149,7 +179,7 @@ const parseSplitRangesText = (rangesText) => {
     return { ranges: [], message: "" };
   }
   const splitRanges = [];
-  const rangeItems = Util.trimSpace(rangesText).split(CONST.DELIMITER.COMMA);
+  const rangeItems = normalizePagesText(rangesText).split(CONST.DELIMITER.COMMA);
   for (const rangeItem of rangeItems) {
     if (Util.isEmpty(rangeItem)) {
       continue;
@@ -222,6 +252,7 @@ const isValidInsertPageText = (pageText) => {
 };
 
 export default {
+  normalizePagesText,
   isValidDeletePagesText,
   parseDeletePagesText,
   buildPagesText,
