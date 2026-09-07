@@ -250,15 +250,19 @@ const uniqArrayBySet = (array) => {
 };
 
 /**
- * 改行、水平タブを削除する。
+ * 空白文字（半角・全角スペース、タブ、改行）をすべて削除する。
+ *
+ * 以前の正規表現 `/\\s*|\t|\r|\n/` は空白文字にマッチせず（`\\s` はバックスラッシュと `s` の並び）、
+ * さらにgフラグが無いため先頭の空マッチだけで置換が終わっていた。結果として空白が1つも除去されず、
+ * 「2, 3-5」のような入力がページ番号として解釈できなかった。
  *
  * @param {string} target 文字列
- * @returns {string|null} 改行等を削除した文字列。空値の場合はnull
+ * @returns {string|null} 空白文字を削除した文字列。空値の場合はnull
  */
 const replaceBlank = (target) => {
   let dest = null;
   if (!isEmpty(target)) {
-    dest = target.replace(/\\s*|\t|\r|\n/, "");
+    dest = target.replace(/\s+/g, "");
   }
   return dest;
 };
