@@ -175,6 +175,17 @@ temporaryDirectory から Paths.get(temporaryDirectory) で生成する。
 
 ## StringUtils / CollectionUtils の使用ルール
 
+文字列・コレクションの null / 空判定は独自実装せず、導入済みの commons ライブラリへ寄せる。
+「同じ判定を自前で書いたほうが速い」場合でも、null の扱いが箇所ごとにぶれるため独自実装を増やさない。
+
+このルールは `CodingConventionTest` で自動検出する。違反すると `mvn test` が失敗し、対象のクラスと行番号が出る。
+
+- `productionCodeUsesStringUtilsForStringEmptyChecks`: 本番コードでの `String#isEmpty()` / `String#isBlank()` 直接呼び出しを禁止する。
+- `productionCodeUsesCollectionUtilsForCollectionEmptyChecks`: 本番コードでの `Collection#isEmpty()` 直接呼び出しを禁止する。
+- `codeDoesNotCallDeprecatedCommonsLang3Apis`: commons-lang3 の非推奨APIの呼び出しを禁止する。こちらはテストコードも対象にする。
+
+空判定の2つは受け手の型で判定するため、`MultipartFile#isEmpty()` や `Optional#isEmpty()` は対象外になる。
+
 ### StringUtils
 
 `org.apache.commons.lang3.StringUtils` を使うことで null 安全に書ける箇所は、意味が変わらない範囲で置き換える。
@@ -183,14 +194,55 @@ temporaryDirectory から Paths.get(temporaryDirectory) で生成する。
 - `str == null || str.isEmpty()` は `StringUtils.isEmpty(str)` を使う。
 - `str != null && !str.isBlank()` は `StringUtils.isNotBlank(str)` を使う。
 - `str == null || str.isBlank()` は `StringUtils.isBlank(str)` を使う。
-- 文字列比較は null 安全のため `StringUtils.equals` / `StringUtils.equalsIgnoreCase` を優先する。
-- 大文字小文字を無視した包含判定は `StringUtils.containsIgnoreCase` を使う。
+- `str.isEmpty()` / `str.isBlank()` 単体の判定も `StringUtils` 経由へそろえる。呼び出し元の変更で null が来ても壊れないようにするため。
+- `str.trim()` は `StringUtils.trim(str)` を使う。
+- 区切り文字での分割は `StringUtils.split(str, separator)` を使う。正規表現が必要な場合だけ `String#split` を残す。
+- 既定値の補完は `StringUtils.defaultIfEmpty` / `StringUtils.defaultIfBlank` / 1引数の `StringUtils.defaultString` を使う。
 
 注意:
 
 - `isNotEmpty` は `null` と空文字だけを除外する。空白だけの文字列は true。
 - `isNotBlank` は `null`、空文字、空白だけの文字列を除外する。
 - 空白だけを有効値として扱う仕様の場合、`isNotBlank` に置き換えない。
+- `StringUtils.trim` は `String#trim` と同じく U+0020 以下だけを落とす。全角空白（U+3000）も落とすのは `StringUtils.strip`。
+  ページ指定入力のように全角空白の扱いが仕様に関わる箇所では、`trim` と `strip` を取り違えない。
+- `StringUtils.split` は連続した区切り文字と空要素を畳む。`String#split` が残す末尾の空要素に依存する箇所では置き換えない。
+
+### 非推奨API（StringUtils.equals 系）は使わない
+
+commons-lang3 3.19 で、`StringUtils` の比較・検索・置換系は非推奨になった。後継は `org.apache.commons.lang3.Strings` で、
+`Strings.CS` が大文字小文字を区別する版、`Strings.CI` が無視する版になる。
+
+**非推奨APIは新規コードで使わない。本番コードだけでなくテストコードでも使わない。**
+既存コードで見つけた場合は、その変更のついでに後継APIへ寄せる。
+IDEの取り消し線や `javac` の deprecation 警告は見落としやすいため、`codeDoesNotCallDeprecatedCommonsLang3Apis` で機械的に落とす。
+このテストは特定のメソッド名を列挙せず `@Deprecated` の有無で判定するので、commons-lang3 を更新して非推奨が増えた場合も自動で追従する。
+
+使わないもの（3.19時点）:
+
+- `StringUtils.equals` / `equalsIgnoreCase` / `equalsAny` / `equalsAnyIgnoreCase`
+- `StringUtils.contains` / `containsIgnoreCase` / `containsAny` / `containsAnyIgnoreCase`
+- `StringUtils.startsWith` / `startsWithIgnoreCase` / `startsWithAny`
+- `StringUtils.endsWith` / `endsWithIgnoreCase` / `endsWithAny`
+- `StringUtils.indexOf` / `indexOfIgnoreCase` / `lastIndexOf` / `lastIndexOfIgnoreCase`
+- `StringUtils.replace` / `replaceOnce` / `replaceIgnoreCase` / `replaceAll` / `replaceFirst`
+- `StringUtils.remove` / `removeStart` / `removeEnd` / `removeStartIgnoreCase` / `removeEndIgnoreCase`
+- `StringUtils.appendIfMissing` / `prependIfMissing` / `compare` / `compareIgnoreCase`
+- 2引数の `StringUtils.defaultString(str, defaultStr)`
+- `org.apache.commons.lang3.ObjectUtils.defaultIfNull`
+
+`StringUtils.isEmpty` / `isBlank` / `isNotEmpty` / `isNotBlank` / `trim` / `split` / `lowerCase` /
+`defaultIfEmpty` / `defaultIfBlank` / 1引数の `defaultString` は非推奨ではない。`StringUtils` 全体を避けるわけではない。
+
+置き換え方:
+
+- 比較は `Strings.CS.equals(str, other)` / `Strings.CI.equals(str, other)` を使う。
+- 包含・前方後方一致は `Strings.CS.contains` / `Strings.CS.startsWith` / `Strings.CS.endsWith` を使う。
+- 複数候補との一致は `Strings.CS.equalsAny(str, "markdown", "md")`、複数の末尾一致は `Strings.CS.endsWithAny(str, "/", "\\")` を使う。
+- `"literal".equals(str)` のように定数を左へ置く書き方も `Strings.CS.equals(str, "literal")` へそろえる。
+- null を既定値へ寄せたいだけの場合は `StringUtils.defaultIfBlank` / `defaultIfEmpty` を使う。
+- 正規表現での置換・除去は `Strings` ではなく `org.apache.commons.lang3.RegExUtils` を使う。
+  `Pattern` を渡すオーバーロードは第1引数が `CharSequence` の方を使う。`String` を取る `Pattern` 版は非推奨。
 
 ### CollectionUtils
 
@@ -198,12 +250,29 @@ temporaryDirectory から Paths.get(temporaryDirectory) で生成する。
 
 - `list != null && !list.isEmpty()` は `CollectionUtils.isNotEmpty(list)` を使う。
 - `list == null || list.isEmpty()` は `CollectionUtils.isEmpty(list)` を使う。
+- `list.isEmpty()` 単体の判定も `CollectionUtils.isEmpty(list)` へそろえる。呼び出し元の変更で null が来ても壊れないようにするため。
 - null を空コレクションとして扱ってループしたい場合は `CollectionUtils.emptyIfNull(collection)` を使う。
+  - `if (list != null) { list.forEach(...); }` は `CollectionUtils.emptyIfNull(list).forEach(...)` にする。
 
 注意:
 
 - null と空リストの扱いを区別する仕様では、安易に `emptyIfNull` に置き換えない。
 - コレクションを変更する可能性がある処理では、`emptyIfNull` の戻り値を変更しない。
+- `Map` は `CollectionUtils` の対象ではない。`org.apache.commons.collections4.MapUtils.isEmpty` を使う。
+
+### 置き換えない箇所
+
+次は `isEmpty()` という名前でも `CharSequence` でも `Collection` でもないため、そのまま残す。自動検出の対象外。
+
+- `MultipartFile#isEmpty()`。アップロード内容が空かの判定で、文字列やコレクションの空判定ではない。
+- `Optional#isEmpty()`。
+- `Path` / `Resource` / 数値ラッパーなど、文字列でもコレクションでもない型の `null` 判定。
+
+次は型としては置き換えられるが、仕様が変わるため置き換えない。
+
+- null と空文字を区別する判定。
+  `PdfMarkdownDraftService` の `content.convertedText() != null` は「画像変換を実行したか」の判定で、
+  変換結果が空文字だったページと、そもそも変換していないページを区別する。`StringUtils.isNotEmpty` にすると取得元が `OCR` から `TEXT` へ変わる。
 
 ## JsonUtils の使用ルール
 
@@ -552,6 +621,8 @@ package renameは `pdfcontent` と `common` の責務別package構成へ整理�
 - [ ] Vue template / HTMLに不要な inline `style` が増えていない。
 - [ ] OpenPDF / `com.lowagie` が残っていない。
 - [ ] ローカル絶対パスが残っていない。
+- [ ] 文字列・コレクションの null / 空判定を独自実装せず `StringUtils` / `CollectionUtils` を使っている。
+- [ ] 非推奨API（`StringUtils.equals` 系 / `ObjectUtils.defaultIfNull`）を使わず `Strings.CS` / `Strings.CI` を使っている。
 - [ ] `StringUtils` / `CollectionUtils` への置き換えで意味が変わっていない。
 - [ ] ファイル操作は `Path` / `Files` / Commons IO を優先している。
 - [ ] Javadoc / コメントで仕様上の注意点を説明している。

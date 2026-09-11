@@ -4,6 +4,7 @@ import java.util.Base64;
 import java.util.List;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.Strings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -124,7 +125,7 @@ public class OpenAiImageToMarkdownConverter implements ImageToMarkdownConverter 
 	 */
 	private String normalizeMediaType(String mediaType) {
 		String normalized = StringUtils.lowerCase(StringUtils.defaultString(mediaType));
-		return "image/jpg".equals(normalized) ? "image/jpeg" : normalized;
+		return Strings.CS.equals(normalized, "image/jpg") ? "image/jpeg" : normalized;
 	}
 
 	/**

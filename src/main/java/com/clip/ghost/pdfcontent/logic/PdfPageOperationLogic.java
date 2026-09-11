@@ -109,7 +109,7 @@ final class PdfPageOperationLogic {
 			validatePageRangesWithinDocument(pageRanges, totalPages);
 			try (OutputStream outputStream = Files.newOutputStream(outputPath);
 					ZipOutputStream zipOutputStream = new ZipOutputStream(outputStream)) {
-				if (pageRanges.isEmpty()) {
+				if (CollectionUtils.isEmpty(pageRanges)) {
 					addSplitPagesToZip(zipOutputStream, inputDocument, totalPages);
 					return;
 				}
@@ -256,7 +256,7 @@ final class PdfPageOperationLogic {
 	 */
 	private List<Path> selectMergeInputPaths(List<Path> inputPaths) {
 		List<Path> mergeInputPaths = CollectionUtils.emptyIfNull(inputPaths).stream().filter(Objects::nonNull).toList();
-		if (mergeInputPaths.isEmpty()) {
+		if (CollectionUtils.isEmpty(mergeInputPaths)) {
 			throw new IllegalArgumentException("結合対象PDFが指定されていません。");
 		}
 		return mergeInputPaths;
@@ -276,7 +276,7 @@ final class PdfPageOperationLogic {
 		int totalPages = document.getNumberOfPages();
 		List<Integer> extractPageNumbers = CollectionUtils.emptyIfNull(extractPages).stream().distinct().sorted()
 				.collect(Collectors.toList());
-		if (extractPageNumbers.isEmpty()
+		if (CollectionUtils.isEmpty(extractPageNumbers)
 				|| extractPageNumbers.stream().anyMatch(pageNumber -> isOutsidePageRange(pageNumber, totalPages))) {
 			throw new IllegalArgumentException("抽出ページ番号がPDFのページ範囲外です。");
 		}

@@ -10,6 +10,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -17,10 +18,15 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 
 import com.clip.ghost.pdfcontent.enums.CodeEnum;
+import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaClasses;
+import com.tngtech.archunit.core.domain.JavaMethodCall;
 import com.tngtech.archunit.core.domain.JavaModifier;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
+import com.tngtech.archunit.lang.ArchCondition;
+import com.tngtech.archunit.lang.ConditionEvents;
+import com.tngtech.archunit.lang.SimpleConditionEvent;
 import com.tngtech.archunit.library.Architectures;
 
 /**
@@ -44,8 +50,11 @@ class CodingConventionTest {
 	private static final Path TEST_SOURCE = Paths.get("src/test/java");
 	private static final Path TEST_RESOURCES = Paths.get("src/test/resources");
 	private static final String BASE_PACKAGE = "com.clip.ghost";
+	private static final String COMMONS_LANG3_PACKAGE = "org.apache.commons.lang3";
 	private static final JavaClasses PRODUCTION_CLASSES = new ClassFileImporter()
 			.withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS).importPackages(BASE_PACKAGE);
+	private static final JavaClasses PRODUCTION_AND_TEST_CLASSES = new ClassFileImporter()
+			.importPackages(BASE_PACKAGE);
 	private static final Pattern SERVICE_DTO_CREATION = Pattern.compile("new\\s+\\w*Dto\\s*\\(");
 	private static final Pattern METHOD_DECLARATION = Pattern
 			.compile("\\s*(?:private|public|protected)\\s+[^=;]+\\s+(\\w+)\\s*\\([^;]*\\).*");
@@ -113,6 +122,32 @@ class CodingConventionTest {
 	@Test
 	void productionCodeDoesNotUseDeletedStorageUtils() throws IOException {
 		assertNoToken(javaFiles(MAIN_SOURCE), List.of("StorageUtils"));
+	}
+
+	@Test
+	void productionCodeUsesCollectionUtilsForCollectionEmptyChecks() {
+		// 受け手の型で判定するため、MultipartFile / Optional / Map の isEmpty は対象外になる。
+		noClasses().that().resideInAPackage(BASE_PACKAGE + "..")
+				.should(callNoArgumentMethodOn(Collection.class, "isEmpty"))
+				.because("コレクションの空判定は独自実装せず、null安全な CollectionUtils.isEmpty / isNotEmpty を使ってください。")
+				.check(PRODUCTION_CLASSES);
+	}
+
+	@Test
+	void productionCodeUsesStringUtilsForStringEmptyChecks() {
+		noClasses().that().resideInAPackage(BASE_PACKAGE + "..")
+				.should(callNoArgumentMethodOn(CharSequence.class, "isEmpty", "isBlank"))
+				.because("文字列の空判定は独自実装せず、null安全な StringUtils.isEmpty / isNotEmpty / isBlank / isNotBlank を使ってください。")
+				.check(PRODUCTION_CLASSES);
+	}
+
+	@Test
+	void codeDoesNotCallDeprecatedCommonsLang3Apis() {
+		// commons-lang3 3.19では StringUtils.equals / contains / startsWith などが非推奨で、後継は Strings.CS / Strings.CI。
+		// 非推奨APIは本番コードと同じ理由でテストコードにも残さないため、テストクラスも対象にする。
+		noClasses().that().resideInAPackage(BASE_PACKAGE + "..").should(callDeprecatedCommonsLang3Method())
+				.because("非推奨APIは後継API（Strings.CS / Strings.CI など）へ寄せてください。")
+				.check(PRODUCTION_AND_TEST_CLASSES);
 	}
 
 	@Test
@@ -466,6 +501,41 @@ class CodingConventionTest {
 		}
 		targetFiles.addAll(scriptFiles(FRONTEND_SOURCE));
 		return targetFiles;
+	}
+
+	private static ArchCondition<JavaClass> callNoArgumentMethodOn(Class<?> ownerType, String... methodNames) {
+		List<String> targetMethodNames = List.of(methodNames);
+		String description = ownerType.getSimpleName() + "の" + String.join(" / ", targetMethodNames) + "を直接呼び出している";
+		return new ArchCondition<>(description) {
+			@Override
+			public void check(JavaClass javaClass, ConditionEvents events) {
+				for (JavaMethodCall call : javaClass.getMethodCallsFromSelf()) {
+					if (targetMethodNames.contains(call.getTarget().getName())
+							&& call.getTarget().getRawParameterTypes().isEmpty()
+							&& call.getTargetOwner().isAssignableTo(ownerType)) {
+						events.add(SimpleConditionEvent.satisfied(javaClass, call.getDescription()));
+					}
+				}
+			}
+		};
+	}
+
+	private static ArchCondition<JavaClass> callDeprecatedCommonsLang3Method() {
+		return new ArchCondition<>("commons-lang3の非推奨メソッドを呼び出している") {
+			@Override
+			public void check(JavaClass javaClass, ConditionEvents events) {
+				for (JavaMethodCall call : javaClass.getMethodCallsFromSelf()) {
+					if (call.getTargetOwner().getPackageName().startsWith(COMMONS_LANG3_PACKAGE)
+							&& isDeprecatedTarget(call)) {
+						events.add(SimpleConditionEvent.satisfied(javaClass, call.getDescription()));
+					}
+				}
+			}
+		};
+	}
+
+	private static boolean isDeprecatedTarget(JavaMethodCall call) {
+		return call.getTarget().resolveMember().map(method -> method.isAnnotatedWith(Deprecated.class)).orElse(false);
 	}
 
 	private static boolean isCodingConventionTest(Path javaFile) {

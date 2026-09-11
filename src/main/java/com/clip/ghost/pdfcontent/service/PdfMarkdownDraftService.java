@@ -5,6 +5,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.Strings;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -70,7 +72,7 @@ public class PdfMarkdownDraftService {
 		List<PdfPageContent> contents = extractAutoPageContents(originalFile);
 		PdfMarkdownDraftResponse response = buildResponse(originalFile, buildAutoPages(contents));
 		List<Integer> failedPageNumbers = collectConversionFailedPageNumbers(contents);
-		if (failedPageNumbers.isEmpty()) {
+		if (CollectionUtils.isEmpty(failedPageNumbers)) {
 			return ResponseEntity.ok(ApiResult.of(response));
 		}
 		return ResponseEntity.ok(ApiResult.warning(response, List.of(buildPartialFailureMessage(failedPageNumbers))));
@@ -247,6 +249,6 @@ public class PdfMarkdownDraftService {
 	 */
 	private String buildPageMarkdown(PdfMarkdownDraftPageResponse page) {
 		String heading = PAGE_HEADING_PREFIX + page.getPageNumber();
-		return page.getText().isEmpty() ? heading : heading + BLOCK_SEPARATOR + page.getText();
+		return StringUtils.isEmpty(page.getText()) ? heading : heading + BLOCK_SEPARATOR + page.getText();
 	}
 }

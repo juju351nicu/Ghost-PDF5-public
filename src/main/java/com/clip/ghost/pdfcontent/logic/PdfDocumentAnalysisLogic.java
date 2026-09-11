@@ -13,6 +13,8 @@ import java.util.stream.IntStream;
 
 import javax.imageio.ImageIO;
 
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.rendering.ImageType;
@@ -159,7 +161,7 @@ final class PdfDocumentAnalysisLogic {
 					LOGGER.warn("ページの画像変換に失敗したため、このページを空本文として続行します。pageNumber={}", pageNumber, e);
 				}
 			}
-			if (!renderTargetPages.isEmpty() && failedPageNumbers.size() == renderTargetPages.size()) {
+			if (CollectionUtils.isNotEmpty(renderTargetPages) && failedPageNumbers.size() == renderTargetPages.size()) {
 				// 全滅は「一部が失敗した成功」ではないため、1ページ目の失敗で止まっていた従来どおり例外にする。
 				// 独自例外へ包み直すとHTTP statusが変わるため、最初の失敗をそのまま投げる。
 				LOGGER.warn("画像変換が全ページ失敗したため処理を中断します。targetPageCount={}", renderTargetPages.size());
@@ -258,7 +260,8 @@ final class PdfDocumentAnalysisLogic {
 	 */
 	private List<Integer> collectBlankPageNumbers(List<String> pageTexts) {
 		return IntStream.rangeClosed(PdfConstants.START_PAGE, pageTexts.size())
-				.filter(pageNumber -> pageTexts.get(pageNumber - PdfConstants.START_PAGE).isBlank()).boxed().toList();
+				.filter(pageNumber -> StringUtils.isBlank(pageTexts.get(pageNumber - PdfConstants.START_PAGE))).boxed()
+				.toList();
 	}
 
 	/**

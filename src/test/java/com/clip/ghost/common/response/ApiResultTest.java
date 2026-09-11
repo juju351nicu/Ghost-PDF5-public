@@ -60,6 +60,13 @@ class ApiResultTest {
 	}
 
 	@Test
+	@DisplayName("messageListがnullのWARNINGは生成できない")
+	void warningRejectsNullMessageList() {
+		// CollectionUtils.isEmptyでnullも空扱いにし、NullPointerExceptionではなく理由の分かる例外で止める。
+		assertThrows(IllegalArgumentException.class, () -> ApiResult.warning("data", null));
+	}
+
+	@Test
 	@DisplayName("messageListは防御的コピーされ、元のListの変更に影響されない")
 	void messageListIsDefensivelyCopied() {
 		List<ApiMessage> messages = new ArrayList<>();
