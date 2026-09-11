@@ -8,6 +8,7 @@ PDFの結合、分割、ページ操作、テキスト抽出、Markdown下書き
 ## ドキュメント
 
 - [コーディング規約](docs/coding-guidelines.md)
+- [AIエージェント向け作業指示](CLAUDE.md)
 - [パッケージリネーム計画](docs/package-rename-plan.md)
 - [Service / Logic構成判断](docs/service-logic-structure.md)
 - [将来拡張メモ: Markdown / AI / CSV / Utils 利用方針](docs/future-document-ai-roadmap.md)
