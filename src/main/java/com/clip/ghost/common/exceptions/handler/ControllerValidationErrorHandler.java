@@ -2,6 +2,7 @@ package com.clip.ghost.common.exceptions.handler;
 
 import java.util.List;
 
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
@@ -84,10 +85,9 @@ public class ControllerValidationErrorHandler extends ResponseEntityExceptionHan
 	 * Spring validationのエラーコードをFE/API向けに取得する。
 	 *
 	 * @param error Spring validationのエラー
-	 * @return エラーコード
+	 * @return エラーコード。未設定・空の場合は {@value #DEFAULT_VALIDATION_ERROR_CODE}
 	 */
 	private String resolveErrorCode(ObjectError error) {
-		String errorCode = error.getCode();
-		return errorCode == null ? DEFAULT_VALIDATION_ERROR_CODE : errorCode;
+		return StringUtils.defaultIfBlank(error.getCode(), DEFAULT_VALIDATION_ERROR_CODE);
 	}
 }

@@ -73,6 +73,19 @@ class ControllerValidationErrorHandlerTest {
 	}
 
 	@Test
+	@DisplayName("エラーコードが空文字_既定のエラーコードで返す")
+	void handleMethodArgumentNotValidWithBlankCodeUsesDefaultErrorCode() throws Exception {
+		// 空のエラーコードはFEが分岐に使えないため、未設定と同じく既定値へ寄せる。
+		BeanPropertyBindingResult bindingResult = new BeanPropertyBindingResult(new Object(), REQUEST_OBJECT_NAME);
+		bindingResult.addError(buildFieldErrorWithCode(FIELD_NAME, "", FIELD_ERROR_MESSAGE));
+
+		ResponseEntity<Object> response = handle(bindingResult);
+
+		assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+		assertEquals(DEFAULT_VALIDATION_ERROR_CODE, getFirstFieldError(response).getErrorCode());
+	}
+
+	@Test
 	@DisplayName("クラス単位validationエラー_FieldErrorへキャストせず共通形式で返す")
 	void handleMethodArgumentNotValidWithObjectErrorReturnsFieldErrors() throws Exception {
 		BeanPropertyBindingResult bindingResult = new BeanPropertyBindingResult(new Object(), REQUEST_OBJECT_NAME);

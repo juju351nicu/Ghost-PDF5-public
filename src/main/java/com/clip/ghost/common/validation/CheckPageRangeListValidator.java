@@ -47,7 +47,7 @@ public class CheckPageRangeListValidator implements ConstraintValidator<CheckPag
 	public boolean isValid(List<String> rangeTexts, ConstraintValidatorContext context) {
 		List<String> targetRangeTexts = CollectionUtils.emptyIfNull(rangeTexts).stream()
 				.filter(StringUtils::isNotBlank).toList();
-		if (targetRangeTexts.isEmpty()) {
+		if (CollectionUtils.isEmpty(targetRangeTexts)) {
 			return true;
 		}
 		if (targetRangeTexts.size() > maxRanges) {

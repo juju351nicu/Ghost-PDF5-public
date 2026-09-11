@@ -2,6 +2,8 @@ package com.clip.ghost.common.response;
 
 import java.util.List;
 
+import org.apache.commons.collections4.CollectionUtils;
+
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import lombok.Getter;
@@ -79,10 +81,10 @@ public class ApiResult<T> {
 	 * @param data        レスポンスデータ
 	 * @param messageList 画面表示用メッセージ。1件以上必要
 	 * @return 結果種別WARNINGの共通ラッパー
-	 * @throws IllegalArgumentException {@code messageList} が空の場合
+	 * @throws IllegalArgumentException {@code messageList} がnullまたは空の場合
 	 */
 	public static <T> ApiResult<T> warning(T data, List<ApiMessage> messageList) {
-		if (messageList.isEmpty()) {
+		if (CollectionUtils.isEmpty(messageList)) {
 			throw new IllegalArgumentException("messageList must not be empty for WARNING.");
 		}
 		return new ApiResult<>(data, ApiResultType.WARNING, messageList);

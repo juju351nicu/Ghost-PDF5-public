@@ -50,12 +50,12 @@ public final class PageUtils {
 	 * @return 形式が正しく、開始ページが終了ページ以下の場合はtrue
 	 */
 	public static boolean isValidPageRangeText(String rangeText) {
-		if (StringUtils.isBlank(rangeText) || !PAGE_RANGE_TEXT.matcher(rangeText.trim()).matches()) {
+		String trimmedText = StringUtils.trim(rangeText);
+		if (StringUtils.isBlank(trimmedText) || !PAGE_RANGE_TEXT.matcher(trimmedText).matches()) {
 			return false;
 		}
-		String[] rangeParts = rangeText.trim().split(RANGE_DELIMITER);
-		return rangeParts.length == 1
-				|| Integer.parseInt(rangeParts[0]) <= Integer.parseInt(rangeParts[1]);
+		String[] rangeParts = StringUtils.split(trimmedText, RANGE_DELIMITER);
+		return rangeParts.length == 1 || Integer.parseInt(rangeParts[0]) <= Integer.parseInt(rangeParts[1]);
 	}
 
 	/**
@@ -69,7 +69,7 @@ public final class PageUtils {
 		if (!isValidPageRangeText(rangeText)) {
 			throw new IllegalArgumentException("ページ範囲の形式が不正です。");
 		}
-		String[] rangeParts = rangeText.trim().split(RANGE_DELIMITER);
+		String[] rangeParts = StringUtils.split(StringUtils.trim(rangeText), RANGE_DELIMITER);
 		int startPage = Integer.parseInt(rangeParts[0]);
 		return new PageRange(startPage, rangeParts.length == 1 ? startPage : Integer.parseInt(rangeParts[1]));
 	}

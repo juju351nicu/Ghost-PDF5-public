@@ -7,6 +7,7 @@ import java.nio.file.Paths;
 import java.util.List;
 import java.util.UUID;
 
+import org.apache.commons.collections4.CollectionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.io.Resource;
@@ -89,9 +90,7 @@ final class PdfTemporaryFileStorage {
 	 * @param paths 削除対象パス。nullの場合は何もしない
 	 */
 	void deleteAll(List<Path> paths) {
-		if (paths != null) {
-			paths.forEach(this::delete);
-		}
+		CollectionUtils.emptyIfNull(paths).forEach(this::delete);
 	}
 
 	/**

@@ -5,6 +5,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.Strings;
 
 /**
  * vision系の出力全体がコードフェンスで包まれている場合に、その外側フェンスだけを取り除くユーティリティ。
@@ -39,17 +40,17 @@ final class MarkdownFenceUnwrapper {
 			return markdown;
 		}
 		Matcher openMatcher = FENCE_OPEN.matcher(lines.get(0).strip());
-		if (!openMatcher.matches() || !FENCE_MARKER.equals(lines.get(lines.size() - 1).strip())) {
+		if (!openMatcher.matches() || !Strings.CS.equals(FENCE_MARKER, lines.get(lines.size() - 1).strip())) {
 			return markdown;
 		}
-		String language = openMatcher.group(1).toLowerCase();
-		boolean wrapperLanguage = language.isEmpty() || "markdown".equals(language) || "md".equals(language);
+		String language = StringUtils.lowerCase(openMatcher.group(1));
+		boolean wrapperLanguage = StringUtils.isEmpty(language) || Strings.CS.equalsAny(language, "markdown", "md");
 		if (!wrapperLanguage) {
 			// ```java などは画像内のソースコードの正当なフェンスとして残す。
 			return markdown;
 		}
 		List<String> inner = lines.subList(1, lines.size() - 1);
-		if (language.isEmpty() && containsFence(inner)) {
+		if (StringUtils.isEmpty(language) && containsFence(inner)) {
 			// 言語指定なしで内側にもフェンスがある場合は、正当な内容の可能性があるため触らない。
 			return markdown;
 		}
@@ -63,6 +64,6 @@ final class MarkdownFenceUnwrapper {
 	 * @return フェンス行を含む場合はtrue
 	 */
 	private static boolean containsFence(List<String> lines) {
-		return lines.stream().map(String::strip).anyMatch(line -> line.startsWith(FENCE_MARKER));
+		return lines.stream().map(String::strip).anyMatch(line -> Strings.CS.startsWith(line, FENCE_MARKER));
 	}
 }

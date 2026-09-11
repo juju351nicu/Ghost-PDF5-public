@@ -10,6 +10,7 @@ import java.util.stream.Stream;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.Strings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,7 +35,7 @@ public final class FileOperationUtils {
 		if (filePath == null) {
 			throw new IllegalArgumentException("filePath must not be null.");
 		}
-		if (Files.isDirectory(filePath) || filePath.toString().endsWith("/") || filePath.toString().endsWith("\\")) {
+		if (Files.isDirectory(filePath) || Strings.CS.endsWithAny(filePath.toString(), "/", "\\")) {
 			throw new IllegalArgumentException("ファイル作成先としてディレクトリは指定できません。filePath=" + filePath);
 		}
 		try {
