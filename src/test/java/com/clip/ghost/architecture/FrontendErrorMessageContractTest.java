@@ -10,6 +10,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -28,6 +29,7 @@ class FrontendErrorMessageContractTest {
 	 * @throws IOException フロントエンドresourceを読み込めない場合
 	 */
 	@Test
+	@DisplayName("想定外エラーで例外メッセージを画面へ出さない")
 	void unexpectedErrorMessageDoesNotExposeExceptionMessage() throws IOException {
 		String apiErrorUtils = read("static/js/api/api-error-utils.js");
 
@@ -46,6 +48,7 @@ class FrontendErrorMessageContractTest {
 	 * @throws IOException フロントエンドresourceを読み込めない場合
 	 */
 	@Test
+	@DisplayName("サーバーへ到達できない場合は専用メッセージを出す")
 	void networkFailureHasDedicatedMessage() throws IOException {
 		String apiErrorUtils = read("static/js/api/api-error-utils.js");
 

@@ -573,6 +573,15 @@ public record ApiMessage(String code, String message) {
 
 - バグ修正やリファクタリングをしたら、対応するJUnitを追加・更新する。
 - controller/service/logic/utils の単位で、失敗しやすい境界値をテストする。
+- **テストメソッドには必ず `@DisplayName` を付け、日本語で「何を守っているか」を書く。**
+  - method名は英語の逐語表現になりやすく、落ちたときに何の仕様が壊れたのかを読み取りにくい。
+    テストレポートに出るのは `@DisplayName` なので、説明はそこへ書く。
+  - 文言は「〜する」「〜を返す」「〜の場合は〜にする」の形で、条件と期待結果が分かるようにする。
+    method名の直訳（`deletePdfRemovesPages` → 「deletePdfはページを削除する」）では意味が増えない。
+  - annotationの並びは `@Test` → `@DisplayName` の順にそろえる。
+  - `@ParameterizedTest` / `@RepeatedTest` も同じ扱いにする。
+  - 未設定は `CodingConventionTest#testMethodsDeclareDisplayName` が、ファイル名と行番号付きで検出する。
+- クラスの説明はJavadocに書く。クラスへ `@DisplayName` を付けるかは任意で、必須にはしない。
 - controller テストでは `HttpSession` が必要な場合、`MockHttpSession` などで明示する。
 - `MockMvcBuilders.standaloneSetup(...)` で十分なcontroller単体テストには `@SpringBootTest` を付けない。SpringContextが必要なテストだけ `@SpringBootTest` / `@AutoConfigureMockMvc` を使う。
 - `@Mock` / `@InjectMocks` 中心のservice/controller単体テストにも `@SpringBootTest` を付けない。Mockitoだけで十分な場合は `MockitoExtension` を使う。
@@ -597,6 +606,7 @@ public record ApiMessage(String code, String message) {
   - `window.open` を使う場合は、`noopener` 漏れもJUnitのソーススキャンで検証する。
   - Spring Boot側の非推奨 `@MockBean` の再混入もJUnitのソーススキャンで検証する。
   - springdocの `/v3/api-docs` / `/swagger-ui.html` が通常起動で公開されない設定もJUnitのソーススキャンで検証する。
+  - テストメソッドの `@DisplayName` 漏れもJUnitのソーススキャンで検証する（`@TestPropertySource` などと取り違えないよう、annotation名を正規表現で厳密に判定する）。
   - ルールが増える場合も、ArchUnitで見られるものとソーススキャンが必要なものを分ける。
 
 ## フェーズ管理 / 大きな変更の分離

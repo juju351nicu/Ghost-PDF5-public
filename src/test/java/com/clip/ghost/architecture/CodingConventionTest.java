@@ -15,6 +15,8 @@ import java.util.List;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
+import org.apache.commons.lang3.Strings;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import com.clip.ghost.pdfcontent.enums.CodeEnum;
@@ -56,6 +58,10 @@ class CodingConventionTest {
 	private static final JavaClasses PRODUCTION_AND_TEST_CLASSES = new ClassFileImporter()
 			.importPackages(BASE_PACKAGE);
 	private static final Pattern SERVICE_DTO_CREATION = Pattern.compile("new\\s+\\w*Dto\\s*\\(");
+	// @TestPropertySource や @TestInstance と取り違えないよう、テストメソッドのannotationだけを厳密に拾う。
+	private static final Pattern TEST_ANNOTATION = Pattern
+			.compile("^@(Test|ParameterizedTest|RepeatedTest)\\s*(\\(.*\\))?$");
+	private static final String DISPLAY_NAME_ANNOTATION = "@DisplayName";
 	private static final Pattern METHOD_DECLARATION = Pattern
 			.compile("\\s*(?:private|public|protected)\\s+[^=;]+\\s+(\\w+)\\s*\\([^;]*\\).*");
 	private static final Pattern PUBLIC_TYPE_DECLARATION = Pattern
@@ -69,23 +75,27 @@ class CodingConventionTest {
 	private static final Pattern WINDOW_OPEN = Pattern.compile("window\\.open\\([^)]*\\)");
 
 	@Test
+	@DisplayName("本番コードでLombokの@Dataを使わない")
 	void productionCodeDoesNotUseLombokData() throws IOException {
 		// lombok.DataはSOURCE retentionのため、コンパイル後のクラスを見るArchUnitでは検出できない。
 		assertNoToken(javaFiles(MAIN_SOURCE), List.of("import lombok.Data", "@Data"));
 	}
 
 	@Test
+	@DisplayName("本番コードで@Autowiredのfield injectionを使わない")
 	void productionCodeDoesNotUseAutowiredFieldInjection() throws IOException {
 		assertNoToken(javaFiles(MAIN_SOURCE),
 				List.of("import org.springframework.beans.factory.annotation.Autowired", "@Autowired"));
 	}
 
 	@Test
+	@DisplayName("本番コードでSystem.outとprintStackTraceを使わない")
 	void productionCodeDoesNotUseConsoleOutput() throws IOException {
 		assertNoToken(javaFiles(MAIN_SOURCE), List.of("System.out", "printStackTrace("));
 	}
 
 	@Test
+	@DisplayName("本番コードのpublic宣言にJavadocを付ける")
 	void productionPublicDeclarationsHaveJavadocs() throws IOException {
 		List<String> violations = new ArrayList<>();
 		for (Path javaFile : javaFiles(MAIN_SOURCE)) {
@@ -103,6 +113,7 @@ class CodingConventionTest {
 	}
 
 	@Test
+	@DisplayName("Javadocに@authorタグを書かない")
 	void sourceJavadocsDoNotUseAuthorTags() throws IOException {
 		List<Path> targetFiles = new ArrayList<>();
 		targetFiles.addAll(javaFiles(MAIN_SOURCE));
@@ -114,17 +125,20 @@ class CodingConventionTest {
 	}
 
 	@Test
+	@DisplayName("common.utilsのユーティリティクラスをfinalにする")
 	void productionUtilityClassesAreFinal() {
 		classes().that().resideInAPackage(BASE_PACKAGE + ".common.utils..").should().haveModifier(JavaModifier.FINAL)
 				.check(PRODUCTION_CLASSES);
 	}
 
 	@Test
+	@DisplayName("削除済みのStorageUtilsを本番コードで参照しない")
 	void productionCodeDoesNotUseDeletedStorageUtils() throws IOException {
 		assertNoToken(javaFiles(MAIN_SOURCE), List.of("StorageUtils"));
 	}
 
 	@Test
+	@DisplayName("コレクションの空判定をCollectionUtilsへ寄せる")
 	void productionCodeUsesCollectionUtilsForCollectionEmptyChecks() {
 		// 受け手の型で判定するため、MultipartFile / Optional / Map の isEmpty は対象外になる。
 		noClasses().that().resideInAPackage(BASE_PACKAGE + "..")
@@ -134,6 +148,7 @@ class CodingConventionTest {
 	}
 
 	@Test
+	@DisplayName("文字列の空判定をStringUtilsへ寄せる")
 	void productionCodeUsesStringUtilsForStringEmptyChecks() {
 		noClasses().that().resideInAPackage(BASE_PACKAGE + "..")
 				.should(callNoArgumentMethodOn(CharSequence.class, "isEmpty", "isBlank"))
@@ -142,6 +157,7 @@ class CodingConventionTest {
 	}
 
 	@Test
+	@DisplayName("commons-lang3の非推奨APIを本番・テストとも呼ばない")
 	void codeDoesNotCallDeprecatedCommonsLang3Apis() {
 		// commons-lang3 3.19では StringUtils.equals / contains / startsWith などが非推奨で、後継は Strings.CS / Strings.CI。
 		// 非推奨APIは本番コードと同じ理由でテストコードにも残さないため、テストクラスも対象にする。
@@ -151,6 +167,7 @@ class CodingConventionTest {
 	}
 
 	@Test
+	@DisplayName("Javaファイル全体をコメントアウトして残さない")
 	void productionJavaFilesAreNotFullyCommentedOut() throws IOException {
 		List<String> violations = new ArrayList<>();
 		for (Path javaFile : javaFiles(MAIN_SOURCE)) {
@@ -163,11 +180,13 @@ class CodingConventionTest {
 	}
 
 	@Test
+	@DisplayName("MultipartFileのフィールドにOptionalを使わない")
 	void multipartFileFieldsDoNotUseOptional() throws IOException {
 		assertNoToken(javaFiles(MAIN_SOURCE), List.of("Optional<MultipartFile>"));
 	}
 
 	@Test
+	@DisplayName("旧pdfcontent.model packageを復活させない")
 	void pdfContentModelPackageDoesNotReappear() throws IOException {
 		List<Path> targetFiles = new ArrayList<>();
 		targetFiles.addAll(javaFiles(MAIN_SOURCE));
@@ -180,6 +199,7 @@ class CodingConventionTest {
 	}
 
 	@Test
+	@DisplayName("旧StorageUtilsのタイポmethod名を復活させない")
 	void storageUtilsTypoMethodNamesDoNotReappear() throws IOException {
 		List<Path> targetFiles = new ArrayList<>();
 		targetFiles.addAll(javaFiles(MAIN_SOURCE));
@@ -191,6 +211,7 @@ class CodingConventionTest {
 	}
 
 	@Test
+	@DisplayName("JsonUtilsのnullを返す旧APIを復活させない")
 	void jsonUtilsLegacyNullReturningApisDoNotReappear() throws IOException {
 		List<Path> targetFiles = new ArrayList<>();
 		targetFiles.addAll(javaFiles(MAIN_SOURCE));
@@ -203,6 +224,7 @@ class CodingConventionTest {
 	}
 
 	@Test
+	@DisplayName("standaloneSetupのcontroller単体テストでSpring contextを起動しない")
 	void standaloneMockMvcTestsDoNotStartSpringContext() throws IOException {
 		List<String> violations = new ArrayList<>();
 		for (Path javaFile : javaFiles(TEST_SOURCE)) {
@@ -220,6 +242,7 @@ class CodingConventionTest {
 	}
 
 	@Test
+	@DisplayName("Spring contextを起動するテストにcontextタグを付ける")
 	void springBootTestsDeclareContextTag() throws IOException {
 		List<String> violations = new ArrayList<>();
 		for (Path javaFile : javaFiles(TEST_SOURCE)) {
@@ -236,6 +259,7 @@ class CodingConventionTest {
 	}
 
 	@Test
+	@DisplayName("mockだけで書けるテストでSpring contextを起動しない")
 	void mockOnlyTestsDoNotStartSpringContext() throws IOException {
 		List<String> violations = new ArrayList<>();
 		for (Path javaFile : javaFiles(TEST_SOURCE)) {
@@ -253,6 +277,7 @@ class CodingConventionTest {
 	}
 
 	@Test
+	@DisplayName("テストコードで非推奨の@MockBeanを使わない")
 	void testCodeDoesNotUseDeprecatedSpringBootMockBean() throws IOException {
 		List<Path> targetFiles = new ArrayList<>(javaFiles(TEST_SOURCE));
 		// このテスト自身は検出対象の禁止トークンを定義として持つため、スキャン対象から外す。
@@ -262,6 +287,7 @@ class CodingConventionTest {
 	}
 
 	@Test
+	@DisplayName("OpenAPI JSONとSwagger UIを通常起動で公開しない")
 	void springdocEndpointsAreDisabledByDefault() throws IOException {
 		String applicationYaml = Files.readString(MAIN_APPLICATION_YAML, StandardCharsets.UTF_8);
 
@@ -272,12 +298,14 @@ class CodingConventionTest {
 	}
 
 	@Test
+	@DisplayName("フロントエンドでconsole出力とdebuggerを残さない")
 	void frontendCodeDoesNotUseDebugOutput() throws IOException {
 		assertNoToken(scriptFiles(FRONTEND_SOURCE),
 				List.of("console.log", "console.error", "console.warn", "console.info", "console.debug", "debugger"));
 	}
 
 	@Test
+	@DisplayName("ブラウザストレージへのアクセスをutil.jsへ閉じる")
 	void frontendCodeDoesNotAccessBrowserStorageDirectlyOutsideUtil() throws IOException {
 		List<Path> targetFiles = new ArrayList<>(scriptFiles(FRONTEND_SOURCE));
 		targetFiles.remove(FRONTEND_UTIL_SCRIPT);
@@ -286,6 +314,7 @@ class CodingConventionTest {
 	}
 
 	@Test
+	@DisplayName("File System Access APIをfile-response-handlerへ閉じる")
 	void frontendCodeDoesNotUseFileSystemAccessApiOutsideFileResponseHandler() throws IOException {
 		// File System Access APIはChrome / Edgeのみ対応で、Firefox / Safariは未対応。
 		// 対応ブラウザ差の分岐が複数箇所へ散ると、フォールバックの挙動が場所によってずれるため、
@@ -298,6 +327,7 @@ class CodingConventionTest {
 	}
 
 	@Test
+	@DisplayName("廃止したユーティリティ別名をutil.js以外で使わない")
 	void frontendCodeDoesNotUseDeprecatedUtilityAliasesOutsideUtil() throws IOException {
 		List<Path> targetFiles = new ArrayList<>(scriptFiles(FRONTEND_SOURCE));
 		targetFiles.remove(FRONTEND_UTIL_SCRIPT);
@@ -306,6 +336,7 @@ class CodingConventionTest {
 	}
 
 	@Test
+	@DisplayName("HTTP呼び出しをfetch-client経由に限定する")
 	void frontendCodeDoesNotBypassFetchClient() throws IOException {
 		List<Path> targetFiles = new ArrayList<>(scriptFiles(FRONTEND_SOURCE));
 		targetFiles.remove(FRONTEND_FETCH_CLIENT_SCRIPT);
@@ -314,6 +345,7 @@ class CodingConventionTest {
 	}
 
 	@Test
+	@DisplayName("エラーレスポンスの解釈をapi-error-utilsへ寄せる")
 	void frontendCodeUsesApiErrorUtilsForFieldErrors() throws IOException {
 		List<Path> targetFiles = new ArrayList<>(scriptFiles(FRONTEND_SOURCE));
 		targetFiles.remove(FRONTEND_API_ERROR_UTILS_SCRIPT);
@@ -322,6 +354,7 @@ class CodingConventionTest {
 	}
 
 	@Test
+	@DisplayName("成功レスポンスの共通ラッパー解釈をapi-result-utilsへ寄せる")
 	void frontendCodeUsesApiResultUtilsForSuccessEnvelope() throws IOException {
 		// JSON成功レスポンスの共通ラッパー(resultType / messageList)の解釈をapi-result-utils.jsへ閉じる。
 		// api clientごとにラッパーを直接読むと、構造変更時の修正漏れが起きるため。
@@ -332,6 +365,7 @@ class CodingConventionTest {
 	}
 
 	@Test
+	@DisplayName("Vue管理下のDOMを直接操作しない")
 	void frontendCodeDoesNotUseDirectDomManipulation() throws IOException {
 		assertNoToken(frontendVueFiles(),
 				List.of("document.getElementById", "document.querySelector", "document.querySelectorAll",
@@ -340,26 +374,31 @@ class CodingConventionTest {
 	}
 
 	@Test
+	@DisplayName("window.openにnoopenerを付ける")
 	void frontendWindowOpenUsesNoopener() throws IOException {
 		assertNoWindowOpenWithoutNoopener(scriptFiles(FRONTEND_SOURCE));
 	}
 
 	@Test
+	@DisplayName("alert / confirm / promptで操作を止めない")
 	void frontendCodeDoesNotUseBlockingBrowserDialogs() throws IOException {
 		assertNoToken(scriptFiles(FRONTEND_SOURCE), List.of("alert(", "confirm(", "prompt("));
 	}
 
 	@Test
+	@DisplayName("フロントエンドで曖昧比較（==）を使わない")
 	void frontendCodeDoesNotUseLooseEquality() throws IOException {
 		assertNoPattern(scriptFiles(FRONTEND_SOURCE), LOOSE_JAVASCRIPT_EQUALITY, "== / !=");
 	}
 
 	@Test
+	@DisplayName("Vue templateでinline styleを使わない")
 	void frontendVueFilesDoNotUseInlineStyleAttributes() throws IOException {
 		assertNoPattern(frontendVueFiles(), INLINE_STYLE_ATTRIBUTE, "inline style属性");
 	}
 
 	@Test
+	@DisplayName("廃止したスタイルクラスを使わない")
 	void frontendVueFilesDoNotUseDeprecatedStyleClasses() throws IOException {
 		assertNoToken(frontendVueFiles(),
 				List.of("class=\"card ", "class=\"card__", "class=\"card-skin", "class=\"button_box",
@@ -369,16 +408,19 @@ class CodingConventionTest {
 	}
 
 	@Test
+	@DisplayName("buttonにtype属性を明示する")
 	void frontendButtonsDeclareTypeAttribute() throws IOException {
 		assertNoPattern(frontendVueFiles(), BUTTON_WITHOUT_TYPE, "type属性なしbutton");
 	}
 
 	@Test
+	@DisplayName("v-forに:keyを付ける")
 	void frontendVForDeclaresKey() throws IOException {
 		assertNoPattern(frontendVueFiles(), V_FOR_WITHOUT_KEY, "key属性なしv-for");
 	}
 
 	@Test
+	@DisplayName("OpenPDFの参照とローカル固定PDFパスを復活させない")
 	void openPdfAndLocalPdfPathDoNotReappear() throws IOException {
 		List<Path> targetFiles = new ArrayList<>();
 		targetFiles.add(PROJECT_ROOT.resolve("pom.xml"));
@@ -393,18 +435,21 @@ class CodingConventionTest {
 	}
 
 	@Test
+	@DisplayName("本番コードがOpenPDF packageへ依存しない")
 	void productionCodeDoesNotDependOnOpenPdfPackages() {
 		noClasses().should().dependOnClassesThat().resideInAPackage("com.lowagie..")
 				.because("PDF処理はPDFBox 3.xへ移行済みのため、OpenPDFへ戻さない。").check(PRODUCTION_CLASSES);
 	}
 
 	@Test
+	@DisplayName("pdfcontent.enumsの区分値enumがCodeEnumを実装する")
 	void pdfEnumsImplementCodeEnum() {
 		classes().that().resideInAPackage("..pdfcontent.enums..").and().areEnums().should()
 				.beAssignableTo(CodeEnum.class).because("区分値enumはkey/valueを持つCodeEnumで扱います。").check(PRODUCTION_CLASSES);
 	}
 
 	@Test
+	@DisplayName("PDF処理の依存方向をController → Service → Logicに保つ")
 	void pdfControllerServiceLogicDependenciesKeepDirection() {
 		Architectures.layeredArchitecture().consideringAllDependencies().layer("Controller")
 				.definedBy("..pdfcontent.controller..").layer("Service").definedBy("..pdfcontent.service..")
@@ -415,6 +460,7 @@ class CodingConventionTest {
 	}
 
 	@Test
+	@DisplayName("画像処理の依存方向を保ち、共有変換器だけ横断利用を許す")
 	void imageControllerServiceLogicDependenciesKeepDirection() {
 		// 画像変換器(imagecontent.logic)は共有機能として、画像PDFのAUTO下書きを行うpdfcontent.serviceからも使う。
 		// この横断利用だけを許可し、それ以外のController/Serviceの依存方向は維持する。
@@ -429,6 +475,7 @@ class CodingConventionTest {
 	}
 
 	@Test
+	@DisplayName("Markdown処理の依存方向をController → Service → Logicに保つ")
 	void markdownControllerServiceLogicDependenciesKeepDirection() {
 		Architectures.layeredArchitecture().consideringAllDependencies().layer("Controller")
 				.definedBy("..markdowncontent.controller..").layer("Service").definedBy("..markdowncontent.service..")
@@ -439,6 +486,7 @@ class CodingConventionTest {
 	}
 
 	@Test
+	@DisplayName("HTML/CSSレンダラーの利用をMarkdownPdfRendererへ閉じる")
 	void htmlToPdfRendererIsLimitedToMarkdownPdfRenderer() throws IOException {
 		// HTML/CSSレンダラー(openhtmltopdf)の依存はMarkdownPdfRendererだけに閉じ込める。
 		// PDF出力の実装差し替え時に影響範囲が広がるのを防ぐ。
@@ -449,6 +497,7 @@ class CodingConventionTest {
 	}
 
 	@Test
+	@DisplayName("外部プロセス起動をProcessCommandRunnerへ閉じる")
 	void processExecutionIsLimitedToCommandRunner() throws IOException {
 		// 外部プロセス起動はProcessCommandRunnerだけに限定する。他クラスへのProcessBuilder/exec混入を検出する。
 		List<Path> targetFiles = new ArrayList<>(javaFiles(MAIN_SOURCE));
@@ -458,6 +507,21 @@ class CodingConventionTest {
 	}
 
 	@Test
+	@DisplayName("テストメソッドに@DisplayNameを付ける")
+	void testMethodsDeclareDisplayName() throws IOException {
+		// テスト名はレポートでそのまま読む説明文になる。method名だけでは、落ちたときに
+		// 何を守っていたテストなのかが英語の逐語訳からしか分からない。
+		// この規約テスト自身も対象にする。禁止トークンのスキャンと違い、定義を持つことが違反にならないため。
+		List<String> violations = new ArrayList<>();
+		for (Path javaFile : javaFiles(TEST_SOURCE)) {
+			violations.addAll(findTestMethodsWithoutDisplayName(javaFile));
+		}
+
+		assertTrue(violations.isEmpty(), () -> "テストメソッドには@DisplayNameで日本語の説明を付けてください: " + violations);
+	}
+
+	@Test
+	@DisplayName("service層のDTO生成をprivate build〇〇へ集約する")
 	void serviceDtoCreationIsHiddenBehindBuildMethods() throws IOException {
 		List<String> violations = new ArrayList<>();
 		for (Path serviceFile : javaFiles(MAIN_SOURCE)) {
@@ -556,6 +620,37 @@ class CodingConventionTest {
 
 	private static boolean isDeprecatedTarget(JavaMethodCall call) {
 		return call.getTarget().resolveMember().map(method -> method.isAnnotatedWith(Deprecated.class)).orElse(false);
+	}
+
+	private static List<String> findTestMethodsWithoutDisplayName(Path javaFile) throws IOException {
+		List<String> violations = new ArrayList<>();
+		List<String> lines = Files.readAllLines(javaFile, StandardCharsets.UTF_8);
+		for (int lineIndex = 0; lineIndex < lines.size(); lineIndex++) {
+			if (!TEST_ANNOTATION.matcher(lines.get(lineIndex).strip()).matches()) {
+				continue;
+			}
+			if (!hasDisplayNameInAnnotationBlock(lines, lineIndex)) {
+				violations.add(javaFile + ":" + (lineIndex + 1));
+			}
+		}
+		return violations;
+	}
+
+	private static boolean hasDisplayNameInAnnotationBlock(List<String> lines, int testAnnotationIndex) {
+		// @DisplayNameは@Testの前後どちらに書いてもよいため、連続するannotationの並び全体を見る。
+		for (int lineIndex = testAnnotationIndex - 1; lineIndex >= 0
+				&& Strings.CS.startsWith(lines.get(lineIndex).strip(), "@"); lineIndex--) {
+			if (Strings.CS.startsWith(lines.get(lineIndex).strip(), DISPLAY_NAME_ANNOTATION)) {
+				return true;
+			}
+		}
+		for (int lineIndex = testAnnotationIndex + 1; lineIndex < lines.size()
+				&& Strings.CS.startsWith(lines.get(lineIndex).strip(), "@"); lineIndex++) {
+			if (Strings.CS.startsWith(lines.get(lineIndex).strip(), DISPLAY_NAME_ANNOTATION)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private static boolean isCodingConventionTest(Path javaFile) {

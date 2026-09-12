@@ -24,6 +24,7 @@ import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -44,6 +45,7 @@ class PdfDocumentAnalysisLogicTest {
 	Path tempDirectory;
 
 	@Test
+	@DisplayName("メタデータを返し、入力ファイルは削除しない")
 	void getPdfMetadataReturnsBasicInfoWithoutDeletingSource() throws IOException {
 		Path inputPath = createPdf("metadata.pdf", "first page", "second page");
 		PdfDocumentAnalysisLogic analysisLogic = new PdfDocumentAnalysisLogic();
@@ -58,6 +60,7 @@ class PdfDocumentAnalysisLogicTest {
 	}
 
 	@Test
+	@DisplayName("テキストを返し、入力ファイルは削除しない")
 	void extractPdfTextReturnsTextWithoutDeletingSource() throws IOException {
 		Path inputPath = createPdf("text.pdf", "first page", "second page");
 		PdfDocumentAnalysisLogic analysisLogic = new PdfDocumentAnalysisLogic();
@@ -73,6 +76,7 @@ class PdfDocumentAnalysisLogicTest {
 	}
 
 	@Test
+	@DisplayName("ページ順のテキストを返し、空ページも省略しない")
 	void extractPdfPageTextsReturnsPagesInOrderAndKeepsEmptyPageWithoutDeletingSource() throws IOException {
 		Path inputPath = createPdf("pages.pdf", "first page", "", "third page");
 		PdfDocumentAnalysisLogic analysisLogic = new PdfDocumentAnalysisLogic();
@@ -87,6 +91,7 @@ class PdfDocumentAnalysisLogicTest {
 	}
 
 	@Test
+	@DisplayName("PDFを読めない場合も入力ファイルを残す")
 	void extractPdfPageTextsKeepsSourceWhenPdfCannotBeRead() throws IOException {
 		Path inputPath = tempDirectory.resolve("broken.pdf");
 		Files.writeString(inputPath, "not a pdf");
@@ -98,6 +103,7 @@ class PdfDocumentAnalysisLogicTest {
 	}
 
 	@Test
+	@DisplayName("AUTOは文字が無いページだけを変換し、入力ファイルを残す")
 	void extractPdfPageContentsConvertsOnlyBlankPagesAndKeepsSource() throws IOException {
 		Path inputPath = createPdf("contents.pdf", "first page", "");
 		PdfDocumentAnalysisLogic analysisLogic = new PdfDocumentAnalysisLogic();
@@ -123,6 +129,7 @@ class PdfDocumentAnalysisLogicTest {
 	}
 
 	@Test
+	@DisplayName("変換対象をページ順に1ページずつ変換する")
 	void extractPdfPageContentsConvertsBlankPagesOneByOneInPageOrder() throws IOException {
 		Path inputPath = createPdf("order.pdf", "", "second page", "");
 		PdfDocumentAnalysisLogic analysisLogic = new PdfDocumentAnalysisLogic();
@@ -138,6 +145,7 @@ class PdfDocumentAnalysisLogicTest {
 	}
 
 	@Test
+	@DisplayName("1ページの変換失敗でも成功ページの結果を返す")
 	void extractPdfPageContentsKeepsSucceededPagesWhenConverterFailsForOnePage() throws IOException {
 		Path inputPath = createPdf("partial.pdf", "", "second page", "");
 		PdfDocumentAnalysisLogic analysisLogic = new PdfDocumentAnalysisLogic();
@@ -163,6 +171,7 @@ class PdfDocumentAnalysisLogicTest {
 	}
 
 	@Test
+	@DisplayName("全ページ失敗時は最初の失敗をそのまま伝播する")
 	void extractPdfPageContentsPropagatesFirstFailureWhenEveryTargetPageFails() throws IOException {
 		Path inputPath = createPdf("all-failed.pdf", "", "");
 		PdfDocumentAnalysisLogic analysisLogic = new PdfDocumentAnalysisLogic();
@@ -180,6 +189,7 @@ class PdfDocumentAnalysisLogicTest {
 	}
 
 	@Test
+	@DisplayName("変換対象が無い場合は文字レイヤーのページをそのまま返す")
 	void extractPdfPageContentsKeepsTextPagesWhenThereIsNoConversionTarget() throws IOException {
 		Path inputPath = createPdf("no-target.pdf", "first page", "second page");
 		PdfDocumentAnalysisLogic analysisLogic = new PdfDocumentAnalysisLogic();
@@ -196,6 +206,7 @@ class PdfDocumentAnalysisLogicTest {
 	}
 
 	@Test
+	@DisplayName("AUTOで変換対象が上限を超えたら変換器を呼ばずに拒否する")
 	void extractPdfPageContentsRejectsWithoutCallingConverterWhenBlankPagesExceedMaxPages() throws IOException {
 		Path inputPath = createPdf("limit.pdf", "first page", "", "");
 		PdfDocumentAnalysisLogic analysisLogic = new PdfDocumentAnalysisLogic();
@@ -214,6 +225,7 @@ class PdfDocumentAnalysisLogicTest {
 	}
 
 	@Test
+	@DisplayName("VISIONは文字レイヤーのあるページも含め全ページを変換する")
 	void extractPdfPageContentsConvertsEveryPageInVisionMode() throws IOException {
 		Path inputPath = createPdf("vision.pdf", "first page", "", "third page");
 		PdfDocumentAnalysisLogic analysisLogic = new PdfDocumentAnalysisLogic();
@@ -233,6 +245,7 @@ class PdfDocumentAnalysisLogicTest {
 	}
 
 	@Test
+	@DisplayName("VISIONで総ページ数が上限を超えたら変換器を呼ばずに拒否する")
 	void extractPdfPageContentsRejectsWithoutCallingConverterWhenTotalPagesExceedMaxPagesInVisionMode()
 			throws IOException {
 		Path inputPath = createPdf("vision-limit.pdf", "first page", "second page", "third page");
@@ -253,6 +266,7 @@ class PdfDocumentAnalysisLogicTest {
 	}
 
 	@Test
+	@DisplayName("指定したDPIでページを画像化する")
 	void extractPdfPageContentsRendersWithGivenDpi() throws IOException {
 		Path inputPath = createPdf("dpi.pdf", "");
 		PdfDocumentAnalysisLogic analysisLogic = new PdfDocumentAnalysisLogic();
@@ -264,6 +278,7 @@ class PdfDocumentAnalysisLogicTest {
 	}
 
 	@Test
+	@DisplayName("PDF順にページ単位のdata URIサムネイルを返す")
 	void extractPdfThumbnailsReturnsDataUriPerPageInPdfOrder() throws IOException {
 		Path inputPath = createPdf("thumbnails.pdf", "first page", "second page", "third page");
 		PdfDocumentAnalysisLogic analysisLogic = new PdfDocumentAnalysisLogic();
@@ -284,6 +299,7 @@ class PdfDocumentAnalysisLogicTest {
 	}
 
 	@Test
+	@DisplayName("指定したDPIがサムネイルの画像サイズへ反映される")
 	void extractPdfThumbnailsUsesGivenDpiForImageSize() throws IOException {
 		Path inputPath = createPdf("thumbnail-dpi.pdf", "first page");
 		PdfDocumentAnalysisLogic analysisLogic = new PdfDocumentAnalysisLogic();
@@ -299,6 +315,7 @@ class PdfDocumentAnalysisLogicTest {
 	}
 
 	@Test
+	@DisplayName("総ページ数が上限を超えたら画像化せずに拒否する")
 	void extractPdfThumbnailsRejectsWhenPageCountExceedsMaxPages() throws IOException {
 		Path inputPath = createPdf("thumbnail-limit.pdf", "first page", "second page", "third page");
 		PdfDocumentAnalysisLogic analysisLogic = new PdfDocumentAnalysisLogic();

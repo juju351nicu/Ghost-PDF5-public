@@ -11,6 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -28,6 +29,7 @@ class FrontendThumbnailContractTest {
 	 * @throws IOException フロントエンドresourceを読み込めない場合
 	 */
 	@Test
+	@DisplayName("サムネイル操作が責務別JavaScript境界を通ってAPIへ接続される")
 	void thumbnailUiUsesExistingFrontendBoundaries() throws IOException {
 		String mainTemplate = read("templates/main.html");
 		String originalPdfForm = read("static/js/components/original-pdf-form.js");
@@ -62,6 +64,7 @@ class FrontendThumbnailContractTest {
 	 * @throws IOException フロントエンドresourceを読み込めない場合
 	 */
 	@Test
+	@DisplayName("サムネイル取得は利用者操作ごとに1回だけ行う")
 	void thumbnailsAreFetchedOncePerUserAction() throws IOException {
 		String thumbnailList = read("static/js/components/pdf-thumbnail-list.js");
 		String pdfApp = read("static/js/pdf/pdf-app.js");
@@ -85,6 +88,7 @@ class FrontendThumbnailContractTest {
 	 * @throws IOException フロントエンドresourceを読み込めない場合
 	 */
 	@Test
+	@DisplayName("サムネイル表示がフロントエンド規約に沿う")
 	void thumbnailRenderingFollowsFrontendConventions() throws IOException {
 		String thumbnailList = read("static/js/components/pdf-thumbnail-list.js");
 		String styles = read("static/css/main.css");
@@ -108,6 +112,7 @@ class FrontendThumbnailContractTest {
 	 * @throws IOException フロントエンドresourceを読み込めない場合
 	 */
 	@Test
+	@DisplayName("選択したページを既存のページ指定入力へ反映する")
 	void selectedPagesAreAppliedToExistingPageInput() throws IOException {
 		String validator = read("static/js/validation/page-number-validator.js");
 		String pdfApp = read("static/js/pdf/pdf-app.js");

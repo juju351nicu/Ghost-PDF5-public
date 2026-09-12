@@ -15,6 +15,7 @@ import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.apache.pdfbox.text.PDFTextStripper;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -30,6 +31,7 @@ class PdfInsertLogicTest {
 	Path tempDirectory;
 
 	@Test
+	@DisplayName("差し込みリクエストを順に適用し、入力ファイルは削除しない")
 	void insertPdfAppliesRequestsInOrderWithoutDeletingSources() throws IOException {
 		Path originalPath = createPdf("original.pdf", "original first", "original second", "original third");
 		Path insertPath = createPdf("insert.pdf", "inserted page");

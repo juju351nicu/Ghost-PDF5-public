@@ -1,6 +1,7 @@
 package com.clip.ghost;
 
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
@@ -9,6 +10,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 class ApplicationTests {
 
 	@Test
+	@DisplayName("Spring Bootのapplication contextを起動できる")
 	void contextLoads() {
 	}
 

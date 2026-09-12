@@ -22,6 +22,7 @@ import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.apache.pdfbox.text.PDFTextStripper;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -38,6 +39,7 @@ class PdfPageOperationLogicTest {
 	private final PdfPageOperationLogic pageOperationLogic = new PdfPageOperationLogic();
 
 	@Test
+	@DisplayName("指定ページを削除し、入力ファイルは削除しない")
 	void deletePdfRemovesPagesWithoutDeletingSource() throws IOException {
 		Path inputPath = createPdf("delete-input.pdf", "first page", "second page", "third page");
 		Path outputPath = tempDirectory.resolve("delete-output.pdf");
@@ -50,6 +52,7 @@ class PdfPageOperationLogicTest {
 	}
 
 	@Test
+	@DisplayName("抽出ページを並べ替えて重複を除き、入力ファイルは削除しない")
 	void extractPdfSortsAndDeduplicatesPagesWithoutDeletingSource() throws IOException {
 		Path inputPath = createPdf("extract-input.pdf", "first page", "second page", "third page");
 		Path outputPath = tempDirectory.resolve("extract-output.pdf");
@@ -61,6 +64,7 @@ class PdfPageOperationLogicTest {
 	}
 
 	@Test
+	@DisplayName("結合順を保ち、入力ファイルは削除しない")
 	void mergePdfKeepsDocumentOrderWithoutDeletingSources() throws IOException {
 		Path firstPath = createPdf("merge-first.pdf", "first page", "second page");
 		Path secondPath = createPdf("merge-second.pdf", "third page");
@@ -74,6 +78,7 @@ class PdfPageOperationLogicTest {
 	}
 
 	@Test
+	@DisplayName("1ページずつのZIPエントリを作り、入力ファイルは削除しない")
 	void splitPdfCreatesSinglePageEntriesWithoutDeletingSource() throws IOException {
 		Path inputPath = createPdf("split-input.pdf", "first page", "second page");
 		Path outputPath = tempDirectory.resolve("split-output.zip");
@@ -98,6 +103,7 @@ class PdfPageOperationLogicTest {
 	}
 
 	@Test
+	@DisplayName("分割範囲ごとにリクエスト順でZIPエントリを作る")
 	void splitPdfCreatesOneEntryPerRangeInRequestOrder() throws IOException {
 		Path inputPath = createPdf("split-range.pdf", "first page", "second page", "third page", "fourth page");
 		Path outputPath = tempDirectory.resolve("split-range-output.zip");
@@ -113,6 +119,7 @@ class PdfPageOperationLogicTest {
 	}
 
 	@Test
+	@DisplayName("1ページだけの範囲は1ページのPDFにする")
 	void splitPdfCreatesSinglePagePdfWhenRangeHasOnePage() throws IOException {
 		Path inputPath = createPdf("split-single.pdf", "first page", "second page", "third page");
 		Path outputPath = tempDirectory.resolve("split-single-output.zip");
@@ -125,6 +132,7 @@ class PdfPageOperationLogicTest {
 	}
 
 	@Test
+	@DisplayName("範囲未指定なら従来の1ページずつの命名を保つ")
 	void splitPdfKeepsSinglePageNamingWhenRangesAreNotSpecified() throws IOException {
 		Path inputPath = createPdf("split-default.pdf", "first page", "second page");
 		Path outputPath = tempDirectory.resolve("split-default-output.zip");
@@ -136,6 +144,7 @@ class PdfPageOperationLogicTest {
 	}
 
 	@Test
+	@DisplayName("総ページ数を超える範囲はZIPを書かずに拒否する")
 	void splitPdfRejectsRangeBeyondTotalPagesWithoutWritingZip() throws IOException {
 		Path inputPath = createPdf("split-outside.pdf", "first page", "second page");
 		Path outputPath = tempDirectory.resolve("split-outside-output.zip");

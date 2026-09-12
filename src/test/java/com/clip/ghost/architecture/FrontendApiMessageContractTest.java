@@ -10,6 +10,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -28,6 +29,7 @@ class FrontendApiMessageContractTest {
 	 * @throws IOException フロントエンドresourceを読み込めない場合
 	 */
 	@Test
+	@DisplayName("成功レスポンスの通知がインライン表示コンポーネントまで届く")
 	void apiMessagesReachInlineDisplayComponent() throws IOException {
 		String mainTemplate = read("templates/main.html");
 		String apiMessageList = read("static/js/components/api-message-list.js");
@@ -51,6 +53,7 @@ class FrontendApiMessageContractTest {
 	 * @throws IOException フロントエンドresourceを読み込めない場合
 	 */
 	@Test
+	@DisplayName("通知はリクエストごとに消し、エラーモーダルでは出さない")
 	void apiMessagesAreClearedPerRequestAndDoNotUseErrorModal() throws IOException {
 		String apiMessageList = read("static/js/components/api-message-list.js");
 		String pdfApp = read("static/js/pdf/pdf-app.js");

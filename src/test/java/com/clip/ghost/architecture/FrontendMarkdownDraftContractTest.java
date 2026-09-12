@@ -9,6 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -25,6 +26,7 @@ class FrontendMarkdownDraftContractTest {
 	 * @throws IOException フロントエンドresourceを読み込めない場合
 	 */
 	@Test
+	@DisplayName("Markdown下書き操作が責務別JavaScript境界を通ってAPIへ接続される")
 	void pageMarkdownDraftUiUsesExistingFrontendBoundaries() throws IOException {
 		String mainTemplate = read("templates/main.html");
 		String originalPdfForm = read("static/js/components/original-pdf-form.js");
@@ -52,6 +54,7 @@ class FrontendMarkdownDraftContractTest {
 	 * @throws IOException フロントエンドresourceを読み込めない場合
 	 */
 	@Test
+	@DisplayName("変換モードの選択がpayload生成まで接続される")
 	void markdownDraftModeSelectionReachesPayload() throws IOException {
 		String originalPdfForm = read("static/js/components/original-pdf-form.js");
 		String formState = read("static/js/models/pdf-form-state.js");

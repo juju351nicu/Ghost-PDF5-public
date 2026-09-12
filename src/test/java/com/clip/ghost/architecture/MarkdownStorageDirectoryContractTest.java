@@ -10,6 +10,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -33,6 +34,7 @@ class MarkdownStorageDirectoryContractTest {
 	 * @throws IOException 設定ファイルを読み込めない場合
 	 */
 	@Test
+	@DisplayName("application.ymlのMarkdown保存先の既定がホーム配下になる")
 	void applicationYmlDefaultsToHomeDirectory() throws IOException {
 		String applicationYml = read(RESOURCE_ROOT.resolve("application.yml"));
 		String storageDirectoryLine = applicationYml.lines()
@@ -56,6 +58,7 @@ class MarkdownStorageDirectoryContractTest {
 	 * @throws IOException ソースを読み込めない場合
 	 */
 	@Test
+	@DisplayName("@Valueのfallbackでも保存先の既定がホーム配下になる")
 	void valueFallbackDefaultsToHomeDirectory() throws IOException {
 		String service = read(MAIN_SOURCE.resolve("com/clip/ghost/markdowncontent/service/MarkdownDocumentService.java"));
 		String annotationLine = service.lines().filter(line -> line.contains(STORAGE_DIRECTORY_KEY)).findFirst()
