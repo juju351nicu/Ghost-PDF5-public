@@ -14,6 +14,7 @@ PDFの結合、分割、ページ操作、テキスト抽出、Markdown下書き
 - [将来拡張メモ: Markdown / AI / CSV / Utils 利用方針](docs/future-document-ai-roadmap.md)
 - [ページ単位Markdown下書きAPI設計](docs/page-markdown-draft-api-design.md)
 - [画像Markdown下書きAPI設計（vision）](docs/image-markdown-draft-design.md)
+- [MarkdownからのPDF出力API設計](docs/markdown-to-pdf-design.md)
 - [Spring Boot 4移行事前監査](docs/spring-boot-4-migration-readiness.md)
 - [Jackson 3段階移行設計](docs/jackson-3-migration-design.md)
 - [同梱サンプル素材の由来](docs/sample-assets.md)
@@ -89,6 +90,14 @@ Public repository化後も、当面はlocal development / portfolio用途を前�
 - 分割済みLogicのJavadocと理由コメントを整理し、単純コンストラクタをLombokへ統一
 - AIなしの `POST /markdownDraftPdf` を追加し、API設計、request / response DTO、ページ単位抽出Logic、Facade、下書き生成Service、専用Controller、OpenAPI契約テスト、最小UI接続まで完了
 - `mode=AUTO` のページ上限とコストガードを追加（`ghost.ocr.pdf.max-pages` / `render-dpi`、課金前に400で拒否、ページ単位の画像処理、`PdfPageLimitExceededException`）
+- `mode=VISION` を追加し、文字レイヤーを持つPDFでも全ページをvisionへ回して表をMarkdown表として取得できるようにした
+  - `mode` を `PdfMarkdownDraftMode` enum へ整理（API契約の文字列は従来どおり）。VISIONは総ページ数が上限・費用の対象になる
+- MarkdownからのPDF出力（`POST /markdownPdf`）を追加し、Phase Dを完了
+  - `openhtmltopdf`（PDFBox 3系へ描画）＋ 同梱のNoto Sans JPで、日本語・表・コードブロック・ページ番号を出力
+  - HTML変換は画面プレビューと共有し、外部リソースはPDFへ取り込まない
+- 区分値をリクエストDTOでもenumで受ける形へ統一（`mode` / `insertOption`）
+  - コード値からenumへの変換は `StringToCodeEnumConverterFactory` に集約し、外向きのコード値（`AUTO` / `1`）は変えない
+  - 不正値は400のまま、メッセージはenum自身の説明へ差し替える
 - `JsonUtils` のログ処理整理
 - 旧 `StorageUtils` の責務分割と削除
   - `PathUtils`: パス文字列・拡張子・PDF拡張子判定
@@ -386,7 +395,7 @@ Markdown保存を含むJava 25の全286テストが成功しています。
   - 設計は [画像Markdown下書きAPI設計](docs/image-markdown-draft-design.md) を参照。
 - package renameは `pdfcontent` / `pdfcontent.dto` / `common.validation` / `common.utils` / `common.exceptions` の責務別構成へ整理済み。
   - 今後のpackage変更は、Boot upgradeやServiceImpl化とは混ぜず、必要になった責務境界だけを小さく扱う。
-- Spring Bootは4.0.7、Springdocは3.0.3まで更新済み。
+- Spring Bootは4.0.8、Springdocは3.0.3まで更新済み。
   - 今後の更新もSpring Boot / Spring Framework / Springdocの互換性を確認し、`mvn test` と `/v3/api-docs` テストを通してから採用する。
   - Boot 4移行はWeb MVC starter、test slice、Jackson 2互換を含む独立コミットで実施済み。
   - `spring-boot-jackson2` は削除済み。既存publicシグネチャ用Jackson 2 coreだけを明示している。

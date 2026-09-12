@@ -9,6 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -26,6 +27,7 @@ class FrontendSplitRangeContractTest {
 	 * @throws IOException フロントエンドresourceを読み込めない場合
 	 */
 	@Test
+	@DisplayName("分割範囲の入力が責務別境界を通って分割APIへ接続される")
 	void splitRangeInputReachesSplitApiThroughExistingBoundaries() throws IOException {
 		String formState = read("static/js/models/pdf-form-state.js");
 		String originalPdfForm = read("static/js/components/original-pdf-form.js");
@@ -54,6 +56,7 @@ class FrontendSplitRangeContractTest {
 	 * @throws IOException フロントエンドresourceを読み込めない場合
 	 */
 	@Test
+	@DisplayName("分割範囲が空なら1ページずつ分割の挙動を保つ")
 	void emptySplitRangeKeepsSinglePageSplitBehavior() throws IOException {
 		String originalPdfForm = read("static/js/components/original-pdf-form.js");
 		String payload = read("static/js/api/pdf-payload.js");

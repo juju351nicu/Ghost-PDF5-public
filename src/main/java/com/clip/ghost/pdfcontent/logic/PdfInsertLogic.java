@@ -77,10 +77,9 @@ final class PdfInsertLogic {
 			List<GhostPdfDto> insertPdfDtos, int totalPages) {
 		CollectionUtils.emptyIfNull(insertPdfDtos).stream().filter(Objects::nonNull)
 				.filter(insertPdfDto -> shouldApplyInsertRequest(insertPdfDto, totalPages)).forEach(insertPdfDto -> {
-					PdfInsertOption option = PdfInsertOption.fromKey(insertPdfDto.getInsertOption());
 					PdfSegment insertDocument = PdfSegment.insertDocument(insertPdfDto.getInsertPath());
-					applyInsertRequest(mergePlanByPageNumber, insertPdfDto.getInsertPage(), totalPages, option,
-							insertDocument);
+					applyInsertRequest(mergePlanByPageNumber, insertPdfDto.getInsertPage(), totalPages,
+							insertPdfDto.getInsertOption(), insertDocument);
 				});
 	}
 
@@ -89,6 +88,9 @@ final class PdfInsertLogic {
 	 * <p>
 	 * 既存仕様に合わせ、差し込みPDFパスまたはページ番号が未指定の場合は無視し、 最終ページより後ろの場合も無視する。末尾挿入は {@code -1}
 	 * を使うため、下限チェックはここでは行わない。
+	 * <p>
+	 * 差し込み方法も未指定なら無視する。service層が既定値を補完するためAPI経由では起こらないが、
+	 * enumのswitchはnullでNullPointerExceptionになるため、他の未指定項目と同じ扱いで受け止める。
 	 *
 	 * @param insertPdfDto 差し込みPDFのパス、対象ページ、挿入オプション
 	 * @param totalPages   編集元PDFの総ページ数
@@ -96,7 +98,7 @@ final class PdfInsertLogic {
 	 */
 	private boolean shouldApplyInsertRequest(GhostPdfDto insertPdfDto, int totalPages) {
 		return Objects.nonNull(insertPdfDto.getInsertPath()) && Objects.nonNull(insertPdfDto.getInsertPage())
-				&& insertPdfDto.getInsertPage() <= totalPages;
+				&& Objects.nonNull(insertPdfDto.getInsertOption()) && insertPdfDto.getInsertPage() <= totalPages;
 	}
 
 	/**

@@ -13,6 +13,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import org.springframework.core.io.Resource;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -28,6 +29,7 @@ class PdfTemporaryFileStorageTest {
 	Path tempDirectory;
 
 	@Test
+	@DisplayName("アップロードPDFを設定したディレクトリへ書き出す")
 	void saveUploadedPdfWritesFileToConfiguredDirectory() throws IOException {
 		PdfTemporaryFileStorage storage = new PdfTemporaryFileStorage(tempDirectory.toString());
 		byte[] content = "temporary pdf bytes".getBytes(StandardCharsets.UTF_8);
@@ -41,6 +43,7 @@ class PdfTemporaryFileStorageTest {
 	}
 
 	@Test
+	@DisplayName("レスポンス用に開いたファイルをclose時に削除する")
 	void openForResponseStreamsFileAndDeletesItOnClose() throws IOException {
 		PdfTemporaryFileStorage storage = new PdfTemporaryFileStorage(tempDirectory.toString());
 		Path inputPath = tempDirectory.resolve("input.pdf");
@@ -62,6 +65,7 @@ class PdfTemporaryFileStorageTest {
 	}
 
 	@Test
+	@DisplayName("一時ファイルが存在しない場合は例外にする")
 	void openForResponseThrowsWhenTemporaryFileDoesNotExist() {
 		PdfTemporaryFileStorage storage = new PdfTemporaryFileStorage(tempDirectory.toString());
 		Path missingPath = tempDirectory.resolve("missing.pdf");

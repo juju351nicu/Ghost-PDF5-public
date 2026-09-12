@@ -31,19 +31,21 @@ import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.core.io.Resource;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import com.clip.ghost.pdfcontent.constant.PdfConstants;
 import com.clip.ghost.pdfcontent.exception.PdfPageLimitExceededException;
 import com.clip.ghost.pdfcontent.exception.PdfProcessingException;
 import com.clip.ghost.pdfcontent.dto.GhostPdfDto;
 import com.clip.ghost.pdfcontent.dto.PdfMetadataResponse;
 import com.clip.ghost.pdfcontent.dto.PdfPageContent;
 import com.clip.ghost.pdfcontent.dto.PdfTextResponse;
+import com.clip.ghost.pdfcontent.enums.PdfInsertOption;
+import com.clip.ghost.pdfcontent.enums.PdfMarkdownDraftMode;
 
 /**
  * PDF操作ロジックのテストクラス。
@@ -62,6 +64,7 @@ class GhostPdfLogicTest {
 	}
 
 	@Test
+	@DisplayName("レスポンス送信後にストリームがcloseされた時点で一時ファイルを削除する")
 	void openTemporaryFileForResponseDeletesTemporaryFileAfterStreamIsClosed() throws IOException {
 		Path inputPath = tempDirectory.resolve("convert.pdf");
 		byte[] expectedBytes = "temporary pdf bytes".getBytes(StandardCharsets.UTF_8);
@@ -81,6 +84,7 @@ class GhostPdfLogicTest {
 	}
 
 	@Test
+	@DisplayName("一時ファイルが存在しない場合は例外にする")
 	void openTemporaryFileForResponseThrowsExceptionWhenTemporaryFileDoesNotExist() {
 		Path inputPath = tempDirectory.resolve("missing.pdf");
 
@@ -89,6 +93,7 @@ class GhostPdfLogicTest {
 	}
 
 	@Test
+	@DisplayName("メタデータを返し、一時ファイルを削除する")
 	void getPdfMetadataReturnsBasicInfoAndDeletesTemporaryFile() throws IOException {
 		Path inputPath = createPdf("metadata.pdf", page(100, 200, 0), page(200, 300, 90));
 
@@ -102,6 +107,7 @@ class GhostPdfLogicTest {
 	}
 
 	@Test
+	@DisplayName("テキストを返し、一時ファイルを削除する")
 	void extractPdfTextReturnsTextAndDeletesTemporaryFile() throws IOException {
 		Path inputPath = createPdf("text.pdf", page(100, 200, 0), page(200, 300, 90));
 
@@ -116,6 +122,7 @@ class GhostPdfLogicTest {
 	}
 
 	@Test
+	@DisplayName("ページ順のテキストを返し、一時ファイルを削除する")
 	void extractPdfPageTextsReturnsPagesInOrderAndDeletesTemporaryFile() throws IOException {
 		Path inputPath = createPdf("page-text.pdf", page(100, 200, 0), page(200, 300, 90));
 
@@ -128,6 +135,7 @@ class GhostPdfLogicTest {
 	}
 
 	@Test
+	@DisplayName("PDFが壊れている場合は例外にし、一時ファイルを削除する")
 	void extractPdfPageTextsThrowsExceptionAndDeletesTemporaryFileWhenSourceIsBroken() throws IOException {
 		Path inputPath = tempDirectory.resolve("broken-page-text.pdf");
 		Files.writeString(inputPath, "not pdf");
@@ -138,10 +146,11 @@ class GhostPdfLogicTest {
 	}
 
 	@Test
+	@DisplayName("文字が無いページを変換し、一時ファイルを削除する")
 	void extractPdfPageContentsConvertsBlankPagesAndDeletesTemporaryFile() throws IOException {
 		Path inputPath = createBlankPdf("page-contents.pdf", 1);
 
-		List<PdfPageContent> contents = pdfLogic.extractPdfPageContents(inputPath, 72, 20,
+		List<PdfPageContent> contents = pdfLogic.extractPdfPageContents(inputPath, 72, 20, PdfMarkdownDraftMode.AUTO,
 				pngBytes -> "converted markdown");
 
 		assertFalse(inputPath.toFile().exists());
@@ -150,12 +159,14 @@ class GhostPdfLogicTest {
 	}
 
 	@Test
+	@DisplayName("ページ上限超過でも一時ファイルを削除し、変換器を呼ばない")
 	void extractPdfPageContentsDeletesTemporaryFileAndSkipsConverterWhenPageLimitExceeded() throws IOException {
 		Path inputPath = createBlankPdf("page-limit.pdf", 2);
 		AtomicInteger convertedCount = new AtomicInteger();
 
-		assertThrows(PdfPageLimitExceededException.class, () -> pdfLogic.extractPdfPageContents(inputPath, 72, 1,
-				pngBytes -> "converted-" + convertedCount.incrementAndGet()));
+		assertThrows(PdfPageLimitExceededException.class,
+				() -> pdfLogic.extractPdfPageContents(inputPath, 72, 1, PdfMarkdownDraftMode.AUTO,
+						pngBytes -> "converted-" + convertedCount.incrementAndGet()));
 
 		// 上限超過で拒否した場合も一時ファイルを残さず、課金の起点となる変換器も呼ばない。
 		assertFalse(inputPath.toFile().exists());
@@ -163,6 +174,7 @@ class GhostPdfLogicTest {
 	}
 
 	@Test
+	@DisplayName("指定ページを削除し、残りページのレイアウトを保つ")
 	void deletePdfRemovesSelectedPagesAndKeepsPageLayout() throws IOException {
 		Path inputPath = createPdf("delete-input.pdf", page(100, 200, 0), page(200, 300, 90), page(300, 400, 0),
 				page(400, 500, 270));
@@ -175,6 +187,7 @@ class GhostPdfLogicTest {
 	}
 
 	@Test
+	@DisplayName("削除ページが空リストなら全ページを残し、入力を削除する")
 	void deletePdfWithEmptyDeleteListKeepsAllPagesAndDeletesInput() throws IOException {
 		Path inputPath = createPdf("empty-delete-input.pdf", page(100, 200, 0), page(200, 300, 90));
 
@@ -186,6 +199,7 @@ class GhostPdfLogicTest {
 	}
 
 	@Test
+	@DisplayName("削除ページがnullなら全ページを残し、入力を削除する")
 	void deletePdfWithNullDeleteListKeepsAllPagesAndDeletesInput() throws IOException {
 		Path inputPath = createPdf("null-delete-input.pdf", page(100, 200, 0), page(200, 300, 90));
 
@@ -197,6 +211,7 @@ class GhostPdfLogicTest {
 	}
 
 	@Test
+	@DisplayName("重複・null・範囲外を含む指定でも範囲内のページだけ削除する")
 	void deletePdfWithDuplicateNullAndOutOfRangePagesRemovesOnlyInRangeTargets() throws IOException {
 		Path inputPath = createPdf("boundary-delete-input.pdf", page(100, 200, 0), page(200, 300, 90),
 				page(300, 400, 180));
@@ -209,6 +224,7 @@ class GhostPdfLogicTest {
 	}
 
 	@Test
+	@DisplayName("抽出ページをページ番号順に並べ、入力を削除する")
 	void extractPdfKeepsRequestedPagesInPageNumberOrderAndDeletesInput() throws IOException {
 		Path inputPath = createPdf("extract-input.pdf", page(100, 200, 0), page(200, 300, 90), page(300, 400, 180));
 
@@ -220,6 +236,7 @@ class GhostPdfLogicTest {
 	}
 
 	@Test
+	@DisplayName("抽出ページが範囲外なら例外にし、入力を削除する")
 	void extractPdfThrowsExceptionAndDeletesInputWhenPageIsOutOfRange() throws IOException {
 		Path inputPath = createPdf("extract-out-of-range-input.pdf", page(100, 200, 0), page(200, 300, 90));
 
@@ -228,6 +245,7 @@ class GhostPdfLogicTest {
 	}
 
 	@Test
+	@DisplayName("結合順を入力順に保ち、入力ファイルを削除する")
 	void mergePdfKeepsInputOrderAndDeletesInputFiles() throws IOException {
 		Path firstPath = createPdf("merge-first.pdf", page(100, 200, 0), page(200, 300, 90));
 		Path secondPath = createPdf("merge-second.pdf", page(300, 400, 180));
@@ -241,11 +259,13 @@ class GhostPdfLogicTest {
 	}
 
 	@Test
+	@DisplayName("結合対象が空の場合は例外にする")
 	void mergePdfThrowsExceptionWhenInputListIsEmpty() {
 		assertThrows(PdfProcessingException.class, () -> pdfLogic.mergePdf(List.of()));
 	}
 
 	@Test
+	@DisplayName("1ページずつのPDFを含むZIPを作り、入力を削除する")
 	void splitPdfCreatesZipWithSinglePagePdfsAndDeletesInput() throws IOException {
 		Path inputPath = createPdf("split-input.pdf", page(100, 200, 0), page(200, 300, 90), page(300, 400, 180));
 
@@ -257,6 +277,7 @@ class GhostPdfLogicTest {
 	}
 
 	@Test
+	@DisplayName("範囲ごとのPDFを含むZIPを作り、入力を削除する")
 	void splitPdfCreatesZipWithRangePdfsAndDeletesInput() throws IOException {
 		Path inputPath = createPdf("split-range-input.pdf", page(100, 200, 0), page(200, 300, 90),
 				page(300, 400, 180));
@@ -269,6 +290,7 @@ class GhostPdfLogicTest {
 	}
 
 	@Test
+	@DisplayName("差し込み・差し替え・末尾挿入をリクエスト順に適用する")
 	void insertPdfSupportsInsertReplaceAndLastInsertInRequestOrder() throws IOException {
 		Path originalPath = createPdf("original.pdf", page(100, 200, 0), page(200, 300, 90), page(300, 400, 180));
 		Path firstInsertPath = createPdf("first-insert.pdf", page(410, 510, 270));
@@ -277,10 +299,10 @@ class GhostPdfLogicTest {
 		Path lastInsertPath = createPdf("last-insert.pdf", page(610, 710, 0));
 
 		Path outputPath = pdfLogic.insertPdf(originalPath,
-				List.of(insert(firstInsertPath, 1, PdfConstants.OPTION_INSERT),
-						insert(secondInsertPath, 1, PdfConstants.OPTION_INSERT),
-						insert(replacePath, 2, PdfConstants.OPTION_REPLACE),
-						insert(lastInsertPath, -1, PdfConstants.OPTION_LAST_INSERT)));
+				List.of(insert(firstInsertPath, 1, PdfInsertOption.INSERT),
+						insert(secondInsertPath, 1, PdfInsertOption.INSERT),
+						insert(replacePath, 2, PdfInsertOption.REPLACE),
+						insert(lastInsertPath, -1, PdfInsertOption.LAST_INSERT)));
 
 		assertFalse(originalPath.toFile().exists());
 		assertFalse(firstInsertPath.toFile().exists());
@@ -292,11 +314,12 @@ class GhostPdfLogicTest {
 	}
 
 	@Test
+	@DisplayName("最終ページの後ろへも差し込みできる")
 	void insertPdfCanInsertAfterLastPageWithInsertOption() throws IOException {
 		Path originalPath = createPdf("last-page-insert-original.pdf", page(100, 200, 0), page(200, 300, 90));
 		Path insertPath = createPdf("last-page-insert.pdf", page(400, 500, 180));
 
-		Path outputPath = pdfLogic.insertPdf(originalPath, List.of(insert(insertPath, 2, PdfConstants.OPTION_INSERT)));
+		Path outputPath = pdfLogic.insertPdf(originalPath, List.of(insert(insertPath, 2, PdfInsertOption.INSERT)));
 
 		assertFalse(originalPath.toFile().exists());
 		assertFalse(insertPath.toFile().exists());
@@ -305,6 +328,7 @@ class GhostPdfLogicTest {
 	}
 
 	@Test
+	@DisplayName("ページ複製時にCropBoxを保つ")
 	void insertPdfPreservesCropBoxWhenCloningPages() throws IOException {
 		PDRectangle cropBox = new PDRectangle(10, 20, 110, 120);
 		Path originalPath = createPdfWithCropBox("crop-original.pdf", page(200, 300, 90), cropBox);
@@ -316,17 +340,19 @@ class GhostPdfLogicTest {
 	}
 
 	@Test
+	@DisplayName("最終ページより後ろのページ指定は無視する")
 	void insertPdfIgnoresPageNumberAfterLastPage() throws IOException {
 		Path originalPath = createPdf("out-of-range-original.pdf", page(100, 200, 0), page(200, 300, 0));
 		Path insertPath = createPdf("out-of-range-insert.pdf", page(400, 500, 0));
 
-		Path outputPath = pdfLogic.insertPdf(originalPath, List.of(insert(insertPath, 3, PdfConstants.OPTION_INSERT)));
+		Path outputPath = pdfLogic.insertPdf(originalPath, List.of(insert(insertPath, 3, PdfInsertOption.INSERT)));
 
 		assertFalse(insertPath.toFile().exists());
 		assertPageLayout(outputPath, page(100, 200, 0), page(200, 300, 0));
 	}
 
 	@Test
+	@DisplayName("差し込みリストがnullなら元ページを保ち、入力を削除する")
 	void insertPdfWithNullInsertListKeepsOriginalPagesAndDeletesOriginal() throws IOException {
 		Path originalPath = createPdf("null-insert-list-original.pdf", page(100, 200, 0), page(200, 300, 90));
 
@@ -338,6 +364,7 @@ class GhostPdfLogicTest {
 	}
 
 	@Test
+	@DisplayName("差し込み要素がnullなら元ページを保ち、入力を削除する")
 	void insertPdfWithNullInsertDtoKeepsOriginalPagesAndDeletesOriginal() throws IOException {
 		Path originalPath = createPdf("null-insert-dto-original.pdf", page(100, 200, 0), page(200, 300, 90));
 
@@ -349,9 +376,10 @@ class GhostPdfLogicTest {
 	}
 
 	@Test
+	@DisplayName("差し込みパスがnullなら元ページを保ち、入力を削除する")
 	void insertPdfWithNullInsertPathKeepsOriginalPagesAndDeletesOriginal() throws IOException {
 		Path originalPath = createPdf("null-insert-path-original.pdf", page(100, 200, 0), page(200, 300, 90));
-		GhostPdfDto insertDto = insert(null, 1, PdfConstants.OPTION_INSERT);
+		GhostPdfDto insertDto = insert(null, 1, PdfInsertOption.INSERT);
 
 		Path outputPath = pdfLogic.insertPdf(originalPath, List.of(insertDto));
 
@@ -361,6 +389,7 @@ class GhostPdfLogicTest {
 	}
 
 	@Test
+	@DisplayName("差し込みリストが空なら元ページを保ち、入力を削除する")
 	void insertPdfWithEmptyInsertListKeepsOriginalPagesAndDeletesOriginal() throws IOException {
 		Path originalPath = createPdf("empty-insert-original.pdf", page(100, 200, 0), page(200, 300, 90));
 
@@ -372,29 +401,34 @@ class GhostPdfLogicTest {
 	}
 
 	@Test
-	void insertPdfThrowsExceptionAndDeletesInputFilesWhenInsertOptionIsInvalid() throws IOException {
-		Path originalPath = createPdf("invalid-option-original.pdf", page(100, 200, 0));
-		Path insertPath = createPdf("invalid-option-insert.pdf", page(400, 500, 0));
+	@DisplayName("差し込み方法が未指定の行は無視し、入力ファイルを削除する")
+	void insertPdfIgnoresRequestAndDeletesInputFilesWhenInsertOptionIsMissing() throws IOException {
+		Path originalPath = createPdf("missing-option-original.pdf", page(100, 200, 0));
+		Path insertPath = createPdf("missing-option-insert.pdf", page(400, 500, 0));
 
-		assertThrows(PdfProcessingException.class,
-				() -> pdfLogic.insertPdf(originalPath, List.of(insert(insertPath, 1, 0))));
+		// 差し込み方法はenumで受けるため不正なコード値は届かない。未指定の行は他の未指定項目と同じく無視する。
+		Path outputPath = pdfLogic.insertPdf(originalPath, List.of(insert(insertPath, 1, null)));
+
 		assertFalse(originalPath.toFile().exists());
 		assertFalse(insertPath.toFile().exists());
+		assertPageLayout(outputPath, page(100, 200, 0));
 	}
 
 	@Test
+	@DisplayName("差し込みPDFが壊れている場合は例外にし、入力ファイルを削除する")
 	void insertPdfThrowsExceptionAndDeletesInputFilesWhenInsertSourceIsBroken() throws IOException {
 		Path originalPath = createPdf("broken-insert-original.pdf", page(100, 200, 0));
 		Path insertPath = tempDirectory.resolve("broken-insert.pdf");
 		Files.writeString(insertPath, "not pdf");
 
 		assertThrows(PdfProcessingException.class,
-				() -> pdfLogic.insertPdf(originalPath, List.of(insert(insertPath, 1, PdfConstants.OPTION_INSERT))));
+				() -> pdfLogic.insertPdf(originalPath, List.of(insert(insertPath, 1, PdfInsertOption.INSERT))));
 		assertFalse(originalPath.toFile().exists());
 		assertFalse(insertPath.toFile().exists());
 	}
 
 	@Test
+	@DisplayName("アップロードPDFを設定した一時ディレクトリへ保存する")
 	void loadPdfSavesUploadedPdfToConfiguredTemporaryDirectory() throws IOException {
 		Path sourcePath = createPdf("upload-source.pdf", page(100, 200, 0));
 		byte[] sourceBytes = Files.readAllBytes(sourcePath);
@@ -409,6 +443,7 @@ class GhostPdfLogicTest {
 	}
 
 	@Test
+	@DisplayName("PDF以外のアップロードは例外にする")
 	void loadPdfThrowsExceptionWhenUploadedFileIsNotPdf() {
 		MockMultipartFile textFile = new MockMultipartFile("originalFile", "sample.txt", "text/plain",
 				"not pdf".getBytes());
@@ -417,11 +452,13 @@ class GhostPdfLogicTest {
 	}
 
 	@Test
+	@DisplayName("アップロードファイルがnullの場合は例外にする")
 	void loadPdfThrowsExceptionWhenUploadedFileIsNull() {
 		assertThrows(PdfProcessingException.class, () -> pdfLogic.loadPdf(null));
 	}
 
 	@Test
+	@DisplayName("アップロードPDFが空の場合は例外にする")
 	void loadPdfThrowsExceptionWhenUploadedPdfIsEmpty() {
 		MockMultipartFile emptyPdfFile = new MockMultipartFile("originalFile", "empty.pdf", "application/pdf",
 				new byte[0]);
@@ -430,6 +467,7 @@ class GhostPdfLogicTest {
 	}
 
 	@Test
+	@DisplayName("PDFが壊れている場合は例外にし、入力を削除する")
 	void deletePdfThrowsExceptionAndDeletesInputWhenSourceIsBroken() throws IOException {
 		Path inputPath = tempDirectory.resolve("broken.pdf");
 		Files.writeString(inputPath, "not pdf");
@@ -438,7 +476,7 @@ class GhostPdfLogicTest {
 		assertFalse(inputPath.toFile().exists());
 	}
 
-	private GhostPdfDto insert(Path path, int pageNumber, int option) {
+	private GhostPdfDto insert(Path path, int pageNumber, PdfInsertOption option) {
 		GhostPdfDto dto = new GhostPdfDto();
 		dto.setInsertPath(path);
 		dto.setInsertPage(pageNumber);

@@ -9,6 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -25,6 +26,7 @@ class FrontendImageMarkdownDraftContractTest {
 	 * @throws IOException フロントエンドresourceを読み込めない場合
 	 */
 	@Test
+	@DisplayName("画像Markdown下書き操作が責務別JavaScript境界を通ってAPIへ接続される")
 	void imageMarkdownDraftUiUsesExistingFrontendBoundaries() throws IOException {
 		String mainTemplate = read("templates/main.html");
 		String imageOcrForm = read("static/js/components/image-ocr-form.js");

@@ -58,14 +58,14 @@ public class PdfMarkdownDraftController {
 	 * @param session     トークン検証に使用するHTTPセッション
 	 * @return PDF情報、ページ単位テキスト、Markdown下書きを含むレスポンス
 	 */
-	@Operation(summary = "ページ単位Markdown下書き生成", description = "アップロードされたPDFからページ単位でテキストを抽出し、Markdown下書きを返却します。自動保存は行いません。", requestBody = @RequestBody(content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE, schema = @Schema(implementation = PdfMarkdownDraftRequest.class))))
+	@Operation(summary = "ページ単位Markdown下書き生成", description = "アップロードされたPDFからページ単位でテキストを抽出し、Markdown下書きを返却します。自動保存は行いません。mode=AUTOは文字が無いページだけ、mode=VISIONは全ページを画像化して外部変換（OCR/vision）にかけるため、VISIONはページ数分の費用が発生します。", requestBody = @RequestBody(content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE, schema = @Schema(implementation = PdfMarkdownDraftRequest.class))))
 	@ApiResponses({
 			@ApiResponse(responseCode = "200", description = "ページ単位Markdown下書き"),
-			@ApiResponse(responseCode = "400", description = "入力値が不正です。AUTOモードで画像変換の対象ページ数が上限を超えた場合も400です。", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+			@ApiResponse(responseCode = "400", description = "入力値が不正です。modeがAUTO / VISION以外の場合、画像変換の対象ページ数が上限を超えた場合も400です。VISIONは総ページ数がそのまま対象ページ数になります。", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
 			@ApiResponse(responseCode = "403", description = "access-tokenが不正です。"),
 			@ApiResponse(responseCode = "413", description = "アップロードファイルサイズが上限を超えています。", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
 			@ApiResponse(responseCode = "500", description = "Markdown下書き生成に失敗しました。", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
-			@ApiResponse(responseCode = "503", description = "AUTOモードで画像変換(OCR/vision)が無効です。", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))) })
+			@ApiResponse(responseCode = "503", description = "AUTO / VISIONモードで画像変換(OCR/vision)が無効です。", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))) })
 	@PostMapping(value = "/markdownDraftPdf", consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
 	@ResponseBody
 	public ResponseEntity<ApiResult<PdfMarkdownDraftResponse>> generateMarkdownDraft(

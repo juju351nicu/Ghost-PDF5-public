@@ -7,6 +7,7 @@ const MARKDOWN_ERROR_MESSAGE =
   "Markdown処理に失敗しました。入力内容を確認してください。";
 const UNEXPECTED_MARKDOWN_ERROR_MESSAGE =
   "Markdown処理中に予期しないエラーが発生しました。";
+const PDF_MEDIA_TYPE = "application/pdf";
 
 /**
  * Markdown APIへ送信するfileName queryを組み立てる。
@@ -42,6 +43,38 @@ const requestJson = async (request) => {
   return {
     data: apiResult.data,
     messages: apiResult.messages,
+    errorMessages: [],
+  };
+};
+
+/**
+ * MarkdownからPDFを生成し、Blobとレスポンスヘッダーを返す。
+ *
+ * レスポンスはJSONではなくPDFバイナリのため、共通ラッパーを読む requestJson は使わない。
+ * 失敗時のbodyは共通エラー形式のJSONなので、エラーメッセージの取り出しだけ共通処理へ乗せる。
+ *
+ * @param {{fileName: string, content: string}} payload PDF出力リクエスト
+ * @returns {Promise<{fileBlob: Blob|null, headers: Headers|null, errorMessages: string[]}>} PDF生成結果
+ */
+const requestMarkdownPdf = async (payload) => {
+  const response = await FetchClient.postRequestForFile(
+    CONST.REST_PATH.MARKDOWN_PDF,
+    payload,
+    PDF_MEDIA_TYPE
+  );
+  if (!response.ok) {
+    return {
+      fileBlob: null,
+      headers: null,
+      errorMessages: await ApiErrorUtils.extractErrorMessages(
+        response,
+        MARKDOWN_ERROR_MESSAGE
+      ),
+    };
+  }
+  return {
+    fileBlob: await response.blob(),
+    headers: response.headers,
     errorMessages: [],
   };
 };
@@ -144,6 +177,7 @@ const deleteMarkdownFile = (fileName) => {
 };
 
 export default {
+  requestMarkdownPdf,
   listMarkdownFiles,
   getMarkdownFile,
   previewMarkdownFile,

@@ -62,6 +62,16 @@ public enum PdfInsertOption implements CodeEnum<Integer> {
 	}
 
 	/**
+	 * コード値が不正な場合に利用者へ返す説明を取得する。
+	 *
+	 * @return 差し込み方法コードが不正な場合の説明
+	 */
+	@Override
+	public String getInvalidKeyMessage() {
+		return INVALID_KEY_MESSAGE;
+	}
+
+	/**
 	 * キー値からPDF差し込み方法を取得する。
 	 *
 	 * @param key 差し込み方法コード

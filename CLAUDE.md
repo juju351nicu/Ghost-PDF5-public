@@ -59,6 +59,21 @@ commons-lang3 3.19 で `StringUtils` の比較・検索・置換系は非推奨�
 `CodingConventionTest` には他にも `@Autowired` field injection禁止、`System.out` / `printStackTrace` 禁止、
 public宣言へのJavadoc必須などの規約が入っている。新しい規約を足す場合もここへ追加し、ドキュメントだけで終わらせない。
 
+## テストには `@DisplayName` を必ず付ける
+
+JUnitのテストメソッド（`@Test` / `@ParameterizedTest` / `@RepeatedTest`）には、日本語の `@DisplayName` を必ず付ける。
+テストレポートに出るのは `@DisplayName` で、method名の英語だけでは「何の仕様が壊れたのか」が読み取れない。
+
+```java
+@Test
+@DisplayName("VISIONで総ページ数が上限を超えた場合はLogicの例外を伝播し、変換器を呼ばない")
+void generateMarkdownDraftVisionPropagatesPageLimitException() {
+```
+
+- 並びは `@Test` → `@DisplayName` の順。
+- 文言はmethod名の直訳ではなく、条件と期待結果が分かる形にする。
+- 漏れは `CodingConventionTest.testMethodsDeclareDisplayName` がファイル名と行番号付きで落とす。
+
 ## ビルドとテスト
 
 ```bash

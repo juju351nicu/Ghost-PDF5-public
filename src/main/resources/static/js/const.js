@@ -13,6 +13,7 @@ const REST_PATH = {
   METADATA_PDF: "/metadataPdf",
   TEXT_PDF: "/textPdf",
   MARKDOWN_DRAFT_PDF: "/markdownDraftPdf",
+  MARKDOWN_PDF: "/markdownPdf",
   MARKDOWN_DRAFT_IMAGE: "/markdownDraftImage",
   EXTRACT_PDF: "/extractPdf",
   MERGE_PDF: "/mergePdf",

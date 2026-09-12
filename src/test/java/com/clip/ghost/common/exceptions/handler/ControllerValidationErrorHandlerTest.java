@@ -22,6 +22,9 @@ import org.springframework.web.context.request.WebRequest;
 
 import com.clip.ghost.common.exceptions.CustomFieldError;
 import com.clip.ghost.common.exceptions.ErrorResponse;
+import com.clip.ghost.pdfcontent.dto.InsertPdfRequest;
+import com.clip.ghost.pdfcontent.dto.PdfMarkdownDraftRequest;
+import com.clip.ghost.pdfcontent.enums.PdfMarkdownDraftMode;
 
 /**
  * {@link ControllerValidationErrorHandler} の単体テスト。
@@ -36,6 +39,8 @@ class ControllerValidationErrorHandlerTest {
 	private static final String OBJECT_ERROR_MESSAGE = "リクエスト内容が不正です。";
 	private static final String SECOND_FIELD_NAME = "insertPdfForm[0].insertPage";
 	private static final String SECOND_FIELD_ERROR_MESSAGE = "差し込みページ番号が不正です。";
+	private static final String TYPE_MISMATCH_ERROR_CODE = "typeMismatch";
+	private static final String TYPE_MISMATCH_RAW_MESSAGE = "Failed to convert property value of type 'java.lang.String'";
 
 	private final ControllerValidationErrorHandler handler = new ControllerValidationErrorHandler();
 
@@ -98,6 +103,35 @@ class ControllerValidationErrorHandlerTest {
 		assertEquals(DEFAULT_VALIDATION_ERROR_CODE, fieldError.getErrorCode());
 		assertEquals("", fieldError.getField());
 		assertEquals(OBJECT_ERROR_MESSAGE, fieldError.getMessage());
+	}
+
+	@Test
+	@DisplayName("区分値enumの型変換エラー_英語の内部表現ではなくenumの説明を返す")
+	void handleMethodArgumentNotValidWithCodeEnumTypeMismatchUsesEnumMessage() throws Exception {
+		BeanPropertyBindingResult bindingResult = new BeanPropertyBindingResult(new PdfMarkdownDraftRequest(),
+				REQUEST_OBJECT_NAME);
+		bindingResult.addError(buildFieldErrorWithCode("mode", TYPE_MISMATCH_ERROR_CODE, TYPE_MISMATCH_RAW_MESSAGE));
+
+		ResponseEntity<Object> response = handle(bindingResult);
+
+		// 画面はこのメッセージをそのままモーダルへ出すため、内部表現を見せない。
+		CustomFieldError fieldError = getFirstFieldError(response);
+		assertEquals(TYPE_MISMATCH_ERROR_CODE, fieldError.getErrorCode());
+		assertEquals("mode", fieldError.getField());
+		assertEquals(PdfMarkdownDraftMode.AUTO.getInvalidKeyMessage(), fieldError.getMessage());
+	}
+
+	@Test
+	@DisplayName("区分値enum以外の型変換エラー_従来どおりSpringのメッセージを返す")
+	void handleMethodArgumentNotValidWithOtherTypeMismatchKeepsDefaultMessage() throws Exception {
+		BeanPropertyBindingResult bindingResult = new BeanPropertyBindingResult(new InsertPdfRequest(),
+				REQUEST_OBJECT_NAME);
+		bindingResult
+				.addError(buildFieldErrorWithCode("insertPage", TYPE_MISMATCH_ERROR_CODE, TYPE_MISMATCH_RAW_MESSAGE));
+
+		ResponseEntity<Object> response = handle(bindingResult);
+
+		assertEquals(TYPE_MISMATCH_RAW_MESSAGE, getFirstFieldError(response).getMessage());
 	}
 
 	/**

@@ -2,6 +2,7 @@ package com.clip.ghost.common.exceptions.handler;
 
 import java.util.List;
 
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
@@ -19,6 +20,7 @@ import com.clip.ghost.common.exceptions.ErrorResponse;
 import com.clip.ghost.imagecontent.exception.ImageInputException;
 import com.clip.ghost.imagecontent.exception.ImageProcessingException;
 import com.clip.ghost.imagecontent.exception.OcrUnavailableException;
+import com.clip.ghost.markdowncontent.exception.MarkdownPdfException;
 import com.clip.ghost.pdfcontent.exception.PdfPageLimitExceededException;
 import com.clip.ghost.pdfcontent.exception.PdfProcessingException;
 import com.clip.ghost.pdfcontent.exception.PdfSplitRangeException;
@@ -38,6 +40,7 @@ public class GlobalExceptionErrorHandler extends ResponseEntityExceptionHandler 
 	private static final String MULTIPART_ERROR_MESSAGE = "許可されないサイズのファイルが入っております。";
 	private static final String PDF_PROCESSING_ERROR_MESSAGE = "PDF処理に失敗しました。入力ファイルを確認してください。";
 	private static final String PDF_PAGE_LIMIT_ERROR_MESSAGE = "画像変換の対象ページ数が上限を超えています。対象 %d ページ / 上限 %d ページ";
+	private static final String PDF_PAGE_LIMIT_ERROR_DETAIL_MESSAGE = "%s（%s）";
 	private static final String PDF_SPLIT_RANGE_ERROR_CODE = "pdfSplitRangeOutOfBounds";
 	private static final String PDF_SPLIT_RANGE_ERROR_MESSAGE = "分割範囲「%s」はPDFのページ範囲外です。このPDFは全 %d ページです。";
 	private static final String IMAGE_INPUT_ERROR_CODE = "imageInputError";
@@ -46,6 +49,8 @@ public class GlobalExceptionErrorHandler extends ResponseEntityExceptionHandler 
 	private static final String IMAGE_INPUT_ERROR_MESSAGE = "画像として扱えないファイルです。PNG / JPEG / GIF / WEBPを指定してください。";
 	private static final String IMAGE_PROCESSING_ERROR_MESSAGE = "画像Markdown下書き生成に失敗しました。";
 	private static final String OCR_UNAVAILABLE_ERROR_MESSAGE = "画像Markdown下書き機能は無効です。";
+	private static final String MARKDOWN_PDF_ERROR_CODE = "markdownPdfError";
+	private static final String MARKDOWN_PDF_ERROR_MESSAGE = "MarkdownからのPDF出力に失敗しました。";
 
 	/**
 	 * MultipartExceptionがスローされた場合、レスポンスステータスを413にする。<br>
@@ -92,9 +97,24 @@ public class GlobalExceptionErrorHandler extends ResponseEntityExceptionHandler 
 	protected ResponseEntity<ErrorResponse> handlePdfPageLimitExceeded(PdfPageLimitExceededException ex) {
 		LOGGER.warn("画像変換の対象ページ数が上限を超えました。targetPageCount={}, maxPages={}", ex.getTargetPageCount(),
 				ex.getMaxPages());
-		return createErrorResponse(PDF_PAGE_LIMIT_ERROR_CODE,
-				PDF_PAGE_LIMIT_ERROR_MESSAGE.formatted(ex.getTargetPageCount(), ex.getMaxPages()),
-				HttpStatus.BAD_REQUEST);
+		return createErrorResponse(PDF_PAGE_LIMIT_ERROR_CODE, buildPageLimitMessage(ex), HttpStatus.BAD_REQUEST);
+	}
+
+	/**
+	 * ページ上限超過のエラーメッセージを組み立てる。
+	 * <p>
+	 * 対象ページ数と上限に加え、何を数えた対象かの説明があれば添える。同じページ数でもAUTOなら通り
+	 * VISIONなら通らないため、数値だけでは利用者が理由を判断できない。
+	 *
+	 * @param ex ページ上限超過例外
+	 * @return 画面表示用のエラーメッセージ
+	 */
+	private String buildPageLimitMessage(PdfPageLimitExceededException ex) {
+		String message = PDF_PAGE_LIMIT_ERROR_MESSAGE.formatted(ex.getTargetPageCount(), ex.getMaxPages());
+		if (StringUtils.isBlank(ex.getTargetDescription())) {
+			return message;
+		}
+		return PDF_PAGE_LIMIT_ERROR_DETAIL_MESSAGE.formatted(message, ex.getTargetDescription());
 	}
 
 	/**
@@ -157,6 +177,23 @@ public class GlobalExceptionErrorHandler extends ResponseEntityExceptionHandler 
 		LOGGER.warn("画像Markdown下書き機能が無効です。message={}", ex.getMessage());
 		return createErrorResponse(OCR_UNAVAILABLE_ERROR_CODE, OCR_UNAVAILABLE_ERROR_MESSAGE,
 				HttpStatus.SERVICE_UNAVAILABLE);
+	}
+
+	/**
+	 * MarkdownからのPDF出力に失敗した場合、レスポンスステータスを500にする。
+	 * <p>
+	 * Markdown本文やフォントのローカルパスはメッセージへ含めない。詳細はログ側に残す。
+	 *
+	 * @param ex Markdown PDF出力例外
+	 * @return PDF出力エラーのレスポンス
+	 */
+	@ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+	@ExceptionHandler(MarkdownPdfException.class)
+	protected ResponseEntity<ErrorResponse> handleMarkdownPdf(MarkdownPdfException ex) {
+		LOGGER.error("MarkdownからのPDF出力に失敗しました。message={}", ex.getMessage());
+		LOGGER.debug("Markdown PDF出力例外の詳細です。", ex);
+		return createErrorResponse(MARKDOWN_PDF_ERROR_CODE, MARKDOWN_PDF_ERROR_MESSAGE,
+				HttpStatus.INTERNAL_SERVER_ERROR);
 	}
 
 	/**

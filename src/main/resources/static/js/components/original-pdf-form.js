@@ -1,3 +1,4 @@
+import PdfFormState from "../models/pdf-form-state.js";
 import PageNumberValidator from "../validation/page-number-validator.js";
 import PdfThumbnailList from "./pdf-thumbnail-list.js";
 
@@ -59,6 +60,12 @@ export default {
           <button type="button" :disabled="isProcessing" @click="requestDeletePdf">削除する</button>
           <button type="button" :disabled="isProcessing" @click="requestMetadataPdf">PDF情報を確認</button>
           <button type="button" :disabled="isProcessing" @click="requestTextPdf">テキスト抽出</button>
+          <select class="markdown-draft-mode-select" v-model="originalFile.markdownDraftMode"
+            aria-label="Markdown下書きの変換モード">
+            <option v-for="item in markdownDraftModeItems" :key="item.id" :value="item.id">
+              {{ item.name }}
+            </option>
+          </select>
           <button type="button" :disabled="isProcessing" @click="requestMarkdownDraftPdf">Markdown下書き</button>
           <input type="text" class="page-input" ref="splitRangesText"
             v-model="originalFile.splitRangesText.text"
@@ -70,6 +77,9 @@ export default {
           <br />
           <span class="error_message">{{ originalFile.delPagesText.message }}</span>
           <span class="error_message">{{ originalFile.splitRangesText.message }}</span>
+          <p class="markdown-draft-mode__notice" v-if="isVisionModeSelected">
+            VISIONは全ページを外部AIへ送るため、ページ数分の費用が発生します。
+          </p>
         </div>
         <pdf-thumbnail-list
           :thumbnail-state="thumbnailState"
@@ -99,6 +109,21 @@ export default {
       </div>
     </article>
   `,
+  data() {
+    return {
+      markdownDraftModeItems: PdfFormState.createMarkdownDraftModeItems(),
+    };
+  },
+  computed: {
+    /**
+     * 変換モードにVISIONが選ばれているか判定する。
+     *
+     * @returns {boolean} VISIONが選ばれている場合はtrue
+     */
+    isVisionModeSelected() {
+      return this.originalFile.markdownDraftMode === "VISION";
+    },
+  },
   methods: {
     /**
      * 編集元PDFファイル選択イベントを親コンポーネントへ通知する。

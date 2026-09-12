@@ -28,6 +28,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.core.io.ByteArrayResource;
+import org.springframework.format.support.DefaultFormattingConversionService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -44,10 +45,12 @@ import jakarta.servlet.http.Cookie;
 import com.clip.ghost.pdfcontent.constant.PdfConstants;
 import com.clip.ghost.pdfcontent.dto.InsertPdfRequest;
 import com.clip.ghost.pdfcontent.dto.OriginalPdfRequest;
+import com.clip.ghost.pdfcontent.enums.PdfInsertOption;
 import com.clip.ghost.pdfcontent.dto.PdfMetadataResponse;
 import com.clip.ghost.pdfcontent.dto.PdfTextResponse;
 import com.clip.ghost.pdfcontent.service.GhostPdfService;
 import com.clip.ghost.common.response.ApiResult;
+import com.clip.ghost.common.config.CodeEnumWebMvcConfig;
 import com.clip.ghost.common.security.AccessTokenValidator;
 import com.clip.ghost.common.utils.JsonUtils;
 import com.clip.ghost.common.utils.ResponseUtils;
@@ -111,7 +114,10 @@ class GhostPdfControllerTest {
 		session = new MockHttpSession();
 		session.setAttribute(SESSION_TOKEN_ATTRIBUTE, ACCESS_TOKEN);
 		controller = new GhostPdfController(pdfService, new AccessTokenValidator());
-		mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
+		// insertOptionはenumで受けるため、本番と同じConverterFactoryを登録する。
+		DefaultFormattingConversionService conversionService = new DefaultFormattingConversionService();
+		new CodeEnumWebMvcConfig().addFormatters(conversionService);
+		mockMvc = MockMvcBuilders.standaloneSetup(controller).setConversionService(conversionService).build();
 		ValidatorFactory validatorFactory = Validation.buildDefaultValidatorFactory();
 		validator = validatorFactory.getValidator();
 	}
@@ -219,7 +225,7 @@ class GhostPdfControllerTest {
 		InsertPdfRequest insertForm = new InsertPdfRequest();
 		insertForm.setInsertFile(insertPdfFile);
 		insertForm.setInsertPage(1);
-		insertForm.setInsertOption(1);
+		insertForm.setInsertOption(PdfInsertOption.INSERT);
 		OriginalPdfRequest form = new OriginalPdfRequest();
 		form.setOriginalFile(mockPdfFile);
 		form.setInsertPdfForm(List.of(insertForm));
@@ -574,6 +580,20 @@ class GhostPdfControllerTest {
 
 		MvcResult result = performInsertPdf(mockPdfFile, insertPdfFile, ACCESS_TOKEN, session, "1", "1", "abc");
 
+		verify(pdfService, never()).insertPdfs(any(OriginalPdfRequest.class));
+		assertEquals(HttpStatus.BAD_REQUEST.value(), result.getResponse().getStatus());
+	}
+
+	@Test
+	@DisplayName("PDF挿入では差し込みオプションが値域外の場合に400と説明を返す")
+	void insertPdfFilesReturnsBadRequestWhenInsertOptionIsOutOfRange() throws Exception {
+		byte[] contents = readTestPdf();
+		MockMultipartFile mockPdfFile = createOriginalPdfFile(contents);
+		MockMultipartFile insertPdfFile = createInsertPdfFile(contents);
+
+		MvcResult result = performInsertPdf(mockPdfFile, insertPdfFile, ACCESS_TOKEN, session, "1", "1", "9");
+
+		// 値域の検証はenumへの型変換が担う。メッセージは英語の内部表現にせず、enum自身の説明を返す。
 		verify(pdfService, never()).insertPdfs(any(OriginalPdfRequest.class));
 		assertEquals(HttpStatus.BAD_REQUEST.value(), result.getResponse().getStatus());
 	}

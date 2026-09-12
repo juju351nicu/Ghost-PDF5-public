@@ -172,6 +172,17 @@ temporaryDirectory から Paths.get(temporaryDirectory) で生成する。
   - `fromKey(...)` には必要に応じて `@JsonCreator` を付け、コード値からenumへ変換できるようにする。
   - `KEY_MAP` を用意し、分岐ごとに `if` / `switch` でコード値を直接比較しない。
   - `null` や未定義値は `IllegalArgumentException` など明確な例外にする。
+  - 値域が不正な場合に利用者へ返す説明は `getInvalidKeyMessage()` でenum自身に持たせる。
+    値域を知っているのはenumなので、メッセージの置き場所も同じにする。
+- request / form のフィールドも区分値enumの型で受け取ってよい。外向きのコード値は変えない。
+  - multipartフォームやquery parameterのbindingはJacksonを通らないため、`@JsonCreator` の `fromKey` は呼ばれない。
+    コード値からenumへの変換は `StringToCodeEnumConverterFactory`（`common.converter`）が1箇所で行う。
+    Controllerごとに `@InitBinder` を足さない。
+  - 未入力は `null` に変換する。未指定時の既定値はservice層の `private resolve〇〇` で補完する。
+  - 値域の検証は型変換が兼ねるため、`@Range` などのvalidationは重ねない。不正値は400（`typeMismatch`）になり、
+    メッセージは `ControllerValidationErrorHandler` がenumの `getInvalidKeyMessage()` へ差し替える。
+  - Controller単体テスト（`standaloneSetup`）では `CodeEnumWebMvcConfig#addFormatters` で同じ変換を登録する。
+    登録し忘れると、本番では通る値がテストだけ400になる。
 
 ## StringUtils / CollectionUtils の使用ルール
 
@@ -365,7 +376,7 @@ Utils整理:
   - Java 25ではMockito inline mock makerを自己attachさせず、Surefireの `argLine` で `mockito-core` をjavaagentとして指定する。
 - Lombokを使う場合は、Java 25コンパイルでgetter/setter生成が抜けないよう、Maven Compiler Pluginの `annotationProcessorPaths` へ `lombok` を明示する。
 - OpenAPI UI: `springdoc-openapi-starter-webmvc-ui` を追加する場合は、Spring Boot / Spring Framework と互換のあるバージョンを選ぶ。
-  - Ghost-PDF5はJava 25 / Spring Boot 4.0.7 / Spring Framework 7.0.x / Springdoc 3.0.3 の組み合わせで検証する。
+  - Ghost-PDF5はJava 25 / Spring Boot 4.0.8 / Spring Framework 7.0.x / Springdoc 3.0.3 の組み合わせで検証する。
   - Spring Boot 4.xではSpringdoc 3.xを使い、`OpenApiDocumentationTest` で公開API契約を確認する。
   - `LiteWebJarsResourceResolver` の `NoClassDefFoundError` が出る場合は、SpringdocとSpring Frameworkの互換性を疑う。
 
@@ -562,6 +573,15 @@ public record ApiMessage(String code, String message) {
 
 - バグ修正やリファクタリングをしたら、対応するJUnitを追加・更新する。
 - controller/service/logic/utils の単位で、失敗しやすい境界値をテストする。
+- **テストメソッドには必ず `@DisplayName` を付け、日本語で「何を守っているか」を書く。**
+  - method名は英語の逐語表現になりやすく、落ちたときに何の仕様が壊れたのかを読み取りにくい。
+    テストレポートに出るのは `@DisplayName` なので、説明はそこへ書く。
+  - 文言は「〜する」「〜を返す」「〜の場合は〜にする」の形で、条件と期待結果が分かるようにする。
+    method名の直訳（`deletePdfRemovesPages` → 「deletePdfはページを削除する」）では意味が増えない。
+  - annotationの並びは `@Test` → `@DisplayName` の順にそろえる。
+  - `@ParameterizedTest` / `@RepeatedTest` も同じ扱いにする。
+  - 未設定は `CodingConventionTest#testMethodsDeclareDisplayName` が、ファイル名と行番号付きで検出する。
+- クラスの説明はJavadocに書く。クラスへ `@DisplayName` を付けるかは任意で、必須にはしない。
 - controller テストでは `HttpSession` が必要な場合、`MockHttpSession` などで明示する。
 - `MockMvcBuilders.standaloneSetup(...)` で十分なcontroller単体テストには `@SpringBootTest` を付けない。SpringContextが必要なテストだけ `@SpringBootTest` / `@AutoConfigureMockMvc` を使う。
 - `@Mock` / `@InjectMocks` 中心のservice/controller単体テストにも `@SpringBootTest` を付けない。Mockitoだけで十分な場合は `MockitoExtension` を使う。
@@ -586,6 +606,7 @@ public record ApiMessage(String code, String message) {
   - `window.open` を使う場合は、`noopener` 漏れもJUnitのソーススキャンで検証する。
   - Spring Boot側の非推奨 `@MockBean` の再混入もJUnitのソーススキャンで検証する。
   - springdocの `/v3/api-docs` / `/swagger-ui.html` が通常起動で公開されない設定もJUnitのソーススキャンで検証する。
+  - テストメソッドの `@DisplayName` 漏れもJUnitのソーススキャンで検証する（`@TestPropertySource` などと取り違えないよう、annotation名を正規表現で厳密に判定する）。
   - ルールが増える場合も、ArchUnitで見られるものとソーススキャンが必要なものを分ける。
 
 ## フェーズ管理 / 大きな変更の分離

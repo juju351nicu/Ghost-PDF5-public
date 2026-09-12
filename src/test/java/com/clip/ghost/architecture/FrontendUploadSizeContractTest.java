@@ -12,6 +12,7 @@ import java.nio.file.Paths;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import com.clip.ghost.pdfcontent.constant.PdfConstants;
@@ -35,6 +36,7 @@ class FrontendUploadSizeContractTest {
 	 * @throws IOException フロントエンドresourceを読み込めない場合
 	 */
 	@Test
+	@DisplayName("画面のPDFサイズ上限がBEの上限と一致する")
 	void frontendPdfSizeLimitMatchesBackendLimit() throws IOException {
 		String constants = read("static/js/const.js");
 
@@ -52,6 +54,7 @@ class FrontendUploadSizeContractTest {
 	 * @throws IOException 設定ファイルを読み込めない場合
 	 */
 	@Test
+	@DisplayName("multipartの上限をアプリの上限より大きくする")
 	void multipartLimitIsLargerThanApplicationLimit() throws IOException {
 		String applicationYml = read("application.yml");
 
@@ -71,6 +74,7 @@ class FrontendUploadSizeContractTest {
 	 * @throws IOException フロントエンドresourceを読み込めない場合
 	 */
 	@Test
+	@DisplayName("上限を超えるPDFはアップロード前に画面で止める")
 	void frontendRejectsOversizedPdfBeforeUpload() throws IOException {
 		String pdfApp = read("static/js/pdf/pdf-app.js");
 		String validator = read("static/js/validation/file-size-validator.js");

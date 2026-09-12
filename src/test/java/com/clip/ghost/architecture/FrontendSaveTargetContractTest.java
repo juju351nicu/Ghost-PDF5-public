@@ -9,6 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -27,6 +28,7 @@ class FrontendSaveTargetContractTest {
 	 * @throws IOException フロントエンドresourceを読み込めない場合
 	 */
 	@Test
+	@DisplayName("保存先選択は未対応ブラウザとキャンセルを区別する")
 	void saveTargetDistinguishesUnsupportedAndCancelled() throws IOException {
 		String fileResponseHandler = read("static/js/api/file-response-handler.js");
 
@@ -46,6 +48,7 @@ class FrontendSaveTargetContractTest {
 	 * @throws IOException フロントエンドresourceを読み込めない場合
 	 */
 	@Test
+	@DisplayName("保存先はAPI呼び出し前に選ばせ、ダウンロード処理へ渡す")
 	void saveTargetIsRequestedBeforeApiCallAndPassedToDownload() throws IOException {
 		String pdfApp = read("static/js/pdf/pdf-app.js");
 		String apiClient = read("static/js/api/pdf-api-client.js");

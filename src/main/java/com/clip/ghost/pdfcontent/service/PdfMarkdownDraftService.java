@@ -3,11 +3,11 @@ package com.clip.ghost.pdfcontent.service;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.Strings;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -23,6 +23,7 @@ import com.clip.ghost.pdfcontent.dto.PdfMarkdownDraftPageResponse;
 import com.clip.ghost.pdfcontent.dto.PdfMarkdownDraftRequest;
 import com.clip.ghost.pdfcontent.dto.PdfMarkdownDraftResponse;
 import com.clip.ghost.pdfcontent.dto.PdfPageContent;
+import com.clip.ghost.pdfcontent.enums.PdfMarkdownDraftMode;
 import com.clip.ghost.pdfcontent.exception.PdfPageLimitExceededException;
 import com.clip.ghost.pdfcontent.logic.GhostPdfLogic;
 
@@ -33,7 +34,8 @@ import lombok.RequiredArgsConstructor;
  * <p>
  * PDFの保存とテキスト抽出は {@link GhostPdfLogic} へ委譲し、このクラスはページ番号の付与、
  * 抽出テキストの正規化、Markdown下書きとレスポンスDTOの組み立てを担当する。
- * {@code mode=AUTO} では、文字を取得できないページを画像化し、共有の画像変換器（OCR/vision）で補完する。
+ * {@code mode=AUTO} では文字を取得できないページを、{@code mode=VISION} では全ページを画像化し、
+ * 共有の画像変換器（OCR/vision）で変換する。
  * 変換にかけるページ数の上限とレンダリング解像度は {@link PdfOcrProperties}（{@code ghost.ocr.pdf}）から取る。
  */
 @Service
@@ -41,7 +43,6 @@ import lombok.RequiredArgsConstructor;
 public class PdfMarkdownDraftService {
 	private static final String PAGE_HEADING_PREFIX = "## Page ";
 	private static final String BLOCK_SEPARATOR = "\n\n";
-	private static final String MODE_AUTO = "AUTO";
 	private static final String SOURCE_TEXT = "TEXT";
 	private static final String SOURCE_OCR = "OCR";
 	private static final String SOURCE_FAILED = "FAILED";
@@ -56,21 +57,22 @@ public class PdfMarkdownDraftService {
 	/**
 	 * アップロードされたPDFからページ単位のMarkdown下書きを生成する。
 	 * <p>
-	 * AUTOモードで一部のページだけ変換に失敗した場合は、成功したページを返しつつ結果種別をWARNINGにする。
+	 * 変換モードを指定した場合に一部のページだけ変換に失敗したときは、成功したページを返しつつ結果種別をWARNINGにする。
 	 * 変換対象があって1ページも成功しなかった場合はLogic側が例外にするため、ここへは戻ってこない。
 	 *
 	 * @param form Markdown下書きの生成元PDFと変換モードを含むフォーム
 	 * @return PDF情報、ページ単位テキスト、Markdown下書きを含むレスポンス
-	 * @throws OcrUnavailableException       AUTOモードで画像変換が無効、またはproviderが未対応の場合
-	 * @throws PdfPageLimitExceededException AUTOモードで変換対象ページ数が {@code ghost.ocr.pdf.max-pages} を超えた場合
+	 * @throws OcrUnavailableException       変換モード指定時に画像変換が無効、またはproviderが未対応の場合
+	 * @throws PdfPageLimitExceededException 変換対象ページ数が {@code ghost.ocr.pdf.max-pages} を超えた場合
 	 */
 	public ResponseEntity<ApiResult<PdfMarkdownDraftResponse>> generateMarkdownDraft(PdfMarkdownDraftRequest form) {
 		MultipartFile originalFile = form.getOriginalFile();
-		if (!isAutoMode(form.getMode())) {
+		Optional<PdfMarkdownDraftMode> mode = resolveMode(form.getMode());
+		if (mode.isEmpty()) {
 			return ResponseEntity.ok(ApiResult.of(buildResponse(originalFile, buildTextPages(originalFile))));
 		}
-		List<PdfPageContent> contents = extractAutoPageContents(originalFile);
-		PdfMarkdownDraftResponse response = buildResponse(originalFile, buildAutoPages(contents));
+		List<PdfPageContent> contents = extractConvertedPageContents(originalFile, mode.get());
+		PdfMarkdownDraftResponse response = buildResponse(originalFile, buildConvertedPages(contents));
 		List<Integer> failedPageNumbers = collectConversionFailedPageNumbers(contents);
 		if (CollectionUtils.isEmpty(failedPageNumbers)) {
 			return ResponseEntity.ok(ApiResult.of(response));
@@ -79,13 +81,17 @@ public class PdfMarkdownDraftService {
 	}
 
 	/**
-	 * 変換モードがAUTOか判定する。
+	 * リクエストの変換モードを取得する。
+	 * <p>
+	 * 未指定は「文字レイヤーだけを使う従来動作」を表す。未指定を表す値をenumへ足すと、APIが受け取れる文字列が
+	 * 増えてリクエスト契約が変わってしまうため、enumの値ではなく空のOptionalで扱う。
+	 * 不正な値はbindingの型変換で400になるため、ここへは届かない。
 	 *
 	 * @param mode リクエストの変換モード
-	 * @return AUTOの場合true
+	 * @return 指定された変換モード。未指定の場合は空
 	 */
-	private boolean isAutoMode(String mode) {
-		return Strings.CI.equals(MODE_AUTO, mode);
+	private Optional<PdfMarkdownDraftMode> resolveMode(PdfMarkdownDraftMode mode) {
+		return Optional.ofNullable(mode);
 	}
 
 	/**
@@ -106,23 +112,24 @@ public class PdfMarkdownDraftService {
 	}
 
 	/**
-	 * 文字を取得できないページを画像化し、共有の画像変換器で補完したページ内容を取得する。
+	 * モードが決めた変換対象ページを画像化し、共有の画像変換器で変換したページ内容を取得する。
 	 * <p>
 	 * 変換器の有効性は入力PDFを保存する前に確認し、無効時は入力一時ファイルを作らずに503相当で止める。
 	 * 変換対象ページ数の上限判定はLogic側が画像化前に行うため、上限超過時は変換器が1度も呼ばれない。
 	 *
 	 * @param originalFile アップロードされた元PDF
+	 * @param mode         変換対象ページを決める変換モード
 	 * @return PDF順のページ内容
 	 * @throws OcrUnavailableException       画像変換が無効、またはproviderが未対応の場合
 	 * @throws PdfPageLimitExceededException 変換対象ページ数が上限を超えた場合
 	 */
-	private List<PdfPageContent> extractAutoPageContents(MultipartFile originalFile) {
+	private List<PdfPageContent> extractConvertedPageContents(MultipartFile originalFile, PdfMarkdownDraftMode mode) {
 		ImageToMarkdownConverter converter = converterResolver.resolve();
 		if (!converter.isEnabled()) {
 			throw new OcrUnavailableException("画像PDFのOCRは無効です。providerを有効化してください。");
 		}
 		Path inputPath = pdfLogic.loadPdf(originalFile);
-		return pdfLogic.extractPdfPageContents(inputPath, properties.getRenderDpi(), properties.getMaxPages(),
+		return pdfLogic.extractPdfPageContents(inputPath, properties.getRenderDpi(), properties.getMaxPages(), mode,
 				pngBytes -> converter.convert(pngBytes, IMAGE_MEDIA_TYPE));
 	}
 
@@ -132,8 +139,8 @@ public class PdfMarkdownDraftService {
 	 * @param contents PDF順のページ内容
 	 * @return PDF順のページレスポンス
 	 */
-	private List<PdfMarkdownDraftPageResponse> buildAutoPages(List<PdfPageContent> contents) {
-		return contents.stream().map(this::buildAutoPage).toList();
+	private List<PdfMarkdownDraftPageResponse> buildConvertedPages(List<PdfPageContent> contents) {
+		return contents.stream().map(this::buildConvertedPage).toList();
 	}
 
 	/**
@@ -164,10 +171,12 @@ public class PdfMarkdownDraftService {
 	}
 
 	/**
-	 * 1ページ分の内容を、文字レイヤー優先で、無ければ画像変換結果でページレスポンスへ変換する。
+	 * 1ページ分の内容を、画像変換結果があればそれで、無ければ文字レイヤーでページレスポンスへ変換する。
 	 * <p>
-	 * 文字レイヤーが空かどうかの判定はLogic側の1箇所に固定しているため、ここでは変換結果の有無だけで取得元を決める。
+	 * 変換対象ページの判定はLogic側の1箇所に固定しているため、ここでは変換結果の有無だけで取得元を決める。
 	 * 上限チェックで数えるページ集合と実際に変換されたページ集合をズラさないための分担。
+	 * VISIONは全ページが変換対象になるため、変換に成功したページの取得元はすべて {@code OCR} になる。
+	 * 取得元へ {@code VISION} を足さないのは、providerがtesseractのこともあり、名前が実態と合わなくなるため。
 	 * <p>
 	 * 変換に失敗したページは本文を空にし、取得元を {@code FAILED} にする。{@code TEXT} のままにすると
 	 * 「文字レイヤーが空の白紙ページ」と区別できず、利用者が失敗に気付けないため。
@@ -175,7 +184,7 @@ public class PdfMarkdownDraftService {
 	 * @param content 1ページ分の抽出内容
 	 * @return ページレスポンス
 	 */
-	private PdfMarkdownDraftPageResponse buildAutoPage(PdfPageContent content) {
+	private PdfMarkdownDraftPageResponse buildConvertedPage(PdfPageContent content) {
 		if (content.conversionFailed()) {
 			return buildPageResponse(content.pageNumber(), "", SOURCE_FAILED);
 		}

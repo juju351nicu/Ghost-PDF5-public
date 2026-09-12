@@ -10,6 +10,7 @@ import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.clip.ghost.pdfcontent.enums.PdfMarkdownDraftMode;
 import com.clip.ghost.pdfcontent.exception.PdfPageLimitExceededException;
 import com.clip.ghost.pdfcontent.exception.PdfProcessingException;
 import com.clip.ghost.pdfcontent.dto.GhostPdfDto;
@@ -120,23 +121,27 @@ public class GhostPdfLogic {
 	}
 
 	/**
-	 * 一時保存されたPDFからページ単位の内容を抽出し、文字を取得できないページは画像化して変換器へ渡す。
+	 * 一時保存されたPDFからページ単位の内容を抽出し、変換対象のページは画像化して変換器へ渡す。
+	 * <p>
+	 * 変換対象はモードが決める。{@code AUTO} は文字を取得できないページだけ、{@code VISION} は全ページを対象にする。
 	 * <p>
 	 * 成功・失敗にかかわらず、呼び出し後に入力一時ファイルを削除する。ページ上限を超えて拒否した場合も削除する。
 	 * テキスト抽出と画像化は1つの {@code PDDocument} 内で2段に分けて行うため、上限超過時は変換器が1度も呼ばれない。
 	 *
 	 * @param inputPath          読み込むPDFのパス
-	 * @param renderDpi          文字が無いページを画像化する解像度（DPI）
+	 * @param renderDpi          変換対象ページを画像化する解像度（DPI）
 	 * @param maxPages           画像変換にかけるページ数の上限
+	 * @param mode               変換対象ページを決める変換モード
 	 * @param pageImageConverter 画像化した1ページ分をテキストへ変換する処理
 	 * @return PDF順のページ内容（テキストと、変換したページの変換結果）
 	 * @throws PdfPageLimitExceededException 変換対象ページ数が上限を超えた場合
 	 * @throws PdfProcessingException        PDFの読み込み、テキスト抽出、または画像化に失敗した場合
 	 */
 	public List<PdfPageContent> extractPdfPageContents(Path inputPath, int renderDpi, int maxPages,
-			PdfPageImageConverter pageImageConverter) {
+			PdfMarkdownDraftMode mode, PdfPageImageConverter pageImageConverter) {
 		try {
-			return documentAnalysisLogic.extractPdfPageContents(inputPath, renderDpi, maxPages, pageImageConverter);
+			return documentAnalysisLogic.extractPdfPageContents(inputPath, renderDpi, maxPages, mode,
+					pageImageConverter);
 		} finally {
 			temporaryFileStorage().delete(inputPath);
 		}

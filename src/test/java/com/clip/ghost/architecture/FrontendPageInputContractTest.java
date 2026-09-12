@@ -10,6 +10,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -29,6 +30,7 @@ class FrontendPageInputContractTest {
 	 * @throws IOException フロントエンドresourceを読み込めない場合
 	 */
 	@Test
+	@DisplayName("ページ指定入力の空白除去が全角空白を含めて効く")
 	void whitespaceRemovalMatchesWhitespaceGlobally() throws IOException {
 		String util = read("static/js/util.js");
 
@@ -47,6 +49,7 @@ class FrontendPageInputContractTest {
 	 * @throws IOException フロントエンドresourceを読み込めない場合
 	 */
 	@Test
+	@DisplayName("ページ指定の検証と解釈が同じ正規化を共有する")
 	void pageInputValidationAndParsingShareNormalization() throws IOException {
 		String validator = read("static/js/validation/page-number-validator.js");
 
@@ -69,6 +72,7 @@ class FrontendPageInputContractTest {
 	 * @throws IOException フロントエンドresourceを読み込めない場合
 	 */
 	@Test
+	@DisplayName("全角の区切り文字を半角と同じに扱う")
 	void fullWidthDelimitersAreAcceptedAsHalfWidth() throws IOException {
 		String validator = read("static/js/validation/page-number-validator.js");
 		String originalPdfForm = read("static/js/components/original-pdf-form.js");

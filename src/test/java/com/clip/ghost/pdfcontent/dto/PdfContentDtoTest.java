@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockMultipartFile;
 
 import com.clip.ghost.pdfcontent.constant.PdfConstants;
+import com.clip.ghost.pdfcontent.enums.PdfInsertOption;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import jakarta.validation.ConstraintViolation;
@@ -47,17 +48,17 @@ class PdfContentDtoTest {
 	}
 
 	@Test
-	@DisplayName("差し込みPDFリクエストはページ番号と差し込み方法の範囲をvalidationする")
-	void insertPdfRequestValidatesPageAndOptionRange() {
+	@DisplayName("差し込みPDFリクエストはページ番号の範囲をvalidationする")
+	void insertPdfRequestValidatesPageRange() {
 		InsertPdfRequest request = new InsertPdfRequest();
 		request.setInsertPage(PdfConstants.START_PAGE - 1);
-		request.setInsertOption(PdfConstants.OPTION_LAST_INSERT + 1);
+		request.setInsertOption(PdfInsertOption.LAST_INSERT);
 
 		Set<ConstraintViolation<InsertPdfRequest>> violations = validate(request);
 
-		assertEquals(2, violations.size());
+		// 差し込み方法の値域はenumへの型変換が担うため、bean validationの対象はページ番号だけになる。
+		assertEquals(1, violations.size());
 		assertTrue(hasViolation(violations, "insertPage", "1以上の半角数字で入力してください"));
-		assertTrue(hasViolation(violations, "insertOption", "1から3までの値を入れてください"));
 	}
 
 	@Test

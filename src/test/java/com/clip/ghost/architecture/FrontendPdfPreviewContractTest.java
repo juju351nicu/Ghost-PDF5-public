@@ -10,6 +10,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -28,6 +29,7 @@ class FrontendPdfPreviewContractTest {
 	 * @throws IOException フロントエンドresourceを読み込めない場合
 	 */
 	@Test
+	@DisplayName("編集元PDFのプレビューはローカルのObject URLで表示する")
 	void originalPdfPreviewUsesLocalObjectUrl() throws IOException {
 		String pdfApp = read("static/js/pdf/pdf-app.js");
 		String originalPdfForm = read("static/js/components/original-pdf-form.js");
@@ -51,6 +53,7 @@ class FrontendPdfPreviewContractTest {
 	 * @throws IOException フロントエンドresourceを読み込めない場合
 	 */
 	@Test
+	@DisplayName("表示目的だけのアップロードを行わない")
 	void originalPdfPreviewDoesNotUploadForViewing() throws IOException {
 		String pdfApp = read("static/js/pdf/pdf-app.js");
 		String constants = read("static/js/const.js");

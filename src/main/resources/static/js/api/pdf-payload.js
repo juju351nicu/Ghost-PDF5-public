@@ -34,11 +34,19 @@ const buildTextPayload = (fileObject) => {
 /**
  * ページ単位Markdown下書きAPI用のmultipart payloadを生成する。
  *
+ * 変換モードが空の場合はkeyを送らない。BE側は未指定を「文字レイヤーのみの従来動作」として扱うため、
+ * 空値を送ると「モード指定あり」との区別が曖昧になる。
+ *
  * @param {File} fileObject Markdown下書きの生成元PDF
+ * @param {string} [mode] 変換モード（`"AUTO"` / `"VISION"`）。空文字・未指定で従来動作
  * @returns {{key: string, value: unknown}[]} multipart payload
  */
-const buildMarkdownDraftPayload = (fileObject) => {
-  return [{ key: "originalFile", value: fileObject }];
+const buildMarkdownDraftPayload = (fileObject, mode) => {
+  const payload = [{ key: "originalFile", value: fileObject }];
+  if (typeof mode === "string" && mode.length > 0) {
+    payload.push({ key: "mode", value: mode });
+  }
+  return payload;
 };
 
 /**

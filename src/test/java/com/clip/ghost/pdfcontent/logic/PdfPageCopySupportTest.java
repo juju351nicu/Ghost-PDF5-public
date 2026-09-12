@@ -14,6 +14,7 @@ import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.apache.pdfbox.text.PDFTextStripper;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -26,6 +27,7 @@ class PdfPageCopySupportTest {
 	Path tempDirectory;
 
 	@Test
+	@DisplayName("ページのレイアウトと継承リソースを複製し、入力ファイルは削除しない")
 	void appendDocumentCopiesPagesLayoutAndResourcesWithoutDeletingSource() throws IOException {
 		Path sourcePath = createSourcePdf();
 

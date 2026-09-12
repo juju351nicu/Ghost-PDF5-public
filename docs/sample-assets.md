@@ -69,3 +69,14 @@ SHA-1は`4b6bdbc4c6220240e65fde64a93fb15de7d3f055`です。
 - 実在する業務資料や個人情報をtest fixtureとして使用しません。
 - binary metadataも公開前checkの対象にします。
 - repository全体へ適用するlicenseはrootの`LICENSE`で別途定めます。
+
+## `src/main/resources/fonts/NotoSansJP-Regular.ttf`
+
+- 追加日: 2026-09-13
+- 用途: `POST /markdownPdf` でPDFへ埋め込む日本語フォント。PDFBoxの標準14フォントは日本語を描画できないため必須
+- 入手元: Google Fonts の Noto Sans JP（日本語サブセット版、静的TrueType）
+- ライセンス: SIL Open Font License 1.1（再配布可）。全文は `src/main/resources/fonts/OFL.txt` に同梱
+- 収録範囲: ラテン文字・数字・かな・常用漢字・約物。等幅ではないため、コードブロックもこのフォントで描画する
+- repository格納時のsize: 2363384 bytes
+- SHA-1: `67640cd09026c8ffd0d92caf42806fbcf00332be`
+- 差し替え: `ghost.markdown.pdf.font-path` / `bold-font-path` で各環境のTrueTypeフォントを指定できる

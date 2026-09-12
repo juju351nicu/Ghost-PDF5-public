@@ -15,11 +15,12 @@ import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.apache.pdfbox.text.PDFTextStripper;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-import com.clip.ghost.pdfcontent.constant.PdfConstants;
 import com.clip.ghost.pdfcontent.dto.GhostPdfDto;
+import com.clip.ghost.pdfcontent.enums.PdfInsertOption;
 
 /**
  * {@link PdfInsertLogic} の単体テスト。
@@ -30,15 +31,16 @@ class PdfInsertLogicTest {
 	Path tempDirectory;
 
 	@Test
+	@DisplayName("差し込みリクエストを順に適用し、入力ファイルは削除しない")
 	void insertPdfAppliesRequestsInOrderWithoutDeletingSources() throws IOException {
 		Path originalPath = createPdf("original.pdf", "original first", "original second", "original third");
 		Path insertPath = createPdf("insert.pdf", "inserted page");
 		Path replacePath = createPdf("replace.pdf", "replacement first", "replacement second");
 		Path lastInsertPath = createPdf("last-insert.pdf", "last page");
 		Path outputPath = tempDirectory.resolve("output.pdf");
-		List<GhostPdfDto> insertRequests = List.of(new GhostPdfDto(1, insertPath, PdfConstants.OPTION_INSERT),
-				new GhostPdfDto(2, replacePath, PdfConstants.OPTION_REPLACE),
-				new GhostPdfDto(-1, lastInsertPath, PdfConstants.OPTION_LAST_INSERT));
+		List<GhostPdfDto> insertRequests = List.of(new GhostPdfDto(1, insertPath, PdfInsertOption.INSERT),
+				new GhostPdfDto(2, replacePath, PdfInsertOption.REPLACE),
+				new GhostPdfDto(-1, lastInsertPath, PdfInsertOption.LAST_INSERT));
 
 		new PdfInsertLogic().insertPdf(originalPath, insertRequests, outputPath);
 

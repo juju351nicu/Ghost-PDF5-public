@@ -34,7 +34,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.clip.ghost.pdfcontent.constant.PdfConstants;
+import com.clip.ghost.pdfcontent.enums.PdfInsertOption;
 import com.clip.ghost.pdfcontent.logic.GhostPdfLogic;
 import com.clip.ghost.common.response.ApiResult;
 import com.clip.ghost.common.response.ApiResultType;
@@ -339,7 +339,7 @@ class GhostPdfServiceTest {
 		InsertPdfRequest insertForm = new InsertPdfRequest();
 		insertForm.setInsertFile(insertPdfFile);
 		insertForm.setInsertPage(5);
-		insertForm.setInsertOption(PdfConstants.OPTION_REPLACE);
+		insertForm.setInsertOption(PdfInsertOption.REPLACE);
 		OriginalPdfRequest form = new OriginalPdfRequest();
 		form.setOriginalFile(originalFile);
 		form.setInsertPdfForm(List.of(insertForm));
@@ -353,7 +353,7 @@ class GhostPdfServiceTest {
 		verify(pdfLogic, times(1)).insertPdf(any(Path.class), captor.capture());
 		assertEquals(1, captor.getValue().size());
 		assertEquals(5, captor.getValue().get(0).getInsertPage());
-		assertEquals(PdfConstants.OPTION_REPLACE, captor.getValue().get(0).getInsertOption());
+		assertEquals(PdfInsertOption.REPLACE, captor.getValue().get(0).getInsertOption());
 		assertEquals(HttpStatus.OK, result.getStatusCode());
 	}
 
@@ -401,7 +401,7 @@ class GhostPdfServiceTest {
 		verify(pdfLogic, times(1)).openTemporaryFileForResponse(any(Path.class));
 		assertEquals(1, captor.getValue().size());
 		assertEquals(-1, captor.getValue().get(0).getInsertPage());
-		assertEquals(PdfConstants.OPTION_LAST_INSERT, captor.getValue().get(0).getInsertOption());
+		assertEquals(PdfInsertOption.LAST_INSERT, captor.getValue().get(0).getInsertOption());
 		assertEquals(HttpStatus.OK, result.getStatusCode());
 	}
 
