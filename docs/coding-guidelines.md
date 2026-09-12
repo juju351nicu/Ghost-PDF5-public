@@ -365,7 +365,7 @@ Utils整理:
   - Java 25ではMockito inline mock makerを自己attachさせず、Surefireの `argLine` で `mockito-core` をjavaagentとして指定する。
 - Lombokを使う場合は、Java 25コンパイルでgetter/setter生成が抜けないよう、Maven Compiler Pluginの `annotationProcessorPaths` へ `lombok` を明示する。
 - OpenAPI UI: `springdoc-openapi-starter-webmvc-ui` を追加する場合は、Spring Boot / Spring Framework と互換のあるバージョンを選ぶ。
-  - Ghost-PDF5はJava 25 / Spring Boot 4.0.7 / Spring Framework 7.0.x / Springdoc 3.0.3 の組み合わせで検証する。
+  - Ghost-PDF5はJava 25 / Spring Boot 4.0.8 / Spring Framework 7.0.x / Springdoc 3.0.3 の組み合わせで検証する。
   - Spring Boot 4.xではSpringdoc 3.xを使い、`OpenApiDocumentationTest` で公開API契約を確認する。
   - `LiteWebJarsResourceResolver` の `NoClassDefFoundError` が出る場合は、SpringdocとSpring Frameworkの互換性を疑う。
 

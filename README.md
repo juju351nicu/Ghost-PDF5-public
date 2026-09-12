@@ -388,7 +388,7 @@ Markdown保存を含むJava 25の全286テストが成功しています。
   - 設計は [画像Markdown下書きAPI設計](docs/image-markdown-draft-design.md) を参照。
 - package renameは `pdfcontent` / `pdfcontent.dto` / `common.validation` / `common.utils` / `common.exceptions` の責務別構成へ整理済み。
   - 今後のpackage変更は、Boot upgradeやServiceImpl化とは混ぜず、必要になった責務境界だけを小さく扱う。
-- Spring Bootは4.0.7、Springdocは3.0.3まで更新済み。
+- Spring Bootは4.0.8、Springdocは3.0.3まで更新済み。
   - 今後の更新もSpring Boot / Spring Framework / Springdocの互換性を確認し、`mvn test` と `/v3/api-docs` テストを通してから採用する。
   - Boot 4移行はWeb MVC starter、test slice、Jackson 2互換を含む独立コミットで実施済み。
   - `spring-boot-jackson2` は削除済み。既存publicシグネチャ用Jackson 2 coreだけを明示している。
