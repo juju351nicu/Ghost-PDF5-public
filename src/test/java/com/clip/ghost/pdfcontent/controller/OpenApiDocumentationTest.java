@@ -568,19 +568,6 @@ class OpenApiDocumentationTest {
 	}
 
 	/**
-	 * JSONレスポンスがapplication/jsonとして定義されていることを確認する。
-	 *
-	 * @param operation OpenAPI operation
-	 * @param path      API path
-	 */
-	private void assertJsonOkResponse(JsonNode operation, String path) {
-		JsonNode jsonContent = operation.path("responses").path(HTTP_STATUS_OK).path("content")
-				.path(MediaType.APPLICATION_JSON_VALUE);
-
-		assertFalse(jsonContent.isMissingNode(), path + " should define application/json 200 response.");
-	}
-
-	/**
 	 * 200レスポンスが共通ラッパー {@code ApiResult<T>} の構造で公開され、{@code data} が用途別Responseになっていることを確認する。
 	 * <p>
 	 * Springdocのgeneric schema表現は崩れやすいため、ラッパーのschema名と {@code data} の中身の両方を固定する。
