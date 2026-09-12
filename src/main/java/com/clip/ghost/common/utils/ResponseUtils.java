@@ -67,6 +67,28 @@ public final class ResponseUtils {
 	}
 
 	/**
+	 * PDFをダウンロードするためのレスポンスを作成する。
+	 * <p>
+	 * 画面内で開く {@link #inlinePdf(Resource)} と違い、ファイル名を付けて保存させる用途で使う。
+	 *
+	 * @param filename PDFファイル名
+	 * @param contents PDF本文のリソース
+	 * @return attachmentダウンロード用PDFレスポンス
+	 * @throws IllegalArgumentException filenameが未指定、またはcontentsがnullの場合
+	 */
+	public static ResponseEntity<Resource> downloadPdf(String filename, Resource contents) {
+		requireDownloadFileName(filename);
+		requireContents(contents);
+		HttpHeaders headers = new HttpHeaders();
+		headers.setContentType(MediaType.APPLICATION_PDF);
+		headers.setContentLength(resolveContentLength(contents));
+		headers.setContentDisposition(
+				ContentDisposition.attachment().filename(filename, StandardCharsets.UTF_8).build());
+		headers.setCacheControl("must-revalidate, post-check=0, pre-check=0");
+		return new ResponseEntity<>(contents, headers, HttpStatus.OK);
+	}
+
+	/**
 	 * レスポンス本文が指定されていることを検証する。
 	 *
 	 * @param contents レスポンス本文のリソース

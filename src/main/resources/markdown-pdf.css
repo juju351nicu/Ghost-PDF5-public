@@ -1,0 +1,147 @@
+/*
+ * MarkdownからPDFを出力するときのスタイル。
+ *
+ * openhtmltopdfへ渡すXHTMLのstyle要素へそのまま埋め込む。埋め込み時はCDATAで包むため記号の制約は無いが、
+ * CDATAの終端記号だけは書けない。
+ */
+
+@page {
+	size: A4;
+	margin: 18mm 16mm 20mm 16mm;
+
+	@bottom-center {
+		content: counter(page) " / " counter(pages);
+		font-family: "Noto Sans JP", sans-serif;
+		font-size: 9pt;
+		color: #555555;
+	}
+}
+
+body {
+	/* 日本語は単語区切りが無いため、通常の空白区切りだけでは行が折り返らない。 */
+	font-family: "Noto Sans JP", sans-serif;
+	font-size: 10.5pt;
+	line-height: 1.7;
+	color: #1f2328;
+	word-wrap: break-word;
+	margin: 0;
+}
+
+h1, h2, h3, h4, h5, h6 {
+	line-height: 1.4;
+	margin: 1.2em 0 0.6em;
+	/* 見出しだけがページ末尾に残らないようにする。 */
+	page-break-after: avoid;
+}
+
+h1 {
+	font-size: 18pt;
+	border-bottom: 1.5pt solid #1f2328;
+	padding-bottom: 4pt;
+}
+
+h2 {
+	font-size: 14.5pt;
+	border-bottom: 0.75pt solid #b8bfc6;
+	padding-bottom: 3pt;
+}
+
+h3 {
+	font-size: 12.5pt;
+}
+
+h4, h5, h6 {
+	font-size: 11pt;
+}
+
+p {
+	margin: 0.6em 0;
+}
+
+ul, ol {
+	margin: 0.6em 0;
+	padding-left: 1.6em;
+}
+
+li {
+	margin: 0.2em 0;
+}
+
+blockquote {
+	margin: 0.8em 0;
+	border-left: 3pt solid #b8bfc6;
+	padding: 0.1em 0 0.1em 10pt;
+	color: #4a5159;
+}
+
+table {
+	/* 表がページをまたぐ場合に分割し、ヘッダー行を次ページへ繰り返す。 */
+	-fs-table-paginate: paginate;
+	border-collapse: collapse;
+	width: 100%;
+	margin: 0.8em 0;
+	font-size: 9.5pt;
+}
+
+th, td {
+	border: 0.75pt solid #9aa2aa;
+	padding: 4pt 6pt;
+	vertical-align: top;
+	text-align: left;
+}
+
+th {
+	background-color: #eef1f4;
+}
+
+tr {
+	/* 1行が途中で切れると読めなくなるため、行単位では分割しない。 */
+	page-break-inside: avoid;
+}
+
+code, pre {
+	/*
+	 * ブラウザ既定のスタイルでは code / pre が monospace になる。等幅の日本語フォントは同梱していないため、
+	 * そのままだと埋め込みフォントから外れ、コード内の日本語が豆腐になる。埋め込みフォントを明示する。
+	 */
+	font-family: "Noto Sans JP", monospace;
+}
+
+code {
+	font-size: 9.5pt;
+	background-color: #f2f4f6;
+	padding: 1pt 3pt;
+	border-radius: 2pt;
+}
+
+pre {
+	background-color: #f2f4f6;
+	border: 0.5pt solid #d7dce1;
+	border-radius: 3pt;
+	padding: 6pt 8pt;
+	margin: 0.8em 0;
+	font-size: 9pt;
+	line-height: 1.5;
+	white-space: pre-wrap;
+	word-wrap: break-word;
+}
+
+pre code {
+	background-color: transparent;
+	padding: 0;
+}
+
+hr {
+	border: none;
+	border-top: 0.75pt solid #b8bfc6;
+	margin: 1.2em 0;
+}
+
+img {
+	max-width: 100%;
+}
+
+a {
+	color: #0b5cad;
+	text-decoration: none;
+}

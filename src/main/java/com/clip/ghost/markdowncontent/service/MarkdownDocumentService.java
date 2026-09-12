@@ -14,13 +14,6 @@ import java.util.regex.Pattern;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.Strings;
-import org.commonmark.Extension;
-import org.commonmark.ext.gfm.tables.TablesExtension;
-import org.commonmark.node.Node;
-import org.commonmark.parser.Parser;
-import org.commonmark.renderer.html.HtmlRenderer;
-import org.jsoup.Jsoup;
-import org.jsoup.safety.Safelist;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -38,6 +31,7 @@ import com.clip.ghost.markdowncontent.dto.MarkdownFileResponse;
 import com.clip.ghost.markdowncontent.dto.MarkdownPreviewContentResponse;
 import com.clip.ghost.markdowncontent.dto.MarkdownPreviewRequest;
 import com.clip.ghost.markdowncontent.dto.MarkdownPreviewResponse;
+import com.clip.ghost.markdowncontent.logic.MarkdownHtmlRenderer;
 import com.clip.ghost.markdowncontent.dto.MarkdownSaveRequest;
 import com.clip.ghost.markdowncontent.dto.MarkdownUpdateRequest;
 
@@ -54,14 +48,8 @@ public class MarkdownDocumentService {
 	private static final String MARKDOWN_FILE_SUFFIX = "." + MARKDOWN_FILE_EXTENSION;
 	private static final String OVERWRITTEN_MESSAGE_CODE = "markdownFileOverwritten";
 	private static final String OVERWRITTEN_MESSAGE = "既存のファイルを上書きしました。";
-	// GFM表拡張はセルの列揃えを th/td の align 属性として出力するが、Safelist.relaxed() は align を
-	// 許可しないため、列揃えを保つ目的でこの2属性だけ明示的に許可する。他の属性の許可範囲は変えない。
-	private static final Safelist MARKDOWN_PREVIEW_SAFELIST = Safelist.relaxed().addAttributes("th", "align")
-			.addAttributes("td", "align");
-
 	private final Path storageDirectory;
-	private final Parser markdownParser;
-	private final HtmlRenderer htmlRenderer;
+	private final MarkdownHtmlRenderer htmlRenderer;
 
 	/**
 	 * Markdown保存先ディレクトリを設定から受け取る。
@@ -70,15 +58,14 @@ public class MarkdownDocumentService {
 	 * {@code java.io.tmpdir} 配下はOS（Windowsのストレージセンサーなど）が自動削除するため使わない。
 	 *
 	 * @param storageDirectory Markdown保存先ディレクトリ
+	 * @param htmlRenderer     Markdown本文をsanitize済みHTMLへ変換するレンダラー
 	 */
 	public MarkdownDocumentService(
-			@Value("${ghost.markdown.storage-directory:${user.home}/ghost-pdf5/markdown}") String storageDirectory) {
+			@Value("${ghost.markdown.storage-directory:${user.home}/ghost-pdf5/markdown}") String storageDirectory,
+			MarkdownHtmlRenderer htmlRenderer) {
 		this.storageDirectory = Paths.get(storageDirectory).toAbsolutePath().normalize();
-		// commonmarkの素のParserはGFMの表を解釈しないため、表拡張をParserとHtmlRendererの両方へ渡す。
-		// 片方だけに渡すと表として描画されない。生HTMLはescapeHtml(true)でエスケープし、その後jsoupでsanitizeする。
-		List<Extension> extensions = List.of(TablesExtension.create());
-		this.markdownParser = Parser.builder().extensions(extensions).build();
-		this.htmlRenderer = HtmlRenderer.builder().extensions(extensions).escapeHtml(true).build();
+		// HTML変換はPDF出力と共有する。変換規則が分かれると、プレビューとPDFで見た目がずれる。
+		this.htmlRenderer = htmlRenderer;
 	}
 
 	/**
@@ -249,8 +236,7 @@ public class MarkdownDocumentService {
 	 * @return sanitize済みHTML
 	 */
 	private String renderMarkdownPreview(String markdown) {
-		Node document = markdownParser.parse(StringUtils.defaultString(markdown));
-		return Jsoup.clean(htmlRenderer.render(document), MARKDOWN_PREVIEW_SAFELIST);
+		return htmlRenderer.render(markdown);
 	}
 
 	/**

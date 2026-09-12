@@ -808,6 +808,50 @@ const pdfApp = {
       );
     },
     /**
+     * 入力中Markdown本文からPDFを生成し、ダウンロードする。
+     *
+     * 保存は伴わないため、保存済みかどうかに関わらず編集中の内容をそのまま出力する。
+     * レスポンスはJSONではなくPDFバイナリなので、共通のrequestMarkdownApiではなくここで直接扱う。
+     *
+     * @returns {Promise<void>} PDF出力処理の完了Promise
+     */
+    requestMarkdownPdf() {
+      if (this.isProcessing) {
+        return Promise.resolve();
+      }
+      this.isProcessing = true;
+      this.errorMessages = [];
+      this.clearApiMessages();
+      this.markdownMessage = "";
+      return MarkdownApiClient.requestMarkdownPdf({
+        fileName: this.markdownFileName,
+        content: this.markdownContent,
+      })
+        .then(async (result) => {
+          if (!Util.isEmpty(result.errorMessages)) {
+            this.errorMessages = result.errorMessages;
+            this.showMessageModal();
+            return;
+          }
+          // 保存名はBEのContent-Dispositionに合わせる。拡張子の正規化はBE側に寄せている。
+          await FileResponseHandler.downloadBlob(
+            result.fileBlob,
+            result.headers,
+            "document.pdf"
+          );
+          this.markdownMessage = "MarkdownをPDFで出力しました。";
+        })
+        .catch((error) => {
+          this.errorMessages = [
+            MarkdownApiClient.buildUnexpectedErrorMessage(error),
+          ];
+          this.showMessageModal();
+        })
+        .finally(() => {
+          this.isProcessing = false;
+        });
+    },
+    /**
      * 保存済みMarkdown本文を更新する。
      *
      * @returns {Promise<void>} 更新処理の完了Promise

@@ -1,6 +1,7 @@
 package com.clip.ghost.common.utils;
 
 import java.nio.file.Paths;
+import java.util.regex.Pattern;
 
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -15,6 +16,8 @@ import com.clip.ghost.pdfcontent.constant.PdfConstants;
  */
 public final class PathUtils {
 	private static final String FILE_MARKDOWN = "md";
+	/** ファイル名として扱えない文字。パス区切り、ドライブ指定、Windowsで使えない記号、制御文字。 */
+	private static final Pattern UNSAFE_FILE_NAME_CHARS = Pattern.compile("[\\\\/:*?\"<>|\\p{Cntrl}]+");
 
 	private PathUtils() {
 	}
@@ -102,5 +105,18 @@ public final class PathUtils {
 	 */
 	public static boolean isMarkdownFileName(String fileName) {
 		return Strings.CI.equals(FILE_MARKDOWN, FilenameUtils.getExtension(fileName));
+	}
+
+	/**
+	 * 保存やダウンロードに使えるよう、ファイル名から扱えない文字を置き換える。
+	 * <p>
+	 * ディレクトリ区切りやドライブ指定、制御文字を残すと、保存先を抜け出すパスや壊れた
+	 * {@code Content-Disposition} になる。置き換え先は {@code _} で、区切り位置は保つ。
+	 *
+	 * @param fileName ファイル名
+	 * @return 扱えない文字を置き換えたファイル名
+	 */
+	public static String sanitizeFileName(String fileName) {
+		return UNSAFE_FILE_NAME_CHARS.matcher(StringUtils.defaultString(fileName)).replaceAll("_");
 	}
 }

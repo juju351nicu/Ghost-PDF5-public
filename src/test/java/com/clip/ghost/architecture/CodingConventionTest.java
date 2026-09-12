@@ -429,6 +429,26 @@ class CodingConventionTest {
 	}
 
 	@Test
+	void markdownControllerServiceLogicDependenciesKeepDirection() {
+		Architectures.layeredArchitecture().consideringAllDependencies().layer("Controller")
+				.definedBy("..markdowncontent.controller..").layer("Service").definedBy("..markdowncontent.service..")
+				.layer("Logic").definedBy("..markdowncontent.logic..").whereLayer("Controller")
+				.mayNotBeAccessedByAnyLayer().whereLayer("Service").mayOnlyBeAccessedByLayers("Controller")
+				.whereLayer("Logic").mayOnlyBeAccessedByLayers("Service")
+				.because("Markdown処理もController -> Service -> Logicの順に依存させます。").check(PRODUCTION_CLASSES);
+	}
+
+	@Test
+	void htmlToPdfRendererIsLimitedToMarkdownPdfRenderer() throws IOException {
+		// HTML/CSSレンダラー(openhtmltopdf)の依存はMarkdownPdfRendererだけに閉じ込める。
+		// PDF出力の実装差し替え時に影響範囲が広がるのを防ぐ。
+		List<Path> targetFiles = new ArrayList<>(javaFiles(MAIN_SOURCE));
+		targetFiles.remove(MAIN_SOURCE.resolve("com/clip/ghost/markdowncontent/logic/MarkdownPdfRenderer.java"));
+
+		assertNoToken(targetFiles, List.of("com.openhtmltopdf"));
+	}
+
+	@Test
 	void processExecutionIsLimitedToCommandRunner() throws IOException {
 		// 外部プロセス起動はProcessCommandRunnerだけに限定する。他クラスへのProcessBuilder/exec混入を検出する。
 		List<Path> targetFiles = new ArrayList<>(javaFiles(MAIN_SOURCE));

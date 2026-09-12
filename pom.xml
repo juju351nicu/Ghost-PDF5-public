@@ -143,6 +143,13 @@
             <version>3.0.3</version>
         </dependency>
         <dependency>
+            <!-- MarkdownからPDFを出力する際のHTML/CSSレンダラー。PDFBox 3系へ描画するため、既存のPDFBoxと同じ3.0.7に揃う。 -->
+            <!-- ライセンスはLGPL 2.1+。jarを改変せず依存として利用するため、本体のApache-2.0配布に影響しない。 -->
+            <groupId>io.github.openhtmltopdf</groupId>
+            <artifactId>openhtmltopdf-pdfbox</artifactId>
+            <version>1.1.85</version>
+        </dependency>
+        <dependency>
             <!-- 画像Markdown下書きの外部vision呼び出し用。既定無効で、有効時のみ使用する。 -->
             <groupId>com.anthropic</groupId>
             <artifactId>anthropic-java</artifactId>

@@ -29,7 +29,9 @@ import org.springdoc.webmvc.core.configuration.SpringDocWebMvcConfiguration;
 
 import com.clip.ghost.common.security.AccessTokenValidator;
 import com.clip.ghost.markdowncontent.controller.MarkdownController;
+import com.clip.ghost.markdowncontent.controller.MarkdownPdfController;
 import com.clip.ghost.markdowncontent.service.MarkdownDocumentService;
+import com.clip.ghost.markdowncontent.service.MarkdownPdfService;
 import com.clip.ghost.pdfcontent.service.GhostPdfService;
 import com.clip.ghost.imagecontent.controller.ImageMarkdownDraftController;
 import com.clip.ghost.imagecontent.service.ImageMarkdownDraftService;
@@ -48,7 +50,8 @@ import tools.jackson.databind.ObjectMapper;
 @Tag("context")
 @Tag("openapi")
 @WebMvcTest({ GhostPdfController.class, PdfMarkdownDraftController.class, PdfThumbnailController.class,
-		ImageMarkdownDraftController.class, MarkdownController.class, CsvController.class, SampleController.class })
+		ImageMarkdownDraftController.class, MarkdownController.class, MarkdownPdfController.class, CsvController.class,
+		SampleController.class })
 @ImportAutoConfiguration({ SpringDocConfiguration.class, SpringDocConfigProperties.class,
 		SpringDocWebMvcConfiguration.class })
 @TestPropertySource(properties = "springdoc.api-docs.enabled=true")
@@ -63,6 +66,7 @@ class OpenApiDocumentationTest {
 	private static final String PATH_MARKDOWN_FILES = "/markdownFiles";
 	private static final String PATH_MARKDOWN_FILE = "/markdownFile";
 	private static final String PATH_MARKDOWN_PREVIEW = "/markdownPreview";
+	private static final String PATH_MARKDOWN_PDF = "/markdownPdf";
 	private static final String PATH_EXTRACT_PDF = "/extractPdf";
 	private static final String PATH_MERGE_PDF = "/mergePdf";
 	private static final String PATH_SPLIT_PDF = "/splitPdf";
@@ -103,6 +107,7 @@ class OpenApiDocumentationTest {
 	private static final String SCHEMA_MARKDOWN_SAVE_REQUEST = "MarkdownSaveRequest";
 	private static final String SCHEMA_MARKDOWN_UPDATE_REQUEST = "MarkdownUpdateRequest";
 	private static final String SCHEMA_MARKDOWN_PREVIEW_REQUEST = "MarkdownPreviewRequest";
+	private static final String SCHEMA_MARKDOWN_PDF_REQUEST = "MarkdownPdfRequest";
 	private static final String SCHEMA_MARKDOWN_FILE_RESPONSE = "MarkdownFileResponse";
 	private static final String SCHEMA_MARKDOWN_DOCUMENT_RESPONSE = "MarkdownDocumentResponse";
 	private static final String SCHEMA_MARKDOWN_PREVIEW_RESPONSE = "MarkdownPreviewResponse";
@@ -135,6 +140,9 @@ class OpenApiDocumentationTest {
 	private MarkdownDocumentService markdownDocumentService;
 
 	@MockitoBean
+	private MarkdownPdfService markdownPdfService;
+
+	@MockitoBean
 	private AccessTokenValidator accessTokenValidator;
 
 	/**
@@ -163,7 +171,7 @@ class OpenApiDocumentationTest {
 				() -> assertPdfRequestSchemas(openApi), () -> assertMetadataResponseSchema(openApi),
 				() -> assertTextResponseSchema(openApi), () -> assertMarkdownDraftSchemas(openApi),
 				() -> assertImageMarkdownDraftSchemas(openApi), () -> assertMarkdownSchemas(openApi),
-				() -> assertErrorResponseSchemas(openApi));
+				() -> assertMarkdownPdfEndpoint(openApi), () -> assertErrorResponseSchemas(openApi));
 	}
 
 	/**
@@ -185,6 +193,7 @@ class OpenApiDocumentationTest {
 				() -> assertTrue(paths.has(PATH_MARKDOWN_FILES), PATH_MARKDOWN_FILES + " should be published."),
 				() -> assertTrue(paths.has(PATH_MARKDOWN_FILE), PATH_MARKDOWN_FILE + " should be published."),
 				() -> assertTrue(paths.has(PATH_MARKDOWN_PREVIEW), PATH_MARKDOWN_PREVIEW + " should be published."),
+				() -> assertTrue(paths.has(PATH_MARKDOWN_PDF), PATH_MARKDOWN_PDF + " should be published."),
 				() -> assertTrue(paths.has(PATH_EXTRACT_PDF), PATH_EXTRACT_PDF + " should be published."),
 				() -> assertTrue(paths.has(PATH_MERGE_PDF), PATH_MERGE_PDF + " should be published."),
 				() -> assertTrue(paths.has(PATH_SPLIT_PDF), PATH_SPLIT_PDF + " should be published."),
@@ -846,6 +855,29 @@ class OpenApiDocumentationTest {
 				() -> assertEquals("string", pageProperties.path("text").path("type").asString()),
 				() -> assertTrue(pageProperties.has("source")),
 				() -> assertEquals("string", pageProperties.path("source").path("type").asString()));
+	}
+
+	/**
+	 * MarkdownからのPDF出力APIが、JSON requestとPDFレスポンスで公開されていることを確認する。
+	 *
+	 * @param openApi OpenAPI JSON
+	 */
+	private void assertMarkdownPdfEndpoint(JsonNode openApi) {
+		JsonNode operation = openApi.path("paths").path(PATH_MARKDOWN_PDF).path("post");
+		JsonNode requestProperties = openApi.path("components").path("schemas").path(SCHEMA_MARKDOWN_PDF_REQUEST)
+				.path("properties");
+
+		assertAll(() -> assertFalse(operation.isMissingNode(), PATH_MARKDOWN_PDF + " should define POST."),
+				() -> assertAccessTokenHeader(operation, PATH_MARKDOWN_PDF),
+				() -> assertJsonRequestBody(operation, PATH_MARKDOWN_PDF),
+				// レスポンスはJSONではなくPDFバイナリ。画面はこのContent-Typeでダウンロードを判断する。
+				() -> assertFalse(operation.path("responses").path(HTTP_STATUS_OK).path("content")
+						.path(MediaType.APPLICATION_PDF_VALUE).isMissingNode(),
+						PATH_MARKDOWN_PDF + " should define application/pdf 200 response."),
+				() -> assertJsonErrorResponse(operation, PATH_MARKDOWN_PDF, HTTP_STATUS_BAD_REQUEST),
+				() -> assertJsonErrorResponse(operation, PATH_MARKDOWN_PDF, HTTP_STATUS_INTERNAL_SERVER_ERROR),
+				() -> assertTrue(requestProperties.has("fileName")),
+				() -> assertTrue(requestProperties.has("content")));
 	}
 
 	/**

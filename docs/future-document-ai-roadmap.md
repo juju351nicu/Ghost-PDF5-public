@@ -328,7 +328,7 @@ export
 | B: PDFテキスト抽出 | 完了（Tikaは導入せず） |
 | B-2: ページ単位Markdown下書き | 完了（`mode=AUTO` / `mode=VISION` まで） |
 | C: Markdown保存 | 完了 |
-| D: Markdown編集 / Markdown to PDF | 編集のみ完了。Markdown to PDFは未着手 |
+| D: Markdown編集 / Markdown to PDF | 完了（編集、Markdown to PDF） |
 | E: AI整形 / 要約 | 足場のみ（provider抽象とキー管理）。整形・要約の機能は未着手 |
 | F: Vector DB / RAG | 未着手 |
 | G: CSV / Excel / Word対応 | 未着手 |
@@ -477,12 +477,15 @@ export
 
 ### Phase D: Markdown編集 / Markdown to PDF
 
-状態: 編集のみ完了。Markdown to PDFは未着手。
+状態: 完了。
 
 - 編集は画面のMarkdown欄と `PUT /markdownFile` で実施できる。
-- HTMLプレビューは `commonmark-java` + `jsoup` で実装済み。これは表示用で、PDF出力には使っていない。
-- Markdown to PDFのendpointも変換ライブラリも無い。日本語フォント・改ページ・表の見た目確認が必要なため、
-  着手するなら独立フェーズとして扱う。
+- HTMLプレビューは `commonmark-java` + `jsoup` で実装済み。PDF出力も同じHTML変換を共有する。
+- `POST /markdownPdf` を追加済み。Markdown本文をHTML経由でPDF化し、ダウンロードで返す（保存はしない）。
+  - レンダラーは `openhtmltopdf`（PDFBox 3系へ描画）。レイアウトは `markdown-pdf.css` が持つ。
+  - 日本語フォントはNoto Sans JP（SIL OFL 1.1）を同梱し、`ghost.markdown.pdf.font-path` で差し替えられる。
+  - 表の改ページ、ページ番号、コードブロック、引用まで実測で確認済み。
+  - 詳細は `docs/markdown-to-pdf-design.md` を参照する。
 
 目的:
 

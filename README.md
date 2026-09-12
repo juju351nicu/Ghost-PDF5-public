@@ -14,6 +14,7 @@ PDFの結合、分割、ページ操作、テキスト抽出、Markdown下書き
 - [将来拡張メモ: Markdown / AI / CSV / Utils 利用方針](docs/future-document-ai-roadmap.md)
 - [ページ単位Markdown下書きAPI設計](docs/page-markdown-draft-api-design.md)
 - [画像Markdown下書きAPI設計（vision）](docs/image-markdown-draft-design.md)
+- [MarkdownからのPDF出力API設計](docs/markdown-to-pdf-design.md)
 - [Spring Boot 4移行事前監査](docs/spring-boot-4-migration-readiness.md)
 - [Jackson 3段階移行設計](docs/jackson-3-migration-design.md)
 - [同梱サンプル素材の由来](docs/sample-assets.md)
@@ -91,6 +92,9 @@ Public repository化後も、当面はlocal development / portfolio用途を前�
 - `mode=AUTO` のページ上限とコストガードを追加（`ghost.ocr.pdf.max-pages` / `render-dpi`、課金前に400で拒否、ページ単位の画像処理、`PdfPageLimitExceededException`）
 - `mode=VISION` を追加し、文字レイヤーを持つPDFでも全ページをvisionへ回して表をMarkdown表として取得できるようにした
   - `mode` を `PdfMarkdownDraftMode` enum へ整理（API契約の文字列は従来どおり）。VISIONは総ページ数が上限・費用の対象になる
+- MarkdownからのPDF出力（`POST /markdownPdf`）を追加し、Phase Dを完了
+  - `openhtmltopdf`（PDFBox 3系へ描画）＋ 同梱のNoto Sans JPで、日本語・表・コードブロック・ページ番号を出力
+  - HTML変換は画面プレビューと共有し、外部リソースはPDFへ取り込まない
 - 区分値をリクエストDTOでもenumで受ける形へ統一（`mode` / `insertOption`）
   - コード値からenumへの変換は `StringToCodeEnumConverterFactory` に集約し、外向きのコード値（`AUTO` / `1`）は変えない
   - 不正値は400のまま、メッセージはenum自身の説明へ差し替える

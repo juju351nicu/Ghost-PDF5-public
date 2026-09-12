@@ -66,6 +66,27 @@ const postRequest = (uri, requestData) => {
 };
 
 /**
+ * JSON bodyでファイル（PDFなど）を受け取るPOST requestを送信する。
+ *
+ * 既定ヘッダーの `Accept: application/json` のままでは、PDFを返すAPIがHTTP 406になる。
+ * 受け取るmedia typeを呼び出し側から明示できるようにする。
+ *
+ * @param {string} uri リクエストURL
+ * @param {*} requestData 送信するリクエストボディ
+ * @param {string} acceptMediaType 受け取るmedia type
+ * @returns {Promise<Response>} fetchのレスポンス
+ */
+const postRequestForFile = (uri, requestData, acceptMediaType) => {
+  const requestConfig = createRequestConfig(
+    uri,
+    requestData,
+    { Accept: acceptMediaType, "Content-Type": "application/json" },
+    METHOD.POST
+  );
+  return fetcher(requestConfig);
+};
+
+/**
  * JSON body付きPUT requestを送信する。
  *
  * @param {string} uri リクエストURL
@@ -163,6 +184,7 @@ const createRequestConfig = (uri, requestData, customHeader, method) => {
 export default {
   getRequest,
   postRequest,
+  postRequestForFile,
   putRequest,
   deleteRequest,
   multipartRequest,
