@@ -44,6 +44,7 @@ import com.clip.ghost.pdfcontent.dto.GhostPdfDto;
 import com.clip.ghost.pdfcontent.dto.PdfMetadataResponse;
 import com.clip.ghost.pdfcontent.dto.PdfPageContent;
 import com.clip.ghost.pdfcontent.dto.PdfTextResponse;
+import com.clip.ghost.pdfcontent.enums.PdfMarkdownDraftMode;
 
 /**
  * PDF操作ロジックのテストクラス。
@@ -141,7 +142,7 @@ class GhostPdfLogicTest {
 	void extractPdfPageContentsConvertsBlankPagesAndDeletesTemporaryFile() throws IOException {
 		Path inputPath = createBlankPdf("page-contents.pdf", 1);
 
-		List<PdfPageContent> contents = pdfLogic.extractPdfPageContents(inputPath, 72, 20,
+		List<PdfPageContent> contents = pdfLogic.extractPdfPageContents(inputPath, 72, 20, PdfMarkdownDraftMode.AUTO,
 				pngBytes -> "converted markdown");
 
 		assertFalse(inputPath.toFile().exists());
@@ -154,8 +155,9 @@ class GhostPdfLogicTest {
 		Path inputPath = createBlankPdf("page-limit.pdf", 2);
 		AtomicInteger convertedCount = new AtomicInteger();
 
-		assertThrows(PdfPageLimitExceededException.class, () -> pdfLogic.extractPdfPageContents(inputPath, 72, 1,
-				pngBytes -> "converted-" + convertedCount.incrementAndGet()));
+		assertThrows(PdfPageLimitExceededException.class,
+				() -> pdfLogic.extractPdfPageContents(inputPath, 72, 1, PdfMarkdownDraftMode.AUTO,
+						pngBytes -> "converted-" + convertedCount.incrementAndGet()));
 
 		// 上限超過で拒否した場合も一時ファイルを残さず、課金の起点となる変換器も呼ばない。
 		assertFalse(inputPath.toFile().exists());

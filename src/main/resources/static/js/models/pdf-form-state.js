@@ -29,6 +29,7 @@
  * @property {string} previewUrl 選択された編集元PDFのプレビュー用Object URL
  * @property {CheckboxState} delPagesChecked 削除ページ指定チェック状態
  * @property {TextInputState} delPagesText 削除ページ入力状態
+ * @property {string} markdownDraftMode Markdown下書きの変換モード。空文字は従来動作（文字レイヤーのみ）
  * @property {boolean} fileFlag 既存画面互換のファイル選択フラグ
  */
 
@@ -74,6 +75,8 @@ const createOriginalFileState = () => ({
   delPagesChecked: { checked: false, disabled: "disabled", message: "" },
   delPagesText: { text: "", disabled: false, message: "" },
   splitRangesText: { text: "", message: "" },
+  // 既定は従来動作。これまでFEはmodeを送っていなかったため、初期値を変えると既存の挙動が変わる。
+  markdownDraftMode: "",
   fileFlag: false,
 });
 
@@ -174,6 +177,28 @@ const createInsertOptionItems = () => [
 ];
 
 /**
+ * Markdown下書きの変換モードプルダウンの選択肢を生成する。
+ *
+ * idは `mode` としてBEへ送る値で、空文字は「送らない」＝従来動作を表す。
+ *
+ * @returns {{id: string, name: string}[]} 変換モードの選択肢
+ */
+const createMarkdownDraftModeItems = () => [
+  {
+    id: "",
+    name: "従来動作（文字レイヤーのみ）",
+  },
+  {
+    id: "AUTO",
+    name: "AUTO（文字が無いページだけAI変換）",
+  },
+  {
+    id: "VISION",
+    name: "VISION（全ページAI変換・費用発生）",
+  },
+];
+
+/**
  * 差し込みPDF行の次の行番号を計算する。
  *
  * @param {{fileNo: number}[]} insertFiles 現在の差し込みPDF行リスト
@@ -208,5 +233,6 @@ export default {
   createInsertFileState,
   createInitialInsertFiles,
   createInsertOptionItems,
+  createMarkdownDraftModeItems,
   calculateNextInsertFileNo,
 };

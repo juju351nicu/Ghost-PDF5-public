@@ -19,6 +19,7 @@ Excel の表・チャット・ソースコードのスクリーンショット�
 - provider は anthropic / openai / tesseract を実装済みで、`ghost.ocr.provider` で切り替える。
 - 画像PDFの文字が無いページへの適用は、別途 `POST /markdownDraftPdf` の `mode=AUTO` として実装済み（同じ変換器を共有する）。
   - `mode=AUTO` のページ数上限・レンダリング解像度・ページ単位処理は第13節を参照。
+- 文字レイヤーの有無に関係なく全ページを vision へ回す `mode=VISION` を追加済み。第14節を参照。
 
 ## 3. API概要
 
@@ -225,3 +226,92 @@ Logic の `catch (IllegalStateException | IOException)` に拾われて `PdfProc
 - `PdfMarkdownDraftServiceTest`: 設定値が Logic へ渡る / lambda が共有変換器を `image/png` で呼ぶ / 上限例外を伝播する / 変換器無効は PDF 読み込み前に 503。
 - `PdfMarkdownDraftControllerTest`: 上限超過で 400 と `pdfPageLimitExceeded`、対象ページ数と上限を返す。
 - OpenAPI は既に 400 を宣言済みのため、`description` の更新のみ。
+
+## 14. `mode=VISION`（全ページを vision で Markdown 化）
+
+### 追加した理由
+
+`mode=AUTO` が vision へ回すのは文字レイヤーが無いページだけなので、皮肉な状態になっていた。
+
+| PDF の種類 | AUTO での表の扱い |
+| --- | --- |
+| スキャンした画像PDF（文字レイヤーなし） | 画像化 → vision → Markdown 表として復元される |
+| 普通のPDF（文字レイヤーあり） | `PDFTextStripper` の素のテキスト。表構造が失われる |
+
+Word / Excel から出力された設計書PDFは文字レイヤーを持つため、まさに表が欲しい種類のPDFで表が崩れる。
+`mode=VISION` は文字レイヤーの有無に関係なく全ページを画像化して変換器へ渡し、表を Markdown 表として取得できるようにする。
+
+「表がありそうなページ」を自動検出して AUTO を賢くする案は採らない。検出精度が本質的に不確実で、
+「なぜこのページだけ変換されたのか」を説明できず、コストも読めないため。利用者が明示的に選ぶ形にする。
+
+### mode の値域と内部表現
+
+| 値 | 変換対象 | 外部AIの呼び出し |
+| --- | --- | --- |
+| （未指定） | なし（文字レイヤーのみ） | 行わない |
+| `AUTO` | 文字レイヤーが無いページ | 対象ページ数分 |
+| `VISION` | 全ページ | 総ページ数分 |
+
+リクエストの契約は従来どおり文字列で、`mode=AUTO` はそのまま通る。大文字小文字は無視する（`mode=vision` も可）。
+値が2つになったため、内部表現は `docs/coding-guidelines.md` の区分値ルールに合わせて
+`PdfMarkdownDraftMode`（`CodeEnum<String>`、`PdfInsertOption` と同じ形）へ寄せ、`MODE_AUTO` 定数は削除した。
+
+未指定を表す値は enum に持たせない。値を足すと API が受け取れる文字列が増え、リクエスト契約が変わってしまうため、
+Service 側で `Optional` の空として扱う。未知の値（`FOO` など）は `@Pattern` で 400 にする。
+黙って従来動作へ落とすと、外部変換が行われなかったことに利用者が気付けない。
+
+変換対象ページを決めるのは `PdfMarkdownDraftMode#convertsEveryPage()` で、Logic の1メソッド
+（`collectConversionTargetPageNumbers`）だけがそれを使う。上限チェックで数える集合と実際に課金される集合を
+ズラさないため、判定を散らさない方針は第13節から変えていない。
+
+### `source` の値
+
+`VISION` でも `source` は `TEXT` / `OCR` / `FAILED` のままにする。`VISION` を足すと API の値域が変わるうえ、
+provider が tesseract のこともあるため名前が実態と合わない。VISION では変換に成功した全ページが `OCR` になる。
+
+### ページ上限の意味の違い
+
+`ghost.ocr.pdf.max-pages`（既定20）は「変換にかけるページ数」の上限で、判定順序も第13節から変えていない
+（①変換器が無効 → 503、②上限超過 → 400、③変換実行）。数える対象がモードで変わる。
+
+- `AUTO`: 文字レイヤーが空のページ数
+- `VISION`: **総ページ数**。27ページのPDFは既定20を超えて 400 になる
+
+同じPDFでも「AUTO なら通るのに VISION だと通らない」ため、400 のメッセージには対象ページ数と上限に加えて
+何を数えた上限かを添える（`PdfPageLimitExceededException#targetDescription`）。
+
+```text
+画像変換の対象ページ数が上限を超えています。対象 27 ページ / 上限 20 ページ（VISIONは文字レイヤーの有無に関係なく全ページを変換対象にします）
+```
+
+既定値は 20 のまま据え置く。VISION の実用には足りない場面があるが、この値は実用上の目安ではなく
+外部AIへの課金を止めるための歯止めで、既定を上げると AUTO のコストガードも同時に緩む。
+長い設計書を VISION で変換する運用では `ghost.ocr.pdf.max-pages` を明示的に引き上げる。
+VISION 専用の上限は設けない。設定が増える割に、止めたい事故（大きなPDFをうっかり全ページ送る）は同じ1本で止まる。
+
+### 費用
+
+VISION は総ページ数がそのまま外部APIの呼び出し回数になる。API を直接叩く利用者にも伝わるよう、
+`mode` の `@Schema` description と `/markdownDraftPdf` の `@Operation` description に費用の注意を書く。
+画面では VISION を選んだときだけ、費用が発生する旨をインラインで表示する（モーダルでは止めない）。
+
+### 部分失敗
+
+第13節と同じ。一部ページの失敗は成功したページを返して `WARNING` + `messageList`、
+全ページ失敗は 200 にせず最初の失敗をそのまま伝播する。VISION でも同じ挙動になることをテストで固定している。
+
+### テスト
+
+- `PdfMarkdownDraftModeTest`: `fromKey` / `KEY_MAP` / 大文字小文字無視 / 不正値の例外 / `convertsEveryPage`。
+- `PdfDocumentAnalysisLogicTest`: **VISION で文字レイヤーのあるページも変換器へ渡る** / VISION の上限超過で変換器が1度も呼ばれない。
+- `PdfMarkdownDraftServiceTest`: VISION の全ページ変換 / 小文字 `vision` / 部分失敗の WARNING / 全滅の伝播 / 上限例外 / 未知modeの例外。
+- `PdfMarkdownDraftControllerTest`: mode の受け渡し / 小文字 mode / 未知 mode で 400 かつ Service 未呼び出し / VISION の上限超過で対象の説明を含む 400。
+- `OpenApiDocumentationTest`: `mode` の値域（`AUTO` / `VISION`）と description の費用注意。
+- `FrontendMarkdownDraftContractTest`: モード選択 → payload 生成 → API 呼び出しの接続。
+
+実 API を呼ぶテストは作らない（第11節と同じ方針）。
+
+### 実 API での確認
+
+未実施。文字レイヤーを持つ設計書PDFで `mode=AUTO` と `mode=VISION` を比較し、費用の実測とあわせて
+`../成果物/09_OCRエンジン評価結果.md` へ記録する。

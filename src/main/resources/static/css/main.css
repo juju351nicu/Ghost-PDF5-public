@@ -92,7 +92,8 @@ body > #app {
 	margin-bottom: 0;
 }
 
-.insert-option-select {
+.insert-option-select,
+.markdown-draft-mode-select {
 	flex: 0 1 18rem;
 	width: min(18rem, 100%);
 	margin-bottom: 0;
@@ -286,6 +287,18 @@ body > #app {
 	font-size: .9375rem;
 }
 
+/* VISIONの費用注意は操作の直前に出す注意喚起のため、成功時の通知（api-message-list）と同じ見た目にそろえる。 */
+.markdown-draft-mode__notice {
+	flex-basis: 100%;
+	margin: 4px 0 0;
+	border: 1px solid var(--ghost-color-warning-border);
+	border-radius: 6px;
+	background: var(--ghost-color-warning-bg);
+	padding: 8px 12px;
+	color: var(--ghost-color-warning-text);
+	font-size: .9375rem;
+}
+
 .markdown-panel__editor {
 	min-height: 220px;
 	margin-bottom: 0;
@@ -455,12 +468,14 @@ body > #app {
 	.file-control input[type="file"],
 	.page-input,
 	.insert-option-select,
+	.markdown-draft-mode-select,
 	.pdf-action-row button {
 		width: 100%;
 	}
 
 	.page-input,
-	.insert-option-select {
+	.insert-option-select,
+	.markdown-draft-mode-select {
 		flex-basis: auto;
 	}
 

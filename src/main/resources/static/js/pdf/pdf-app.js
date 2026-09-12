@@ -420,7 +420,10 @@ const pdfApp = {
         return Promise.resolve();
       }
       return this.requestPdfMarkdownDraft(
-        PdfPayload.buildMarkdownDraftPayload(originalFileData.fileObject)
+        PdfPayload.buildMarkdownDraftPayload(
+          originalFileData.fileObject,
+          originalFileData.markdownDraftMode
+        )
       );
     },
     /**

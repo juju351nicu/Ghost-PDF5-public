@@ -31,6 +31,7 @@ import com.clip.ghost.pdfcontent.dto.PdfMetadataResponse;
 import com.clip.ghost.pdfcontent.dto.PdfPageContent;
 import com.clip.ghost.pdfcontent.dto.PdfPageThumbnail;
 import com.clip.ghost.pdfcontent.dto.PdfTextResponse;
+import com.clip.ghost.pdfcontent.enums.PdfMarkdownDraftMode;
 import com.clip.ghost.pdfcontent.exception.PdfPageLimitExceededException;
 import com.clip.ghost.pdfcontent.exception.PdfProcessingException;
 
@@ -102,10 +103,11 @@ class PdfDocumentAnalysisLogicTest {
 		PdfDocumentAnalysisLogic analysisLogic = new PdfDocumentAnalysisLogic();
 		List<byte[]> convertedImages = new ArrayList<>();
 
-		List<PdfPageContent> contents = analysisLogic.extractPdfPageContents(inputPath, 100, 20, pngBytes -> {
-			convertedImages.add(pngBytes);
-			return "converted markdown";
-		});
+		List<PdfPageContent> contents = analysisLogic.extractPdfPageContents(inputPath, 100, 20,
+				PdfMarkdownDraftMode.AUTO, pngBytes -> {
+					convertedImages.add(pngBytes);
+					return "converted markdown";
+				});
 
 		assertTrue(Files.exists(inputPath));
 		assertEquals(2, contents.size());
@@ -126,7 +128,7 @@ class PdfDocumentAnalysisLogicTest {
 		PdfDocumentAnalysisLogic analysisLogic = new PdfDocumentAnalysisLogic();
 		AtomicInteger convertedCount = new AtomicInteger();
 
-		List<PdfPageContent> contents = analysisLogic.extractPdfPageContents(inputPath, 100, 20,
+		List<PdfPageContent> contents = analysisLogic.extractPdfPageContents(inputPath, 100, 20, PdfMarkdownDraftMode.AUTO,
 				pngBytes -> "converted-" + convertedCount.incrementAndGet());
 
 		assertEquals(2, convertedCount.get());
@@ -141,12 +143,13 @@ class PdfDocumentAnalysisLogicTest {
 		PdfDocumentAnalysisLogic analysisLogic = new PdfDocumentAnalysisLogic();
 		AtomicInteger convertedCount = new AtomicInteger();
 
-		List<PdfPageContent> contents = analysisLogic.extractPdfPageContents(inputPath, 100, 20, pngBytes -> {
-			if (convertedCount.incrementAndGet() == 1) {
-				throw new IllegalArgumentException("変換に失敗しました。");
-			}
-			return "converted markdown";
-		});
+		List<PdfPageContent> contents = analysisLogic.extractPdfPageContents(inputPath, 100, 20,
+				PdfMarkdownDraftMode.AUTO, pngBytes -> {
+					if (convertedCount.incrementAndGet() == 1) {
+						throw new IllegalArgumentException("変換に失敗しました。");
+					}
+					return "converted markdown";
+				});
 
 		// 1ページの失敗で全体を捨てず、成功したページの変換結果を返す。
 		assertEquals(2, convertedCount.get());
@@ -167,7 +170,7 @@ class PdfDocumentAnalysisLogicTest {
 
 		// 全滅は部分的成功ではないため、HTTP statusを変えないよう最初の失敗をそのまま伝播する。
 		IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
-				() -> analysisLogic.extractPdfPageContents(inputPath, 100, 20, pngBytes -> {
+				() -> analysisLogic.extractPdfPageContents(inputPath, 100, 20, PdfMarkdownDraftMode.AUTO, pngBytes -> {
 					throw new IllegalArgumentException("変換に失敗しました。" + convertedCount.incrementAndGet());
 				}));
 
@@ -181,9 +184,10 @@ class PdfDocumentAnalysisLogicTest {
 		Path inputPath = createPdf("no-target.pdf", "first page", "second page");
 		PdfDocumentAnalysisLogic analysisLogic = new PdfDocumentAnalysisLogic();
 
-		List<PdfPageContent> contents = analysisLogic.extractPdfPageContents(inputPath, 100, 20, pngBytes -> {
-			throw new IllegalStateException("変換対象が無いページで変換器が呼ばれました。");
-		});
+		List<PdfPageContent> contents = analysisLogic.extractPdfPageContents(inputPath, 100, 20,
+				PdfMarkdownDraftMode.AUTO, pngBytes -> {
+					throw new IllegalStateException("変換対象が無いページで変換器が呼ばれました。");
+				});
 
 		// 変換対象0ページを「全滅」と数えると、文字レイヤーだけのPDFが失敗になってしまう。
 		assertEquals(2, contents.size());
@@ -199,13 +203,52 @@ class PdfDocumentAnalysisLogicTest {
 
 		// PdfProcessingExceptionへ化けると400ではなく500になるため、例外型そのものを固定する。
 		PdfPageLimitExceededException exception = assertThrows(PdfPageLimitExceededException.class,
-				() -> analysisLogic.extractPdfPageContents(inputPath, 100, 1,
+				() -> analysisLogic.extractPdfPageContents(inputPath, 100, 1, PdfMarkdownDraftMode.AUTO,
 						pngBytes -> "converted-" + convertedCount.incrementAndGet()));
 
 		// 課金は変換器の呼び出しで発生するため、1度も呼ばれないことがコストガードの中核。
 		assertEquals(0, convertedCount.get());
 		assertEquals(2, exception.getTargetPageCount());
 		assertEquals(1, exception.getMaxPages());
+		assertTrue(Files.exists(inputPath));
+	}
+
+	@Test
+	void extractPdfPageContentsConvertsEveryPageInVisionMode() throws IOException {
+		Path inputPath = createPdf("vision.pdf", "first page", "", "third page");
+		PdfDocumentAnalysisLogic analysisLogic = new PdfDocumentAnalysisLogic();
+		AtomicInteger convertedCount = new AtomicInteger();
+
+		List<PdfPageContent> contents = analysisLogic.extractPdfPageContents(inputPath, 100, 20,
+				PdfMarkdownDraftMode.VISION, pngBytes -> "converted-" + convertedCount.incrementAndGet());
+
+		// VISIONの中核。文字レイヤーを持つページも変換器へ渡らないと、表がフラットなテキストのままになる。
+		assertEquals(3, convertedCount.get());
+		assertEquals("converted-1", contents.get(0).convertedText());
+		assertEquals("converted-2", contents.get(1).convertedText());
+		assertEquals("converted-3", contents.get(2).convertedText());
+		// 文字レイヤーのテキストは変換結果と別に保持したままにする。
+		assertTrue(contents.get(0).text().contains("first page"));
+		assertTrue(Files.exists(inputPath));
+	}
+
+	@Test
+	void extractPdfPageContentsRejectsWithoutCallingConverterWhenTotalPagesExceedMaxPagesInVisionMode()
+			throws IOException {
+		Path inputPath = createPdf("vision-limit.pdf", "first page", "second page", "third page");
+		PdfDocumentAnalysisLogic analysisLogic = new PdfDocumentAnalysisLogic();
+		AtomicInteger convertedCount = new AtomicInteger();
+
+		// VISIONでは総ページ数がそのまま対象ページ数になるため、AUTOなら通るPDFでも上限に掛かる。
+		PdfPageLimitExceededException exception = assertThrows(PdfPageLimitExceededException.class,
+				() -> analysisLogic.extractPdfPageContents(inputPath, 100, 2, PdfMarkdownDraftMode.VISION,
+						pngBytes -> "converted-" + convertedCount.incrementAndGet()));
+
+		assertEquals(0, convertedCount.get());
+		assertEquals(3, exception.getTargetPageCount());
+		assertEquals(2, exception.getMaxPages());
+		// 「AUTOなら通るのにVISIONだと通らない」理由が伝わるよう、数えた対象の説明を持たせる。
+		assertEquals(PdfMarkdownDraftMode.VISION.describeConversionTarget(), exception.getTargetDescription());
 		assertTrue(Files.exists(inputPath));
 	}
 
@@ -293,7 +336,7 @@ class PdfDocumentAnalysisLogicTest {
 	private int readConvertedImageWidth(PdfDocumentAnalysisLogic analysisLogic, Path inputPath, int renderDpi)
 			throws IOException {
 		List<byte[]> convertedImages = new ArrayList<>();
-		analysisLogic.extractPdfPageContents(inputPath, renderDpi, 20, pngBytes -> {
+		analysisLogic.extractPdfPageContents(inputPath, renderDpi, 20, PdfMarkdownDraftMode.AUTO, pngBytes -> {
 			convertedImages.add(pngBytes);
 			return "converted markdown";
 		});

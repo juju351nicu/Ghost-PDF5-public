@@ -8,8 +8,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.List;
 import java.util.stream.StreamSupport;
 
+import org.apache.commons.lang3.Strings;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -777,6 +779,7 @@ class OpenApiDocumentationTest {
 		JsonNode requestSchema = schemas.path(SCHEMA_PDF_THUMBNAIL_REQUEST);
 		JsonNode requestProperties = requestSchema.path("properties");
 		JsonNode originalFile = requestProperties.path("originalFile");
+		JsonNode mode = requestProperties.path("mode");
 		JsonNode responseProperties = schemas.path(SCHEMA_PDF_THUMBNAIL_RESPONSE).path("properties");
 		JsonNode pages = responseProperties.path("pages");
 		JsonNode pageProperties = schemas.path(SCHEMA_PDF_THUMBNAIL_PAGE_RESPONSE).path("properties");
@@ -816,6 +819,7 @@ class OpenApiDocumentationTest {
 		JsonNode requestSchema = schemas.path(SCHEMA_PDF_MARKDOWN_DRAFT_REQUEST);
 		JsonNode requestProperties = requestSchema.path("properties");
 		JsonNode originalFile = requestProperties.path("originalFile");
+		JsonNode mode = requestProperties.path("mode");
 		JsonNode responseProperties = schemas.path(SCHEMA_PDF_MARKDOWN_DRAFT_RESPONSE).path("properties");
 		JsonNode pages = responseProperties.path("pages");
 		JsonNode pageProperties = schemas.path(SCHEMA_PDF_MARKDOWN_DRAFT_PAGE_RESPONSE).path("properties");
@@ -826,6 +830,13 @@ class OpenApiDocumentationTest {
 				() -> assertEquals("string", originalFile.path("type").asString()),
 				() -> assertEquals("binary", originalFile.path("format").asString()),
 				() -> assertTrue(requestProperties.has("mode")),
+				() -> assertEquals("string", mode.path("type").asString()),
+				// modeの値域はAPI契約。VISIONを足した以上、契約テストでも値域を固定する。
+				() -> assertEquals(List.of("AUTO", "VISION"), StreamSupport
+						.stream(mode.path("enum").spliterator(), false).map(JsonNode::asString).toList()),
+				// 全ページを外部APIへ送るモードのため、費用が発生することをAPI利用者へ明示する。
+				() -> assertTrue(Strings.CS.contains(mode.path("description").asString(), "VISION")),
+				() -> assertTrue(Strings.CS.contains(mode.path("description").asString(), "費用")),
 				() -> assertTrue(schemas.has(SCHEMA_PDF_MARKDOWN_DRAFT_RESPONSE)),
 				() -> assertTrue(responseProperties.has("fileName")),
 				() -> assertTrue(responseProperties.has("fileSize")),

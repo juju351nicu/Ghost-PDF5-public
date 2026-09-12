@@ -47,6 +47,33 @@ class FrontendMarkdownDraftContractTest {
 	}
 
 	/**
+	 * 変換モードの選択が、payload生成とAPI呼び出しまで接続されていることを確認する。
+	 *
+	 * @throws IOException フロントエンドresourceを読み込めない場合
+	 */
+	@Test
+	void markdownDraftModeSelectionReachesPayload() throws IOException {
+		String originalPdfForm = read("static/js/components/original-pdf-form.js");
+		String formState = read("static/js/models/pdf-form-state.js");
+		String payload = read("static/js/api/pdf-payload.js");
+		String pdfApp = read("static/js/pdf/pdf-app.js");
+
+		assertAll(
+				// 既定は従来動作。FEがmodeを送っていなかった時点の挙動を変えない。
+				() -> assertTrue(formState.contains("markdownDraftMode: \"\"")),
+				() -> assertTrue(formState.contains("const createMarkdownDraftModeItems")),
+				() -> assertTrue(formState.contains("id: \"VISION\"")),
+				() -> assertTrue(originalPdfForm.contains("v-model=\"originalFile.markdownDraftMode\"")),
+				() -> assertTrue(originalPdfForm.contains("aria-label=\"Markdown下書きの変換モード\"")),
+				// 費用の注意はモーダルで止めず、選択の近くへインラインで出す。
+				() -> assertTrue(originalPdfForm.contains("v-if=\"isVisionModeSelected\"")),
+				() -> assertTrue(originalPdfForm.contains("ページ数分の費用が発生します。")),
+				() -> assertTrue(payload.contains("const buildMarkdownDraftPayload = (fileObject, mode)")),
+				() -> assertTrue(payload.contains("payload.push({ key: \"mode\", value: mode })")),
+				() -> assertTrue(pdfApp.contains("originalFileData.markdownDraftMode")));
+	}
+
+	/**
 	 * プロジェクト相対パスのフロントエンドresourceをUTF-8で読み込む。
 	 *
 	 * @param relativePath {@link #RESOURCE_ROOT} からの相対パス

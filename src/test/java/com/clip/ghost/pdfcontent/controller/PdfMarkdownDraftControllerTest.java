@@ -17,6 +17,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
@@ -35,6 +36,7 @@ import com.clip.ghost.common.security.AccessTokenValidator;
 import com.clip.ghost.pdfcontent.constant.PdfConstants;
 import com.clip.ghost.pdfcontent.dto.PdfMarkdownDraftRequest;
 import com.clip.ghost.pdfcontent.dto.PdfMarkdownDraftResponse;
+import com.clip.ghost.pdfcontent.enums.PdfMarkdownDraftMode;
 import com.clip.ghost.pdfcontent.exception.PdfPageLimitExceededException;
 import com.clip.ghost.pdfcontent.service.PdfMarkdownDraftService;
 
@@ -104,6 +106,59 @@ class PdfMarkdownDraftControllerTest {
 	}
 
 	@Test
+	@DisplayName("modeはそのままServiceへ渡す")
+	void generateMarkdownDraftPassesModeToService() throws Exception {
+		ArgumentCaptor<PdfMarkdownDraftRequest> formCaptor = ArgumentCaptor.forClass(PdfMarkdownDraftRequest.class);
+		doReturn(ResponseEntity.ok(ApiResult.of(new PdfMarkdownDraftResponse()))).when(markdownDraftService)
+				.generateMarkdownDraft(any(PdfMarkdownDraftRequest.class));
+
+		MvcResult result = performRequestWithMode(createOriginalPdfFile(), ACCESS_TOKEN, session, "VISION");
+
+		assertEquals(HttpStatus.OK.value(), result.getResponse().getStatus());
+		verify(markdownDraftService).generateMarkdownDraft(formCaptor.capture());
+		assertEquals("VISION", formCaptor.getValue().getMode());
+	}
+
+	@Test
+	@DisplayName("小文字のmodeもvalidationで弾かずServiceへ渡す")
+	void generateMarkdownDraftAcceptsLowerCaseMode() throws Exception {
+		doReturn(ResponseEntity.ok(ApiResult.of(new PdfMarkdownDraftResponse()))).when(markdownDraftService)
+				.generateMarkdownDraft(any(PdfMarkdownDraftRequest.class));
+
+		MvcResult result = performRequestWithMode(createOriginalPdfFile(), ACCESS_TOKEN, session, "vision");
+
+		assertEquals(HttpStatus.OK.value(), result.getResponse().getStatus());
+		verify(markdownDraftService, times(1)).generateMarkdownDraft(any(PdfMarkdownDraftRequest.class));
+	}
+
+	@Test
+	@DisplayName("未知のmodeは400で拒否し、Serviceを呼ばない")
+	void generateMarkdownDraftReturnsBadRequestWhenModeIsUnknown() throws Exception {
+		MvcResult result = performRequestWithMode(createOriginalPdfFile(), ACCESS_TOKEN, session, "FOO");
+
+		// 黙って従来動作へ落とすと、外部変換が行われなかったことに利用者が気付けない。
+		verify(markdownDraftService, never()).generateMarkdownDraft(any(PdfMarkdownDraftRequest.class));
+		assertEquals(HttpStatus.BAD_REQUEST.value(), result.getResponse().getStatus());
+		assertTrue(result.getResponse().getContentAsString(StandardCharsets.UTF_8).contains("mode"));
+	}
+
+	@Test
+	@DisplayName("VISIONで変換対象ページ数が上限を超えた場合に400と対象の説明を返す")
+	void generateMarkdownDraftReturnsBadRequestWithTargetDescriptionWhenVisionPageLimitExceeded() throws Exception {
+		doThrow(new PdfPageLimitExceededException(27, 20, PdfMarkdownDraftMode.VISION.describeConversionTarget()))
+				.when(markdownDraftService).generateMarkdownDraft(any(PdfMarkdownDraftRequest.class));
+
+		MvcResult result = performRequestWithMode(createOriginalPdfFile(), ACCESS_TOKEN, session, "VISION");
+
+		assertEquals(HttpStatus.BAD_REQUEST.value(), result.getResponse().getStatus());
+		String responseBody = result.getResponse().getContentAsString(StandardCharsets.UTF_8);
+		assertTrue(responseBody.contains("27"));
+		assertTrue(responseBody.contains("20"));
+		// AUTOなら通るページ数でもVISIONでは超えるため、何を数えた上限かをレスポンスへ含める。
+		assertTrue(responseBody.contains(PdfMarkdownDraftMode.VISION.describeConversionTarget()));
+	}
+
+	@Test
 	@DisplayName("AUTOで画像変換の対象ページ数が上限を超えた場合に400と対象ページ数・上限を返す")
 	void generateMarkdownDraftReturnsBadRequestWhenPageLimitExceeded() throws Exception {
 		doThrow(new PdfPageLimitExceededException(30, 20)).when(markdownDraftService)
@@ -142,6 +197,22 @@ class PdfMarkdownDraftControllerTest {
 			MockHttpSession requestSession) throws Exception {
 		return mockMvc.perform(multipart(REQUEST_PATH).file(originalFile).header(ACCESS_TOKEN_HEADER_NAME, accessToken)
 				.session(requestSession)).andReturn();
+	}
+
+	/**
+	 * PDFと変換モードを含むmultipart requestを実行する。
+	 *
+	 * @param originalFile   生成元PDF
+	 * @param accessToken    access-token header値
+	 * @param requestSession HTTPセッション
+	 * @param mode           変換モード
+	 * @return HTTP実行結果
+	 * @throws Exception MockMvc実行に失敗した場合
+	 */
+	private MvcResult performRequestWithMode(MockMultipartFile originalFile, String accessToken,
+			MockHttpSession requestSession, String mode) throws Exception {
+		return mockMvc.perform(multipart(REQUEST_PATH).file(originalFile).param("mode", mode)
+				.header(ACCESS_TOKEN_HEADER_NAME, accessToken).session(requestSession)).andReturn();
 	}
 
 	/**

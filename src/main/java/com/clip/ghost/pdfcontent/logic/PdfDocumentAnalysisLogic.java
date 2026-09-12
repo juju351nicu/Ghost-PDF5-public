@@ -28,6 +28,7 @@ import com.clip.ghost.pdfcontent.dto.PdfMetadataResponse;
 import com.clip.ghost.pdfcontent.dto.PdfPageContent;
 import com.clip.ghost.pdfcontent.dto.PdfPageThumbnail;
 import com.clip.ghost.pdfcontent.dto.PdfTextResponse;
+import com.clip.ghost.pdfcontent.enums.PdfMarkdownDraftMode;
 import com.clip.ghost.pdfcontent.exception.PdfPageLimitExceededException;
 import com.clip.ghost.pdfcontent.exception.PdfProcessingException;
 
@@ -105,7 +106,11 @@ final class PdfDocumentAnalysisLogic {
 	}
 
 	/**
-	 * PDFからページ単位でテキストを抽出し、文字を取得できないページはPNGへ画像化して変換器へ渡す。
+	 * PDFからページ単位でテキストを抽出し、変換対象のページをPNGへ画像化して変換器へ渡す。
+	 * <p>
+	 * 変換対象はモードが決める。{@code AUTO} は文字を取得できないページだけ、{@code VISION} は全ページを対象にする。
+	 * VISIONは文字レイヤーを持つページも対象にするため、表の構造をMarkdown表として復元できる代わりに、
+	 * 総ページ数がそのまま外部AIの課金対象になる。
 	 * <p>
 	 * 1つの {@code PDDocument} で2段の走査を行う。1段目はテキスト抽出だけで、画像化も変換もしないため安価。
 	 * そこで確定した変換対象ページ数が上限を超える場合は、1ページも画像化せず、変換器を1度も呼ばずに例外で止める。
@@ -124,23 +129,26 @@ final class PdfDocumentAnalysisLogic {
 	 * @param inputPath          読み込むPDFのパス
 	 * @param renderDpi          画像化する解像度（DPI）
 	 * @param maxPages           画像変換にかけるページ数の上限
+	 * @param mode               変換対象ページを決める変換モード
 	 * @param pageImageConverter 画像化した1ページ分をテキストへ変換する処理
 	 * @return PDF順のページ内容（テキストと、変換したページの変換結果・変換失敗）
 	 * @throws PdfPageLimitExceededException 変換対象ページ数が上限を超えた場合
 	 * @throws PdfProcessingException        PDFの読み込み、テキスト抽出、または画像化に失敗した場合
 	 */
 	List<PdfPageContent> extractPdfPageContents(Path inputPath, int renderDpi, int maxPages,
-			PdfPageImageConverter pageImageConverter) {
+			PdfMarkdownDraftMode mode, PdfPageImageConverter pageImageConverter) {
 		try (PDDocument document = Loader.loadPDF(inputPath.toFile())) {
 			List<String> pageTexts = extractPageTexts(document);
-			List<Integer> renderTargetPages = collectBlankPageNumbers(pageTexts);
+			List<Integer> renderTargetPages = collectConversionTargetPageNumbers(pageTexts, mode);
 			if (renderTargetPages.size() > maxPages) {
-				LOGGER.warn("変換対象ページ数が上限を超えたため画像変換を行いません。targetPageCount={}, maxPages={}", renderTargetPages.size(),
-						maxPages);
-				throw new PdfPageLimitExceededException(renderTargetPages.size(), maxPages);
+				LOGGER.warn("変換対象ページ数が上限を超えたため画像変換を行いません。mode={}, targetPageCount={}, maxPages={}", mode.getKey(),
+						renderTargetPages.size(), maxPages);
+				// 同じページ数でもAUTOなら通りVISIONなら通らないため、何を数えた上限かを利用者へ伝える。
+				throw new PdfPageLimitExceededException(renderTargetPages.size(), maxPages,
+						mode.describeConversionTarget());
 			}
-			LOGGER.info("画像PDFのページ変換を開始します。targetPageCount={}, pageCount={}, renderDpi={}", renderTargetPages.size(),
-					pageTexts.size(), renderDpi);
+			LOGGER.info("画像PDFのページ変換を開始します。mode={}, targetPageCount={}, pageCount={}, renderDpi={}", mode.getKey(),
+					renderTargetPages.size(), pageTexts.size(), renderDpi);
 
 			PDFRenderer renderer = new PDFRenderer(document);
 			Map<Integer, String> convertedTexts = new HashMap<>();
@@ -250,10 +258,27 @@ final class PdfDocumentAnalysisLogic {
 	}
 
 	/**
+	 * 変換対象のページ番号をモードに応じて抽出する。
+	 * <p>
+	 * 対象ページ数はそのまま外部AIの課金対象になるため、上限チェックで数える集合と実際に変換する集合を
+	 * この1メソッドで確定させる。
+	 *
+	 * @param pageTexts PDF順のページ単位テキスト
+	 * @param mode      変換対象ページを決める変換モード
+	 * @return 変換対象のページ番号（1始まり）
+	 */
+	private List<Integer> collectConversionTargetPageNumbers(List<String> pageTexts, PdfMarkdownDraftMode mode) {
+		if (mode.convertsEveryPage()) {
+			return IntStream.rangeClosed(PdfConstants.START_PAGE, pageTexts.size()).boxed().toList();
+		}
+		return collectBlankPageNumbers(pageTexts);
+	}
+
+	/**
 	 * 文字レイヤーが空白のページ番号を抽出する。
 	 * <p>
-	 * 画像化するかどうかの判定はこのメソッドだけが持つ。上限チェックで数えるページ集合と実際に変換するページ集合が
-	 * ズレると、コストガードが意味を失うため。
+	 * 「文字レイヤーが空か」の判定はこのメソッドだけが持つ。Service側が同じ判定を持つと、
+	 * 上限チェックで数えるページ集合と実際に変換するページ集合がズレ、コストガードが意味を失うため。
 	 *
 	 * @param pageTexts PDF順のページ単位テキスト
 	 * @return 文字レイヤーが空白のページ番号（1始まり）
