@@ -91,6 +91,9 @@ Public repository化後も、当面はlocal development / portfolio用途を前�
 - `mode=AUTO` のページ上限とコストガードを追加（`ghost.ocr.pdf.max-pages` / `render-dpi`、課金前に400で拒否、ページ単位の画像処理、`PdfPageLimitExceededException`）
 - `mode=VISION` を追加し、文字レイヤーを持つPDFでも全ページをvisionへ回して表をMarkdown表として取得できるようにした
   - `mode` を `PdfMarkdownDraftMode` enum へ整理（API契約の文字列は従来どおり）。VISIONは総ページ数が上限・費用の対象になる
+- 区分値をリクエストDTOでもenumで受ける形へ統一（`mode` / `insertOption`）
+  - コード値からenumへの変換は `StringToCodeEnumConverterFactory` に集約し、外向きのコード値（`AUTO` / `1`）は変えない
+  - 不正値は400のまま、メッセージはenum自身の説明へ差し替える
 - `JsonUtils` のログ処理整理
 - 旧 `StorageUtils` の責務分割と削除
   - `PathUtils`: パス文字列・拡張子・PDF拡張子判定

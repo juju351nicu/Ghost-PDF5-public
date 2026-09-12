@@ -703,7 +703,12 @@ class OpenApiDocumentationTest {
 				() -> assertTrue(schemas.has(SCHEMA_INSERT_PDF_REQUEST)),
 				() -> assertTrue(insertPdfRequestProperties.has("insertFile")),
 				() -> assertTrue(insertPdfRequestProperties.has("insertPage")),
-				() -> assertTrue(insertPdfRequestProperties.has("insertOption")));
+				() -> assertTrue(insertPdfRequestProperties.has("insertOption")),
+				// insertOptionはenumで受けるようにしたが、APIが受け取るコード値（1 / 2 / 3）は変えない。
+				() -> assertEquals("integer", insertPdfRequestProperties.path("insertOption").path("type").asString()),
+				() -> assertEquals(List.of("1", "2", "3"),
+						StreamSupport.stream(insertPdfRequestProperties.path("insertOption").path("enum").spliterator(),
+								false).map(JsonNode::asString).toList()));
 	}
 
 	/**

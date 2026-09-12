@@ -172,6 +172,17 @@ temporaryDirectory から Paths.get(temporaryDirectory) で生成する。
   - `fromKey(...)` には必要に応じて `@JsonCreator` を付け、コード値からenumへ変換できるようにする。
   - `KEY_MAP` を用意し、分岐ごとに `if` / `switch` でコード値を直接比較しない。
   - `null` や未定義値は `IllegalArgumentException` など明確な例外にする。
+  - 値域が不正な場合に利用者へ返す説明は `getInvalidKeyMessage()` でenum自身に持たせる。
+    値域を知っているのはenumなので、メッセージの置き場所も同じにする。
+- request / form のフィールドも区分値enumの型で受け取ってよい。外向きのコード値は変えない。
+  - multipartフォームやquery parameterのbindingはJacksonを通らないため、`@JsonCreator` の `fromKey` は呼ばれない。
+    コード値からenumへの変換は `StringToCodeEnumConverterFactory`（`common.converter`）が1箇所で行う。
+    Controllerごとに `@InitBinder` を足さない。
+  - 未入力は `null` に変換する。未指定時の既定値はservice層の `private resolve〇〇` で補完する。
+  - 値域の検証は型変換が兼ねるため、`@Range` などのvalidationは重ねない。不正値は400（`typeMismatch`）になり、
+    メッセージは `ControllerValidationErrorHandler` がenumの `getInvalidKeyMessage()` へ差し替える。
+  - Controller単体テスト（`standaloneSetup`）では `CodeEnumWebMvcConfig#addFormatters` で同じ変換を登録する。
+    登録し忘れると、本番では通る値がテストだけ400になる。
 
 ## StringUtils / CollectionUtils の使用ルール
 

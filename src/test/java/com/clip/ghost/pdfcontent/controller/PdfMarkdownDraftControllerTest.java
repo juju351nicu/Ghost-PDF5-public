@@ -2,6 +2,7 @@ package com.clip.ghost.pdfcontent.controller;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
@@ -20,6 +21,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.format.support.DefaultFormattingConversionService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -29,6 +31,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import com.clip.ghost.common.config.CodeEnumWebMvcConfig;
 import com.clip.ghost.common.exceptions.handler.ControllerValidationErrorHandler;
 import com.clip.ghost.common.exceptions.handler.GlobalExceptionErrorHandler;
 import com.clip.ghost.common.response.ApiResult;
@@ -66,7 +69,10 @@ class PdfMarkdownDraftControllerTest {
 		session.setAttribute(AccessTokenValidator.SESSION_TOKEN_ATTRIBUTE, ACCESS_TOKEN);
 		PdfMarkdownDraftController controller = new PdfMarkdownDraftController(markdownDraftService,
 				new AccessTokenValidator());
-		mockMvc = MockMvcBuilders.standaloneSetup(controller)
+		// modeはenumで受けるため、本番と同じConverterFactoryを登録する。
+		DefaultFormattingConversionService conversionService = new DefaultFormattingConversionService();
+		new CodeEnumWebMvcConfig().addFormatters(conversionService);
+		mockMvc = MockMvcBuilders.standaloneSetup(controller).setConversionService(conversionService)
 				.setControllerAdvice(new ControllerValidationErrorHandler(), new GlobalExceptionErrorHandler()).build();
 	}
 
@@ -116,19 +122,35 @@ class PdfMarkdownDraftControllerTest {
 
 		assertEquals(HttpStatus.OK.value(), result.getResponse().getStatus());
 		verify(markdownDraftService).generateMarkdownDraft(formCaptor.capture());
-		assertEquals("VISION", formCaptor.getValue().getMode());
+		assertEquals(PdfMarkdownDraftMode.VISION, formCaptor.getValue().getMode());
 	}
 
 	@Test
-	@DisplayName("小文字のmodeもvalidationで弾かずServiceへ渡す")
+	@DisplayName("小文字のmodeも同じenumへ変換してServiceへ渡す")
 	void generateMarkdownDraftAcceptsLowerCaseMode() throws Exception {
+		ArgumentCaptor<PdfMarkdownDraftRequest> formCaptor = ArgumentCaptor.forClass(PdfMarkdownDraftRequest.class);
 		doReturn(ResponseEntity.ok(ApiResult.of(new PdfMarkdownDraftResponse()))).when(markdownDraftService)
 				.generateMarkdownDraft(any(PdfMarkdownDraftRequest.class));
 
 		MvcResult result = performRequestWithMode(createOriginalPdfFile(), ACCESS_TOKEN, session, "vision");
 
 		assertEquals(HttpStatus.OK.value(), result.getResponse().getStatus());
-		verify(markdownDraftService, times(1)).generateMarkdownDraft(any(PdfMarkdownDraftRequest.class));
+		verify(markdownDraftService, times(1)).generateMarkdownDraft(formCaptor.capture());
+		assertEquals(PdfMarkdownDraftMode.VISION, formCaptor.getValue().getMode());
+	}
+
+	@Test
+	@DisplayName("mode未指定はnullのままServiceへ渡し、従来動作を維持する")
+	void generateMarkdownDraftKeepsModeNullWhenNotSpecified() throws Exception {
+		ArgumentCaptor<PdfMarkdownDraftRequest> formCaptor = ArgumentCaptor.forClass(PdfMarkdownDraftRequest.class);
+		doReturn(ResponseEntity.ok(ApiResult.of(new PdfMarkdownDraftResponse()))).when(markdownDraftService)
+				.generateMarkdownDraft(any(PdfMarkdownDraftRequest.class));
+
+		MvcResult result = performRequestWithMode(createOriginalPdfFile(), ACCESS_TOKEN, session, "");
+
+		assertEquals(HttpStatus.OK.value(), result.getResponse().getStatus());
+		verify(markdownDraftService, times(1)).generateMarkdownDraft(formCaptor.capture());
+		assertNull(formCaptor.getValue().getMode());
 	}
 
 	@Test
@@ -139,7 +161,10 @@ class PdfMarkdownDraftControllerTest {
 		// 黙って従来動作へ落とすと、外部変換が行われなかったことに利用者が気付けない。
 		verify(markdownDraftService, never()).generateMarkdownDraft(any(PdfMarkdownDraftRequest.class));
 		assertEquals(HttpStatus.BAD_REQUEST.value(), result.getResponse().getStatus());
-		assertTrue(result.getResponse().getContentAsString(StandardCharsets.UTF_8).contains("mode"));
+		String responseBody = result.getResponse().getContentAsString(StandardCharsets.UTF_8);
+		assertTrue(responseBody.contains("mode"));
+		// 型変換の失敗でもメッセージは英語の内部表現にせず、enum自身の説明を返す。
+		assertTrue(responseBody.contains("変換モードはAUTOまたはVISIONで指定してください。"));
 	}
 
 	@Test

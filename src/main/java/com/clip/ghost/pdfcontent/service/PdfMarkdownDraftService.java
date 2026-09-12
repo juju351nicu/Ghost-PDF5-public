@@ -62,7 +62,6 @@ public class PdfMarkdownDraftService {
 	 *
 	 * @param form Markdown下書きの生成元PDFと変換モードを含むフォーム
 	 * @return PDF情報、ページ単位テキスト、Markdown下書きを含むレスポンス
-	 * @throws IllegalArgumentException      未知の変換モードを指定した場合（Controllerのvalidationで先に400になる）
 	 * @throws OcrUnavailableException       変換モード指定時に画像変換が無効、またはproviderが未対応の場合
 	 * @throws PdfPageLimitExceededException 変換対象ページ数が {@code ghost.ocr.pdf.max-pages} を超えた場合
 	 */
@@ -82,17 +81,17 @@ public class PdfMarkdownDraftService {
 	}
 
 	/**
-	 * リクエストの変換モードをenumへ変換する。
+	 * リクエストの変換モードを取得する。
 	 * <p>
-	 * 未指定は「文字レイヤーだけを使う従来動作」を表すため、enumの値ではなく空のOptionalで返す。
-	 * 未指定を表す値をenumへ足すと、APIが受け取れる文字列が増えてリクエスト契約が変わってしまう。
+	 * 未指定は「文字レイヤーだけを使う従来動作」を表す。未指定を表す値をenumへ足すと、APIが受け取れる文字列が
+	 * 増えてリクエスト契約が変わってしまうため、enumの値ではなく空のOptionalで扱う。
+	 * 不正な値はbindingの型変換で400になるため、ここへは届かない。
 	 *
 	 * @param mode リクエストの変換モード
 	 * @return 指定された変換モード。未指定の場合は空
-	 * @throws IllegalArgumentException 未知の変換モードを指定した場合
 	 */
-	private Optional<PdfMarkdownDraftMode> resolveMode(String mode) {
-		return StringUtils.isBlank(mode) ? Optional.empty() : Optional.of(PdfMarkdownDraftMode.fromKey(mode));
+	private Optional<PdfMarkdownDraftMode> resolveMode(PdfMarkdownDraftMode mode) {
+		return Optional.ofNullable(mode);
 	}
 
 	/**

@@ -4,6 +4,7 @@ import org.hibernate.validator.constraints.Range;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.clip.ghost.pdfcontent.constant.PdfConstants;
+import com.clip.ghost.pdfcontent.enums.PdfInsertOption;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -38,10 +39,13 @@ public class InsertPdfRequest {
 	 * <li>2: 対象ページと差し替える</li>
 	 * <li>3: 最後のページに差し込む</li>
 	 * </ul>
+	 * <p>
+	 * APIが受け取るコード値（1 / 2 / 3）は従来どおりで、enumへの変換は
+	 * {@link com.clip.ghost.common.converter.StringToCodeEnumConverterFactory} が行う。
+	 * 値域の検証も変換が兼ねるため、範囲のvalidationは持たない。未指定は {@code null} で、既定値はservice層が決める。
 	 */
-	@Schema(description = "差し込み方法。1: 対象ページの後に差し込む、2: 対象ページと差し替える、3: 最後のページに差し込む。", allowableValues = { "1", "2",
-			"3" }, example = "1")
+	@Schema(description = "差し込み方法。1: 対象ページの後に差し込む、2: 対象ページと差し替える、3: 最後のページに差し込む。", implementation = Integer.class, allowableValues = {
+			"1", "2", "3" }, example = "1")
 	@JsonProperty("insertOption")
-	@Range(min = PdfConstants.OPTION_INSERT, max = PdfConstants.OPTION_LAST_INSERT, message = "1から3までの値を入れてください")
-	private Integer insertOption;
+	private PdfInsertOption insertOption;
 }

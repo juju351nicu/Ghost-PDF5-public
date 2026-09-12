@@ -37,13 +37,13 @@ import org.springframework.core.io.Resource;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import com.clip.ghost.pdfcontent.constant.PdfConstants;
 import com.clip.ghost.pdfcontent.exception.PdfPageLimitExceededException;
 import com.clip.ghost.pdfcontent.exception.PdfProcessingException;
 import com.clip.ghost.pdfcontent.dto.GhostPdfDto;
 import com.clip.ghost.pdfcontent.dto.PdfMetadataResponse;
 import com.clip.ghost.pdfcontent.dto.PdfPageContent;
 import com.clip.ghost.pdfcontent.dto.PdfTextResponse;
+import com.clip.ghost.pdfcontent.enums.PdfInsertOption;
 import com.clip.ghost.pdfcontent.enums.PdfMarkdownDraftMode;
 
 /**
@@ -279,10 +279,10 @@ class GhostPdfLogicTest {
 		Path lastInsertPath = createPdf("last-insert.pdf", page(610, 710, 0));
 
 		Path outputPath = pdfLogic.insertPdf(originalPath,
-				List.of(insert(firstInsertPath, 1, PdfConstants.OPTION_INSERT),
-						insert(secondInsertPath, 1, PdfConstants.OPTION_INSERT),
-						insert(replacePath, 2, PdfConstants.OPTION_REPLACE),
-						insert(lastInsertPath, -1, PdfConstants.OPTION_LAST_INSERT)));
+				List.of(insert(firstInsertPath, 1, PdfInsertOption.INSERT),
+						insert(secondInsertPath, 1, PdfInsertOption.INSERT),
+						insert(replacePath, 2, PdfInsertOption.REPLACE),
+						insert(lastInsertPath, -1, PdfInsertOption.LAST_INSERT)));
 
 		assertFalse(originalPath.toFile().exists());
 		assertFalse(firstInsertPath.toFile().exists());
@@ -298,7 +298,7 @@ class GhostPdfLogicTest {
 		Path originalPath = createPdf("last-page-insert-original.pdf", page(100, 200, 0), page(200, 300, 90));
 		Path insertPath = createPdf("last-page-insert.pdf", page(400, 500, 180));
 
-		Path outputPath = pdfLogic.insertPdf(originalPath, List.of(insert(insertPath, 2, PdfConstants.OPTION_INSERT)));
+		Path outputPath = pdfLogic.insertPdf(originalPath, List.of(insert(insertPath, 2, PdfInsertOption.INSERT)));
 
 		assertFalse(originalPath.toFile().exists());
 		assertFalse(insertPath.toFile().exists());
@@ -322,7 +322,7 @@ class GhostPdfLogicTest {
 		Path originalPath = createPdf("out-of-range-original.pdf", page(100, 200, 0), page(200, 300, 0));
 		Path insertPath = createPdf("out-of-range-insert.pdf", page(400, 500, 0));
 
-		Path outputPath = pdfLogic.insertPdf(originalPath, List.of(insert(insertPath, 3, PdfConstants.OPTION_INSERT)));
+		Path outputPath = pdfLogic.insertPdf(originalPath, List.of(insert(insertPath, 3, PdfInsertOption.INSERT)));
 
 		assertFalse(insertPath.toFile().exists());
 		assertPageLayout(outputPath, page(100, 200, 0), page(200, 300, 0));
@@ -353,7 +353,7 @@ class GhostPdfLogicTest {
 	@Test
 	void insertPdfWithNullInsertPathKeepsOriginalPagesAndDeletesOriginal() throws IOException {
 		Path originalPath = createPdf("null-insert-path-original.pdf", page(100, 200, 0), page(200, 300, 90));
-		GhostPdfDto insertDto = insert(null, 1, PdfConstants.OPTION_INSERT);
+		GhostPdfDto insertDto = insert(null, 1, PdfInsertOption.INSERT);
 
 		Path outputPath = pdfLogic.insertPdf(originalPath, List.of(insertDto));
 
@@ -374,14 +374,16 @@ class GhostPdfLogicTest {
 	}
 
 	@Test
-	void insertPdfThrowsExceptionAndDeletesInputFilesWhenInsertOptionIsInvalid() throws IOException {
-		Path originalPath = createPdf("invalid-option-original.pdf", page(100, 200, 0));
-		Path insertPath = createPdf("invalid-option-insert.pdf", page(400, 500, 0));
+	void insertPdfIgnoresRequestAndDeletesInputFilesWhenInsertOptionIsMissing() throws IOException {
+		Path originalPath = createPdf("missing-option-original.pdf", page(100, 200, 0));
+		Path insertPath = createPdf("missing-option-insert.pdf", page(400, 500, 0));
 
-		assertThrows(PdfProcessingException.class,
-				() -> pdfLogic.insertPdf(originalPath, List.of(insert(insertPath, 1, 0))));
+		// 差し込み方法はenumで受けるため不正なコード値は届かない。未指定の行は他の未指定項目と同じく無視する。
+		Path outputPath = pdfLogic.insertPdf(originalPath, List.of(insert(insertPath, 1, null)));
+
 		assertFalse(originalPath.toFile().exists());
 		assertFalse(insertPath.toFile().exists());
+		assertPageLayout(outputPath, page(100, 200, 0));
 	}
 
 	@Test
@@ -391,7 +393,7 @@ class GhostPdfLogicTest {
 		Files.writeString(insertPath, "not pdf");
 
 		assertThrows(PdfProcessingException.class,
-				() -> pdfLogic.insertPdf(originalPath, List.of(insert(insertPath, 1, PdfConstants.OPTION_INSERT))));
+				() -> pdfLogic.insertPdf(originalPath, List.of(insert(insertPath, 1, PdfInsertOption.INSERT))));
 		assertFalse(originalPath.toFile().exists());
 		assertFalse(insertPath.toFile().exists());
 	}
@@ -440,7 +442,7 @@ class GhostPdfLogicTest {
 		assertFalse(inputPath.toFile().exists());
 	}
 
-	private GhostPdfDto insert(Path path, int pageNumber, int option) {
+	private GhostPdfDto insert(Path path, int pageNumber, PdfInsertOption option) {
 		GhostPdfDto dto = new GhostPdfDto();
 		dto.setInsertPath(path);
 		dto.setInsertPage(pageNumber);

@@ -126,7 +126,7 @@ class PdfMarkdownDraftServiceTest {
 		Path inputPath = Path.of("temporary", "scan.pdf");
 		MockMultipartFile originalFile = createPdfFile("scan.pdf", new byte[] { 1 });
 		PdfMarkdownDraftRequest form = createRequest(originalFile);
-		form.setMode("AUTO");
+		form.setMode(PdfMarkdownDraftMode.AUTO);
 		when(converterResolver.resolve()).thenReturn(converter);
 		when(converter.isEnabled()).thenReturn(true);
 		when(properties.getRenderDpi()).thenReturn(OCR_RENDER_DPI);
@@ -152,7 +152,7 @@ class PdfMarkdownDraftServiceTest {
 		Path inputPath = Path.of("temporary", "settings.pdf");
 		MockMultipartFile originalFile = createPdfFile("settings.pdf", new byte[] { 1 });
 		PdfMarkdownDraftRequest form = createRequest(originalFile);
-		form.setMode("AUTO");
+		form.setMode(PdfMarkdownDraftMode.AUTO);
 		byte[] pngBytes = new byte[] { 9, 9 };
 		when(converterResolver.resolve()).thenReturn(converter);
 		when(converter.isEnabled()).thenReturn(true);
@@ -179,7 +179,7 @@ class PdfMarkdownDraftServiceTest {
 		Path inputPath = Path.of("temporary", "partial.pdf");
 		MockMultipartFile originalFile = createPdfFile("partial.pdf", new byte[] { 1 });
 		PdfMarkdownDraftRequest form = createRequest(originalFile);
-		form.setMode("AUTO");
+		form.setMode(PdfMarkdownDraftMode.AUTO);
 		when(converterResolver.resolve()).thenReturn(converter);
 		when(converter.isEnabled()).thenReturn(true);
 		when(properties.getRenderDpi()).thenReturn(OCR_RENDER_DPI);
@@ -215,7 +215,7 @@ class PdfMarkdownDraftServiceTest {
 		Path inputPath = Path.of("temporary", "partial-multi.pdf");
 		MockMultipartFile originalFile = createPdfFile("partial-multi.pdf", new byte[] { 1 });
 		PdfMarkdownDraftRequest form = createRequest(originalFile);
-		form.setMode("AUTO");
+		form.setMode(PdfMarkdownDraftMode.AUTO);
 		when(converterResolver.resolve()).thenReturn(converter);
 		when(converter.isEnabled()).thenReturn(true);
 		when(properties.getRenderDpi()).thenReturn(OCR_RENDER_DPI);
@@ -240,7 +240,7 @@ class PdfMarkdownDraftServiceTest {
 		Path inputPath = Path.of("temporary", "success.pdf");
 		MockMultipartFile originalFile = createPdfFile("success.pdf", new byte[] { 1 });
 		PdfMarkdownDraftRequest form = createRequest(originalFile);
-		form.setMode("AUTO");
+		form.setMode(PdfMarkdownDraftMode.AUTO);
 		when(converterResolver.resolve()).thenReturn(converter);
 		when(converter.isEnabled()).thenReturn(true);
 		when(properties.getRenderDpi()).thenReturn(OCR_RENDER_DPI);
@@ -264,7 +264,7 @@ class PdfMarkdownDraftServiceTest {
 		Path inputPath = Path.of("temporary", "all-failed.pdf");
 		MockMultipartFile originalFile = createPdfFile("all-failed.pdf", new byte[] { 1 });
 		PdfMarkdownDraftRequest form = createRequest(originalFile);
-		form.setMode("AUTO");
+		form.setMode(PdfMarkdownDraftMode.AUTO);
 		when(converterResolver.resolve()).thenReturn(converter);
 		when(converter.isEnabled()).thenReturn(true);
 		when(properties.getRenderDpi()).thenReturn(OCR_RENDER_DPI);
@@ -283,7 +283,7 @@ class PdfMarkdownDraftServiceTest {
 		Path inputPath = Path.of("temporary", "limit.pdf");
 		MockMultipartFile originalFile = createPdfFile("limit.pdf", new byte[] { 1 });
 		PdfMarkdownDraftRequest form = createRequest(originalFile);
-		form.setMode("AUTO");
+		form.setMode(PdfMarkdownDraftMode.AUTO);
 		when(converterResolver.resolve()).thenReturn(converter);
 		when(converter.isEnabled()).thenReturn(true);
 		when(properties.getRenderDpi()).thenReturn(OCR_RENDER_DPI);
@@ -302,7 +302,7 @@ class PdfMarkdownDraftServiceTest {
 	void generateMarkdownDraftAutoThrowsWhenConverterDisabled() {
 		MockMultipartFile originalFile = createPdfFile("scan.pdf", new byte[] { 1 });
 		PdfMarkdownDraftRequest form = createRequest(originalFile);
-		form.setMode("AUTO");
+		form.setMode(PdfMarkdownDraftMode.AUTO);
 		when(converterResolver.resolve()).thenReturn(converter);
 		when(converter.isEnabled()).thenReturn(false);
 
@@ -317,7 +317,7 @@ class PdfMarkdownDraftServiceTest {
 		Path inputPath = Path.of("temporary", "vision.pdf");
 		MockMultipartFile originalFile = createPdfFile("vision.pdf", new byte[] { 1 });
 		PdfMarkdownDraftRequest form = createRequest(originalFile);
-		form.setMode("VISION");
+		form.setMode(PdfMarkdownDraftMode.VISION);
 		stubEnabledConverter(OCR_MAX_PAGES);
 		doReturn(inputPath).when(pdfLogic).loadPdf(originalFile);
 		doReturn(List.of(new PdfPageContent(1, "text page", "| 列1 | 列2 |", false),
@@ -336,31 +336,12 @@ class PdfMarkdownDraftServiceTest {
 	}
 
 	@Test
-	@DisplayName("小文字のvisionでもVISIONとして扱う")
-	void generateMarkdownDraftAcceptsLowerCaseVisionMode() {
-		Path inputPath = Path.of("temporary", "lower-vision.pdf");
-		MockMultipartFile originalFile = createPdfFile("lower-vision.pdf", new byte[] { 1 });
-		PdfMarkdownDraftRequest form = createRequest(originalFile);
-		form.setMode("vision");
-		stubEnabledConverter(OCR_MAX_PAGES);
-		doReturn(inputPath).when(pdfLogic).loadPdf(originalFile);
-		doReturn(List.of(new PdfPageContent(1, "text page", "converted markdown", false))).when(pdfLogic)
-				.extractPdfPageContents(eq(inputPath), eq(OCR_RENDER_DPI), eq(OCR_MAX_PAGES),
-						eq(PdfMarkdownDraftMode.VISION), any());
-
-		PdfMarkdownDraftResponse response = extractData(service.generateMarkdownDraft(form));
-
-		assertNotNull(response);
-		assertPageWithSource(response.getPages().get(0), 1, "converted markdown", "OCR");
-	}
-
-	@Test
 	@DisplayName("VISIONで一部ページの変換が失敗した場合はWARNINGで成功分を返す")
 	void generateMarkdownDraftVisionReturnsWarningWhenSomePagesFail() {
 		Path inputPath = Path.of("temporary", "vision-partial.pdf");
 		MockMultipartFile originalFile = createPdfFile("vision-partial.pdf", new byte[] { 1 });
 		PdfMarkdownDraftRequest form = createRequest(originalFile);
-		form.setMode("VISION");
+		form.setMode(PdfMarkdownDraftMode.VISION);
 		stubEnabledConverter(OCR_MAX_PAGES);
 		doReturn(inputPath).when(pdfLogic).loadPdf(originalFile);
 		doReturn(List.of(new PdfPageContent(1, "text page", "converted markdown", false),
@@ -388,7 +369,7 @@ class PdfMarkdownDraftServiceTest {
 		Path inputPath = Path.of("temporary", "vision-all-failed.pdf");
 		MockMultipartFile originalFile = createPdfFile("vision-all-failed.pdf", new byte[] { 1 });
 		PdfMarkdownDraftRequest form = createRequest(originalFile);
-		form.setMode("VISION");
+		form.setMode(PdfMarkdownDraftMode.VISION);
 		stubEnabledConverter(OCR_MAX_PAGES);
 		doReturn(inputPath).when(pdfLogic).loadPdf(originalFile);
 		doThrow(new ImageProcessingException("変換に失敗しました。")).when(pdfLogic).extractPdfPageContents(eq(inputPath),
@@ -403,7 +384,7 @@ class PdfMarkdownDraftServiceTest {
 		Path inputPath = Path.of("temporary", "vision-limit.pdf");
 		MockMultipartFile originalFile = createPdfFile("vision-limit.pdf", new byte[] { 1 });
 		PdfMarkdownDraftRequest form = createRequest(originalFile);
-		form.setMode("VISION");
+		form.setMode(PdfMarkdownDraftMode.VISION);
 		stubEnabledConverter(1);
 		doReturn(inputPath).when(pdfLogic).loadPdf(originalFile);
 		doThrow(new PdfPageLimitExceededException(3, 1, PdfMarkdownDraftMode.VISION.describeConversionTarget()))
@@ -413,21 +394,6 @@ class PdfMarkdownDraftServiceTest {
 		assertThrows(PdfPageLimitExceededException.class, () -> service.generateMarkdownDraft(form));
 
 		verify(converter, never()).convert(any(byte[].class), any(String.class));
-	}
-
-	@Test
-	@DisplayName("未知のmodeは例外にし、従来動作へ黙って落とさない")
-	void generateMarkdownDraftThrowsWhenModeIsUnknown() {
-		MockMultipartFile originalFile = createPdfFile("unknown-mode.pdf", new byte[] { 1 });
-		PdfMarkdownDraftRequest form = createRequest(originalFile);
-		form.setMode("FOO");
-
-		// 黙って従来動作にすると、利用者は外部変換が行われなかったことに気付けない。
-		IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
-				() -> service.generateMarkdownDraft(form));
-
-		assertEquals("変換モードはAUTOまたはVISIONで指定してください。", exception.getMessage());
-		verify(pdfLogic, never()).loadPdf(any());
 	}
 
 	/**

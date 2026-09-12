@@ -239,8 +239,8 @@ public class GhostPdfService {
 	 * @param insertPdfForm 差し込みPDFフォーム1行分
 	 * @return 差し込み種別。未指定時は末尾挿入
 	 */
-	private int resolveInsertOption(InsertPdfRequest insertPdfForm) {
-		Integer insertOption = insertPdfForm.getInsertOption();
-		return insertOption == null ? PdfInsertOption.LAST_INSERT.getKey() : insertOption;
+	private PdfInsertOption resolveInsertOption(InsertPdfRequest insertPdfForm) {
+		PdfInsertOption insertOption = insertPdfForm.getInsertOption();
+		return insertOption == null ? PdfInsertOption.LAST_INSERT : insertOption;
 	}
 }

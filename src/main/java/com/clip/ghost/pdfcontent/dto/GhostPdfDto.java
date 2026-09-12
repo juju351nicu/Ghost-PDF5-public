@@ -2,6 +2,8 @@ package com.clip.ghost.pdfcontent.dto;
 
 import java.nio.file.Path;
 
+import com.clip.ghost.pdfcontent.enums.PdfInsertOption;
+
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -25,5 +27,5 @@ public class GhostPdfDto {
 	private Path insertPath;
 
 	/** 差し込み・差し替え方法の選択オプション。 */
-	private Integer insertOption;
+	private PdfInsertOption insertOption;
 }

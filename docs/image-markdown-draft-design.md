@@ -253,12 +253,16 @@ Word / Excel から出力された設計書PDFは文字レイヤーを持つた�
 | `VISION` | 全ページ | 総ページ数分 |
 
 リクエストの契約は従来どおり文字列で、`mode=AUTO` はそのまま通る。大文字小文字は無視する（`mode=vision` も可）。
-値が2つになったため、内部表現は `docs/coding-guidelines.md` の区分値ルールに合わせて
+値が2つになったため、`docs/coding-guidelines.md` の区分値ルールに合わせて
 `PdfMarkdownDraftMode`（`CodeEnum<String>`、`PdfInsertOption` と同じ形）へ寄せ、`MODE_AUTO` 定数は削除した。
+リクエスト DTO の項目も `PdfMarkdownDraftMode` 型で受け取り、コード値から enum への変換は
+`StringToCodeEnumConverterFactory` が担う（`PdfInsertOption` の `insertOption` も同じ形にそろえた）。
 
 未指定を表す値は enum に持たせない。値を足すと API が受け取れる文字列が増え、リクエスト契約が変わってしまうため、
-Service 側で `Optional` の空として扱う。未知の値（`FOO` など）は `@Pattern` で 400 にする。
+未入力は `null`（＝Service 側で `Optional` の空）として扱う。未知の値（`FOO` など）は型変換の失敗として 400 にする。
 黙って従来動作へ落とすと、外部変換が行われなかったことに利用者が気付けない。
+型変換の失敗メッセージは Spring が組み立てる英語の内部表現になるため、`ControllerValidationErrorHandler` が
+enum 自身の説明（`CodeEnum#getInvalidKeyMessage`）へ差し替える。
 
 変換対象ページを決めるのは `PdfMarkdownDraftMode#convertsEveryPage()` で、Logic の1メソッド
 （`collectConversionTargetPageNumbers`）だけがそれを使う。上限チェックで数える集合と実際に課金される集合を

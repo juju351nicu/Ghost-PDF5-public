@@ -78,6 +78,16 @@ public enum PdfMarkdownDraftMode implements CodeEnum<String> {
 	}
 
 	/**
+	 * コード値が不正な場合に利用者へ返す説明を取得する。
+	 *
+	 * @return 変換モードが不正な場合の説明
+	 */
+	@Override
+	public String getInvalidKeyMessage() {
+		return INVALID_KEY_MESSAGE;
+	}
+
+	/**
 	 * 何を変換対象として数えるモードなのかを説明する文言を取得する。
 	 * <p>
 	 * ページ上限を超えた場合のエラーメッセージへ添える。同じページ数でもAUTOなら通りVISIONなら通らないため、
