@@ -200,6 +200,9 @@ PDF / Excel / Word のぐちゃぐちゃな設計書を、Markdown / OpenAPI / Y
 このPhase案は、現時点の想像をメモとして残すものであり、実装順を確定するものではない。
 ただし、今後の優先順位を考える時の土台として使う。
 
+到達点（2026-09-13時点）: Phase 1と2は完了。Phase 3はMarkdown設計書管理まで到達し、AIレビューは未着手。Phase 4は未着手。
+実装の粒度で見るときは後述の「実装フェーズ案」（A〜G）の状態を参照する。
+
 ### Phase 1: PDF編集基盤
 
 目的:
@@ -317,7 +320,28 @@ export
 
 ## 実装フェーズ案
 
+状態の一覧（2026-09-13時点）。詳細は各Phaseの「状態」を参照する。
+
+| Phase | 状態 |
+| --- | --- |
+| A: 現在のPDF編集安定化 | 完了 |
+| B: PDFテキスト抽出 | 完了（Tikaは導入せず） |
+| B-2: ページ単位Markdown下書き | 完了（`mode=AUTO` / `mode=VISION` まで） |
+| C: Markdown保存 | 完了 |
+| D: Markdown編集 / Markdown to PDF | 編集のみ完了。Markdown to PDFは未着手 |
+| E: AI整形 / 要約 | 足場のみ（provider抽象とキー管理）。整形・要約の機能は未着手 |
+| F: Vector DB / RAG | 未着手 |
+| G: CSV / Excel / Word対応 | 未着手 |
+
 ### Phase A: 現在のPDF編集安定化
+
+状態: 完了。
+
+- PDFBox 3.xへの移行後の仕様を、結合・挿入・置換・末尾挿入・削除・抽出・分割の単体テストで固定済み。
+- `GhostPdfLogic` を `PdfDocumentAnalysisLogic` / `PdfTemporaryFileStorage` / `PdfPageCopySupport` /
+  `PdfPageOperationLogic` / `PdfInsertLogic` へ分割し、Facadeの公開APIと一時ファイルの扱いは維持済み。
+- 規約は `CodingConventionTest`（ArchUnit + ソーススキャン）で機械的に守る。
+- CSVは本流へ入れていない（Phase Gのまま）。
 
 目的:
 
@@ -328,6 +352,12 @@ export
 この段階ではCSVを本流へ入れない。
 
 ### Phase B: PDFテキスト抽出
+
+状態: 完了。Tikaは導入していない。
+
+- `POST /textPdf` と、抽出テキストをMarkdown編集欄へ反映する最小UIを実装済み。
+- 「画像PDFにOCRまで求めるか」は Phase B-2 の `mode=AUTO` / `mode=VISION` で対応済み。
+- PDFBoxだけで足りているため、Tikaは追加していない。必要になるのはWord / Excelを直接読む段階（Phase G）。
 
 目的:
 
@@ -349,7 +379,7 @@ export
 
 ### Phase B-2: ページ単位Markdown下書き
 
-状態:
+状態: 完了（`mode=AUTO` / `mode=VISION` まで）。
 
 - 2026-08-01に初期API契約を設計済み。
 - request / response DTO、必須ファイルvalidation、JSON項目名・ページ順の契約テストを追加済み。
@@ -361,7 +391,12 @@ export
 - 既存 `main.html` の編集元PDFカードから下書きAPIを呼び出し、戻り値をMarkdown編集欄へ反映する最小UIを追加済み。
 - 自動保存・自動プレビューは行わず、既存Markdown操作とVite未導入の方針を維持する。
 - sample PDFの実API呼び出し、デスクトップ、モバイル表示で初期導線を確認済み。
-- 詳細は `docs/page-markdown-draft-api-design.md` を参照する。
+- 画像PDF向けに `mode=AUTO`（文字レイヤーが無いページだけ画像変換）とページ上限のコストガードを追加済み。
+- 2026-09-13に `mode=VISION`（文字レイヤーの有無に関係なく全ページを画像変換）を追加済み。
+  文字レイヤーを持つ設計書PDFでも表をMarkdown表として取得できる。`mode` は `PdfMarkdownDraftMode` enumで扱う。
+  VISIONは総ページ数がそのまま上限判定と費用の対象になる。実APIでの比較と費用の実測は未実施。
+- ページ選択用サムネイル（`POST /thumbnailsPdf`）と、選択結果をページ指定へ反映するUIを追加済み。
+- 詳細は `docs/page-markdown-draft-api-design.md` と `docs/image-markdown-draft-design.md`（第13〜14節）を参照する。
 
 目的:
 
@@ -398,6 +433,11 @@ export
 - Spring Boot 4。
 
 ### Phase C: Markdown保存
+
+状態: 完了。
+
+- 保存・一覧・読込・プレビュー（保存済み / 入力中）・更新・削除まで実装済み。最小UIも接続済み。
+- 保存先は `ghost.markdown.storage-directory`。シンボリックリンクは保存・一覧・読込・プレビュー・更新・削除の対象外。
 
 目的:
 
@@ -437,6 +477,13 @@ export
 
 ### Phase D: Markdown編集 / Markdown to PDF
 
+状態: 編集のみ完了。Markdown to PDFは未着手。
+
+- 編集は画面のMarkdown欄と `PUT /markdownFile` で実施できる。
+- HTMLプレビューは `commonmark-java` + `jsoup` で実装済み。これは表示用で、PDF出力には使っていない。
+- Markdown to PDFのendpointも変換ライブラリも無い。日本語フォント・改ページ・表の見た目確認が必要なため、
+  着手するなら独立フェーズとして扱う。
+
 目的:
 
 - 保存済みMarkdownを編集できるようにする。
@@ -448,6 +495,14 @@ export
 - 日本語フォント、改ページ、表、コードブロックの見た目確認が必要。
 
 ### Phase E: AI整形 / 要約
+
+状態: 足場のみ。整形・要約そのものは未着手。
+
+- 外部AIを呼ぶ足場は `imagecontent` に実装済み。`ImageToMarkdownConverter` interface、provider選択
+  （anthropic / openai / tesseract）、環境変数からのキー取得、503 / 500 の切り分け、外側フェンス除去まで。
+- ただし用途は「画像・PDFページの文字起こし」だけで、要約・整形・レビューのendpointは無い。
+- `ai` packageは作っていない。整形・要約を足す段階で、`imagecontent` から切り出すか新設するかを判断する。
+- AI結果を人が確認する導線（Markdown欄・プレビュー・保存）は先に揃っている。
 
 目的:
 
@@ -463,6 +518,8 @@ export
 
 ### Phase F: Vector DB / RAG
 
+状態: 未着手。Spring AIもVector DBも依存に入れていない。
+
 目的:
 
 - MarkdownをSpring AI `MarkdownDocumentReader` で読み込む。
@@ -476,6 +533,12 @@ export
 - 投入済み/未投入の管理が必要になるため、ここでCSV/一覧出力が役立つ可能性がある。
 
 ### Phase G: CSV / Excel / Word対応
+
+状態: 未着手。
+
+- `CsvController` の `/showCSV` / `/printCSV` は固定文字列を返す旧サンプルで、`@Hidden` でOpenAPIからも外してある。
+  AI処理結果やメタ情報の出力とは無関係なため、Phase Gの実績には数えない。
+- openCsvは未導入。Excel / Wordの読み書きも無い。
 
 目的:
 
