@@ -162,6 +162,24 @@
             <version>4.58.0</version>
         </dependency>
         <dependency>
+            <!-- CSV出力用。exportcontent packageの外からは参照しない。 -->
+            <!-- 引用符・改行・カンマを含む値のエスケープを自前で書かないために入れる。 -->
+            <!-- openCsvではなくcommons-csvを使う。openCsvはcommons-beanutils経由でcommons-collections 3.xを
+                 引き込み、本プロジェクトが統一しているcommons-collections4と2系統が同居する。
+                 今回の用途は書き出しだけでopenCsvの強み(Bean⇔CSVマッピング)を使わないため、
+                 推移依存を持たないcommons-csvのほうが釣り合う。 -->
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-csv</artifactId>
+            <version>1.14.1</version>
+        </dependency>
+        <dependency>
+            <!-- Word / Excel / PowerPoint（OOXML）の読み取り用。officecontent packageの外からは参照しない。 -->
+            <!-- 旧形式(.doc/.xls/.ppt)を読むpoi-scratchpadは入れない。対象をOOXMLに絞り、旧形式は400で明示的に拒否する。 -->
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi-ooxml</artifactId>
+            <version>5.4.1</version>
+        </dependency>
+        <dependency>
             <groupId>com.tngtech.archunit</groupId>
             <artifactId>archunit-junit5</artifactId>
             <version>1.4.2</version>

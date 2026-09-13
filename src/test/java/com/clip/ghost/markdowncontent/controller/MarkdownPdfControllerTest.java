@@ -8,6 +8,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 import java.nio.charset.StandardCharsets;
@@ -25,8 +26,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpSession;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.request.MockMultipartHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import com.clip.ghost.common.exceptions.handler.ControllerValidationErrorHandler;
@@ -34,6 +37,8 @@ import com.clip.ghost.common.exceptions.handler.GlobalExceptionErrorHandler;
 import com.clip.ghost.common.security.AccessTokenValidator;
 import com.clip.ghost.common.utils.ResponseUtils;
 import com.clip.ghost.markdowncontent.dto.MarkdownPdfRequest;
+import com.clip.ghost.markdowncontent.dto.PdfFromEpubRequest;
+import com.clip.ghost.markdowncontent.dto.PdfFromHtmlRequest;
 import com.clip.ghost.markdowncontent.exception.MarkdownPdfException;
 import com.clip.ghost.markdowncontent.service.MarkdownPdfService;
 
@@ -45,6 +50,10 @@ import tools.jackson.databind.ObjectMapper;
 @ExtendWith(MockitoExtension.class)
 class MarkdownPdfControllerTest {
 	private static final String REQUEST_PATH = "/markdownPdf";
+	private static final String PDF_FROM_HTML_REQUEST_PATH = "/pdfFromHtml";
+	private static final String HTML_FILE_PART_NAME = "htmlFile";
+	private static final String PDF_FROM_EPUB_REQUEST_PATH = "/pdfFromEpub";
+	private static final String EPUB_FILE_PART_NAME = "epubFile";
 	private static final String ACCESS_TOKEN_HEADER_NAME = "access-token";
 	private static final String ACCESS_TOKEN = "test-token";
 	private static final String INVALID_ACCESS_TOKEN = "invalid-token";
@@ -111,6 +120,108 @@ class MarkdownPdfControllerTest {
 		assertTrue(responseBody.contains("markdownPdfError"));
 		// 失敗の詳細（本文やローカルパス）は画面へ出さない。
 		assertTrue(responseBody.contains("MarkdownからのPDF出力に失敗しました。"));
+	}
+
+	@Test
+	@DisplayName("HTMLからのPDF出力ではtoken一致時にServiceへ処理を委譲する")
+	void generatePdfFromHtmlDelegatesToServiceWhenTokenMatches() throws Exception {
+		Resource contents = new ByteArrayResource("%PDF-1.7".getBytes(StandardCharsets.UTF_8));
+		doReturn(ResponseUtils.downloadPdf("design.pdf", contents)).when(markdownPdfService)
+				.generatePdfFromHtml(any(PdfFromHtmlRequest.class));
+
+		MvcResult result = performPdfFromHtmlRequest(ACCESS_TOKEN, true);
+
+		verify(markdownPdfService, times(1)).generatePdfFromHtml(any(PdfFromHtmlRequest.class));
+		assertEquals(HttpStatus.OK.value(), result.getResponse().getStatus());
+	}
+
+	@Test
+	@DisplayName("HTMLからのPDF出力ではHTMLファイル未指定の場合に400を返し、Serviceを呼ばない")
+	void generatePdfFromHtmlReturnsBadRequestWhenHtmlFileIsMissing() throws Exception {
+		MvcResult result = performPdfFromHtmlRequest(ACCESS_TOKEN, false);
+
+		verify(markdownPdfService, never()).generatePdfFromHtml(any(PdfFromHtmlRequest.class));
+		assertEquals(HttpStatus.BAD_REQUEST.value(), result.getResponse().getStatus());
+	}
+
+	@Test
+	@DisplayName("HTMLからのPDF出力ではaccess-tokenがsession tokenと不一致の場合に403を返す")
+	void generatePdfFromHtmlReturnsForbiddenWhenAccessTokenDoesNotMatch() throws Exception {
+		MvcResult result = performPdfFromHtmlRequest(INVALID_ACCESS_TOKEN, true);
+
+		verify(markdownPdfService, never()).generatePdfFromHtml(any(PdfFromHtmlRequest.class));
+		assertEquals(HttpStatus.FORBIDDEN.value(), result.getResponse().getStatus());
+	}
+
+	/**
+	 * HTMLからのPDF出力APIへmultipartリクエストを送信する。
+	 *
+	 * @param accessToken  送信するaccess-token
+	 * @param withHtmlFile HTMLファイルを添付する場合true
+	 * @return 実行結果
+	 * @throws Exception リクエスト送信に失敗した場合
+	 */
+	private MvcResult performPdfFromHtmlRequest(String accessToken, boolean withHtmlFile) throws Exception {
+		MockMultipartHttpServletRequestBuilder requestBuilder = multipart(PDF_FROM_HTML_REQUEST_PATH);
+		if (withHtmlFile) {
+			requestBuilder.file(new MockMultipartFile(HTML_FILE_PART_NAME, "design.html", MediaType.TEXT_HTML_VALUE,
+					"<p>本文</p>".getBytes(StandardCharsets.UTF_8)));
+		}
+		return mockMvc
+				.perform(requestBuilder.header(ACCESS_TOKEN_HEADER_NAME, accessToken).session(session)
+						.characterEncoding(CHARACTER_ENCODING_UTF_8))
+				.andReturn();
+	}
+
+	@Test
+	@DisplayName("EPUBからのPDF出力ではtoken一致時にServiceへ処理を委譲する")
+	void generatePdfFromEpubDelegatesToServiceWhenTokenMatches() throws Exception {
+		Resource contents = new ByteArrayResource("%PDF-1.7".getBytes(StandardCharsets.UTF_8));
+		doReturn(ResponseUtils.downloadPdf("book.pdf", contents)).when(markdownPdfService)
+				.generatePdfFromEpub(any(PdfFromEpubRequest.class));
+
+		MvcResult result = performPdfFromEpubRequest(ACCESS_TOKEN, true);
+
+		verify(markdownPdfService, times(1)).generatePdfFromEpub(any(PdfFromEpubRequest.class));
+		assertEquals(HttpStatus.OK.value(), result.getResponse().getStatus());
+	}
+
+	@Test
+	@DisplayName("EPUBからのPDF出力ではEPUBファイル未指定の場合に400を返し、Serviceを呼ばない")
+	void generatePdfFromEpubReturnsBadRequestWhenEpubFileIsMissing() throws Exception {
+		MvcResult result = performPdfFromEpubRequest(ACCESS_TOKEN, false);
+
+		verify(markdownPdfService, never()).generatePdfFromEpub(any(PdfFromEpubRequest.class));
+		assertEquals(HttpStatus.BAD_REQUEST.value(), result.getResponse().getStatus());
+	}
+
+	@Test
+	@DisplayName("EPUBからのPDF出力ではaccess-tokenがsession tokenと不一致の場合に403を返す")
+	void generatePdfFromEpubReturnsForbiddenWhenAccessTokenDoesNotMatch() throws Exception {
+		MvcResult result = performPdfFromEpubRequest(INVALID_ACCESS_TOKEN, true);
+
+		verify(markdownPdfService, never()).generatePdfFromEpub(any(PdfFromEpubRequest.class));
+		assertEquals(HttpStatus.FORBIDDEN.value(), result.getResponse().getStatus());
+	}
+
+	/**
+	 * EPUBからのPDF出力APIへmultipartリクエストを送信する。
+	 *
+	 * @param accessToken  送信するaccess-token
+	 * @param withEpubFile EPUBファイルを添付する場合true
+	 * @return 実行結果
+	 * @throws Exception リクエスト送信に失敗した場合
+	 */
+	private MvcResult performPdfFromEpubRequest(String accessToken, boolean withEpubFile) throws Exception {
+		MockMultipartHttpServletRequestBuilder requestBuilder = multipart(PDF_FROM_EPUB_REQUEST_PATH);
+		if (withEpubFile) {
+			requestBuilder.file(new MockMultipartFile(EPUB_FILE_PART_NAME, "book.epub", "application/epub+zip",
+					"epub".getBytes(StandardCharsets.UTF_8)));
+		}
+		return mockMvc
+				.perform(requestBuilder.header(ACCESS_TOKEN_HEADER_NAME, accessToken).session(session)
+						.characterEncoding(CHARACTER_ENCODING_UTF_8))
+				.andReturn();
 	}
 
 	/**

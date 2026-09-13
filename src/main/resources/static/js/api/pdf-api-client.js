@@ -135,6 +135,31 @@ const requestPdfMarkdownDraft = async (url, payload) => {
 };
 
 /**
+ * Office文書からのMarkdown生成APIへmultipart requestを送り、JSONレスポンスを返す。
+ *
+ * @param {string} url Office Markdown生成APIのURL
+ * @param {{key: string, value: unknown}[]} payload multipart formとして送信する値
+ * @returns {Promise<{officeMarkdownResponse: Object|null, messages: Object[], errorMessages: string[], errorCodes: string[]}>} Markdown生成結果
+ */
+const requestOfficeMarkdown = async (url, payload) => {
+  const response = await FetchClient.multipartRequest(url, payload);
+  if (!response.ok) {
+    return {
+      officeMarkdownResponse: null,
+      messages: [],
+      ...(await toErrorResult(response)),
+    };
+  }
+  const apiResult = await ApiResultUtils.readApiResult(response);
+  return {
+    officeMarkdownResponse: apiResult.data,
+    messages: apiResult.messages,
+    errorMessages: [],
+    errorCodes: [],
+  };
+};
+
+/**
  * ページ選択用サムネイルAPIへmultipart requestを送り、成功時はJSONレスポンスを返す。
  *
  * @param {string} url サムネイルAPIのURL
@@ -186,6 +211,7 @@ export default {
   requestPdfText,
   requestPdfMarkdownDraft,
   requestPdfThumbnails,
+  requestOfficeMarkdown,
   buildUnexpectedErrorMessage(error) {
     return ApiErrorUtils.buildUnexpectedErrorMessage(
       error,

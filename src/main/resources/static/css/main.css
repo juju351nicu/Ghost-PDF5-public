@@ -208,6 +208,70 @@ body > #app {
 	margin-bottom: 0;
 }
 
+.rotation-select {
+	flex: 0 1 12rem;
+	width: min(12rem, 100%);
+	margin-bottom: 0;
+}
+
+.images-pdf-card__list {
+	margin: 0;
+	padding-left: 1.5rem;
+	max-height: 12rem;
+	overflow-y: auto;
+	word-break: break-all;
+}
+
+.images-pdf-card__notice {
+	margin: 4px 0 0;
+	font-size: 0.85rem;
+}
+
+.epub-card__selected,
+.epub-card__notice,
+.office-card__selected,
+.office-card__notice,
+.html-pdf-card__selected,
+.html-pdf-card__notice {
+	margin: 4px 0 0;
+	font-size: 0.85rem;
+	word-break: break-all;
+}
+
+.epub-card__actions,
+.office-card__actions,
+.html-pdf-card__actions,
+.images-pdf-card__actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	align-items: center;
+}
+
+.page-size-select {
+	flex: 0 1 18rem;
+	width: min(18rem, 100%);
+	margin-bottom: 0;
+}
+
+.office-format-select {
+	flex: 0 1 22rem;
+	width: min(22rem, 100%);
+	margin-bottom: 0;
+}
+
+.image-format-select {
+	flex: 0 1 16rem;
+	width: min(16rem, 100%);
+	margin-bottom: 0;
+}
+
+.dpi-input {
+	flex: 0 1 10rem;
+	width: min(10rem, 100%);
+	margin-bottom: 0;
+}
+
 .insert-edge-options {
 	min-width: 10rem;
 }
@@ -578,13 +642,21 @@ body > #app {
 	.page-input,
 	.insert-option-select,
 	.markdown-draft-mode-select,
+	.rotation-select,
+	.image-format-select,
+	.office-format-select,
+	.dpi-input,
 	.pdf-action-row button {
 		width: 100%;
 	}
 
 	.page-input,
 	.insert-option-select,
-	.markdown-draft-mode-select {
+	.markdown-draft-mode-select,
+	.rotation-select,
+	.image-format-select,
+	.office-format-select,
+	.dpi-input {
 		flex-basis: auto;
 	}
 

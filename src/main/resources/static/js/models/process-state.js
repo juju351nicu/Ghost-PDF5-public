@@ -49,6 +49,7 @@ const PROCESS_LABEL = {
   FILE_DOWNLOAD: "出力ファイルを生成しています",
   MARKDOWN_FILE: "Markdownファイルを操作しています",
   MARKDOWN_PDF: "MarkdownからPDFを生成しています",
+  OFFICE_MARKDOWN: "Office文書をMarkdownへ変換しています",
 };
 
 /**

@@ -13,11 +13,12 @@
 
 ## 結論
 
-現時点では、GhostPdf のPDF編集コアにCSV / openCsv を無理に入れない。
+GhostPdf のPDF編集コアにはCSVを入れない。この方針は Phase G を実装した後も変えていない。
 
 一方で、`PathUtils` は現在のPDF一時保存・拡張子判定でも自然に使えるため、本流で使ってよい。`FileInfoUtils` は現在の結合・挿入・削除中心の処理では出番が少ないため、Markdown保存・文書一覧・検索機能が出てきた段階で使う。
 
-CSVはGhostPdfで将来使う可能性がある。ただし用途はPDF加工そのものではなく、文書メタ情報、変換結果、AI処理結果、テスト観点、投入状況などの入出力・レポート用途が中心になる。
+CSVの用途はPDF加工そのものではなく、文書メタ情報、変換結果、AI処理結果、テスト観点、投入状況などの入出力・レポートが中心になる。
+Phase G でこの形のまま導入した。置き場所はPDF編集コアではなく `exportcontent` package で、ライブラリは `commons-csv`（`openCsv` は不採用）。詳細は「Phase G」と「ライブラリ追加方針」を参照。
 
 
 ## 構想名候補
@@ -141,7 +142,11 @@ PDF / Excel / Word のぐちゃぐちゃな設計書を、Markdown / OpenAPI / Y
 
 ## CSV / openCsv の扱い
 
-### 現時点の判断
+> **決着済み（2026-09-13）。** Phase G でCSV出力を本流へ入れた。ライブラリは `openCsv` ではなく
+> **`commons-csv`** を採用し、`exportcontent` packageへ閉じ込めている。理由は下の「ライブラリ追加方針」を参照。
+> 以下は判断に至るまでの検討記録として残す。
+
+### 当初の判断（Phase G 着手前）
 
 学習目的で `openCsv` を試すこと自体は良い。ただし、GhostPdfのPDF編集本流へ入れるのはまだ早い。
 
@@ -331,7 +336,7 @@ export
 | D: Markdown編集 / Markdown to PDF | 完了（編集、Markdown to PDF） |
 | E: AI整形 / 要約 | 足場のみ（provider抽象とキー管理）。整形・要約の機能は未着手 |
 | F: Vector DB / RAG | 未着手 |
-| G: CSV / Excel / Word対応 | 未着手 |
+| G: CSV / Excel / Word対応 | 完了（CSV出力、Office⇄PDF/Markdown、画像⇄PDF、HTML/EPUB⇄PDF、ページ回転） |
 
 ### Phase A: 現在のPDF編集安定化
 
@@ -341,7 +346,7 @@ export
 - `GhostPdfLogic` を `PdfDocumentAnalysisLogic` / `PdfTemporaryFileStorage` / `PdfPageCopySupport` /
   `PdfPageOperationLogic` / `PdfInsertLogic` へ分割し、Facadeの公開APIと一時ファイルの扱いは維持済み。
 - 規約は `CodingConventionTest`（ArchUnit + ソーススキャン）で機械的に守る。
-- CSVは本流へ入れていない（Phase Gのまま）。
+- CSVは本流へ入れていない（Phase Gで `exportcontent` として別packageに入れた）。
 
 目的:
 
@@ -357,7 +362,8 @@ export
 
 - `POST /textPdf` と、抽出テキストをMarkdown編集欄へ反映する最小UIを実装済み。
 - 「画像PDFにOCRまで求めるか」は Phase B-2 の `mode=AUTO` / `mode=VISION` で対応済み。
-- PDFBoxだけで足りているため、Tikaは追加していない。必要になるのはWord / Excelを直接読む段階（Phase G）。
+- PDFBoxだけで足りているため、Tikaは追加していない。Phase GのWord / Excel対応もApache POIで直接読んでおり、
+  Tikaは結局入れていない。
 
 目的:
 
@@ -537,22 +543,53 @@ export
 
 ### Phase G: CSV / Excel / Word対応
 
-状態: 未着手。
+状態: 完了。他のPDFツールが持つ変換機能の取り込みまで含めて実装した。
 
-- `CsvController` の `/showCSV` / `/printCSV` は固定文字列を返す旧サンプルで、`@Hidden` でOpenAPIからも外してある。
-  AI処理結果やメタ情報の出力とは無関係なため、Phase Gの実績には数えない。
-- openCsvは未導入。Excel / Wordの読み書きも無い。
+追加した依存は `poi-ooxml` 5.4.1 と `commons-csv` 1.14.1 の2つだけ。画像変換（PNG / JPG / TIFF / BMP）と
+EPUBの読み書きはJDK標準のImageIO・ZIPと導入済みのjsoupで足りたため、ライブラリを増やしていない。
 
-目的:
+追加したエンドポイント:
 
-- AI処理結果や文書メタ情報をCSV/Excel/Wordへ出力する。
-- 現場のレビュー・共有・報告に使いやすい形式を用意する。
+| 用途 | エンドポイント |
+| --- | --- |
+| ページ回転 | `POST /rotatePdf` |
+| PDF→画像（PNG/JPG/TIFF/BMP、ZIP） | `POST /imagesPdf` |
+| 画像→PDF | `POST /pdfFromImages` |
+| PDF→HTML | `POST /htmlPdf` |
+| HTML→PDF | `POST /pdfFromHtml` |
+| PDF→EPUB | `POST /epubPdf` |
+| EPUB→PDF | `POST /pdfFromEpub` |
+| Office→Markdown | `POST /markdownDraftOffice` |
+| Office→PDF | `POST /pdfFromOffice` |
+| PDF→Office（DOCX/XLSX/PPTX） | `POST /officeFromPdf` |
+| 保存済みMarkdown一覧のCSV出力 | `GET /markdownFilesCsv` |
 
-注意:
+テスト: 484件 → 663件（失敗0・エラー0、skipはベースラインと同じ3件）。
 
-- CSVはこの段階で本流に入れる方が自然。
-- Excel/Wordは帳票・レビュー資料として需要が出た段階で検討する。
-- openCsvを使う場合は、CSV読み書き専用クラスを作り、PDFロジックへ混ぜない。
+責務分割:
+
+- POIへの依存は `officecontent.logic`、commons-csvへの依存は `exportcontent.logic` に閉じ込めた。
+  「CSV読み書き専用クラスを作り、PDFロジックへ混ぜない」という当初の注意書きは
+  `CodingConventionTest` のArchUnitルール（`apachePoiIsLimitedToOfficeContentLogic` /
+  `commonsCsvIsLimitedToExportContentLogic`）として機械的に守る。
+  あわせて `productionCodeDoesNotDependOnOpenCsvPackages` で、openCsvへ戻らないことも固定した。
+- CSVの書式はcommons-csvの既定（`CSVFormat.DEFAULT`）に従い、行末はCRLF、引用符は必要なときだけ付ける。
+  いずれもRFC 4180の標準で、Excelもそのまま開ける。
+- PDF生成は `MarkdownPdfRenderer` を共有し、Office→PDF・HTML→PDF・EPUB→PDFで実装を重複させていない。
+  そのための横断利用はArchUnitの `optionalLayer` として明示的に許可し、理由をテストのコメントへ残した。
+
+割り切り（APIの `description` にも明記済み）:
+
+- Word / Excel ⇄ PDF は内容レベルの変換で、段組み・罫線・フォント・図の配置は再現しない。
+- PowerPoint はスライドを画像化するため見た目は保たれるが、PDFの文字は選択できない。
+- 旧Office形式（`.doc` / `.xls` / `.ppt`）は対象外で400を返す。`poi-scratchpad` を入れない判断による。
+- DjVu→PDF は実装しない。保守されているJavaデコーダが無く、ネイティブ依存はlocal-firstの方針と合わない。
+
+残り:
+
+- `CsvController` の `/showCSV` / `/printCSV` は固定文字列を返す旧サンプルのまま残している。
+  `@Hidden` でOpenAPIから外れており、新規のCSV出力は `exportcontent` 側に置いた。
+- AI処理結果のCSV出力は、Phase E（AI整形 / 要約）が動き出してから対象を決める。
 
 
 ## 変換難易度メモ
@@ -603,14 +640,14 @@ export
 - ファイルサイズ、行数、内容検索が期待通りになる。
 - 大量ファイルでもテストが不安定にならない。
 
-### CSV / openCsv
+### CSV
 
-- カンマ、ダブルクォート、改行を含む値を正しく扱える。
-- UTF-8 / BOM有無の扱いを決める。
-- ヘッダーあり/なしを仕様化する。
-- 空行、空列、不正行の扱いを決める。
-- 読み込みエラー時にユーザーへ分かるメッセージを返す。
-- CSV処理がPDF編集APIに副作用を与えない。
+- カンマ、ダブルクォート、改行を含む値を正しく扱える。→ `CsvWriterSupportTest` で固定済み。
+- UTF-8 / BOM有無の扱いを決める。→ 既定はBOM付き。`withBom=false` で外せる。
+- ヘッダーあり/なしを仕様化する。→ ヘッダーが空なら出力しない。
+- 空行、空列、不正行の扱いを決める。→ 読み込みを実装していないため未着手。
+- 読み込みエラー時にユーザーへ分かるメッセージを返す。→ 同上。CSVは現状「書き出しのみ」。
+- CSV処理がPDF編集APIに副作用を与えない。→ `exportcontent` へ分離し、ArchUnitで依存方向を固定済み。
 
 ### AI / Vector DB
 
@@ -628,8 +665,12 @@ export
 
 - Tika: PDFBoxだけでは抽出しづらい文書形式やメタ情報抽出が必要になった場合。
 - Spring AI: MarkdownDocumentReader、Embedding、Vector DB連携を実装する段階。
-- openCsv: CSVの読み込み/出力が本番機能として必要になった段階。
-- Apache POI: Excel/Word入出力が必要になった段階。
+- ~~openCsv~~ → **commons-csv 1.14.1 を導入済み**（Phase G）。openCsvは採用しなかった。
+  `commons-beanutils` 経由で `commons-collections` 3.x を引き込み、本プロジェクトが統一している
+  `commons-collections4` と2系統がクラスパスに同居するため。今回の用途は書き出しのみで、
+  openCsvの強みであるBean⇔CSVマッピングを使わず、推移依存を持たないcommons-csvのほうが釣り合う。
+- **Apache POI: `poi-ooxml` 5.4.1 を導入済み**（Phase G）。Excel/Word/PowerPointの読み書きに使う。
+  旧形式（.doc / .xls / .ppt）用の `poi-scratchpad` は入れていない。
 - Markdown変換ライブラリ: 保存だけなら追加しない。HTMLプレビューの入口として `commonmark-java` と `jsoup` は導入済み。GitHub風Markdownや表/TOCを重視するなら `flexmark-java`、MarkdownからPDF出力を強化する段階ではOpenHTMLToPDF等も候補にする。
 
 ## 判断メモ

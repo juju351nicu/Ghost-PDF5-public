@@ -30,6 +30,10 @@
  * @property {CheckboxState} delPagesChecked 削除ページ指定チェック状態
  * @property {TextInputState} delPagesText 削除ページ入力状態
  * @property {string} markdownDraftMode Markdown下書きの変換モード。空文字は従来動作（文字レイヤーのみ）
+ * @property {number} rotation ページ回転角（90 / 180 / 270）
+ * @property {string} imageFormat ページ画像化の出力形式（PNG / JPG / TIFF / BMP）
+ * @property {string} imageDpi ページ画像化の解像度。空文字はサーバー設定の既定値を使う
+ * @property {string} officeFormat PDFから出力するOffice形式（DOCX / XLSX / PPTX）
  * @property {boolean} fileFlag 既存画面互換のファイル選択フラグ
  */
 
@@ -77,6 +81,14 @@ const createOriginalFileState = () => ({
   splitRangesText: { text: "", message: "" },
   // 既定は従来動作。これまでFEはmodeを送っていなかったため、初期値を変えると既存の挙動が変わる。
   markdownDraftMode: "",
+  // 縦向きの資料を横向きに直す用途が最も多いため、既定は時計回り90度にする。
+  rotation: 90,
+  // 文字と線画がにじまないPNGを既定にする。写真主体ならJPGへ切り替える。
+  imageFormat: "PNG",
+  // 空文字はサーバー設定の既定値を使う。FEに既定dpiを持たせるとBEの設定変更が効かなくなる。
+  imageDpi: "",
+  // 文字を直したい用途が最も多いため、既定はWordにする。
+  officeFormat: "DOCX",
   fileFlag: false,
 });
 
@@ -199,6 +211,55 @@ const createMarkdownDraftModeItems = () => [
 ];
 
 /**
+ * ページ回転角プルダウンの選択肢を生成する。
+ *
+ * idは `rotation` としてBEへ送る値で、BEの `PdfRotation` のコード値と一致させる。
+ * 0（回転なし）は選択肢に置かない。回転しないなら回転APIを呼ばないため。
+ *
+ * @returns {{id: number, name: string}[]} 回転角の選択肢
+ */
+const createRotationItems = () => [
+  {
+    id: 90,
+    name: "時計回りに90度",
+  },
+  {
+    id: 180,
+    name: "180度",
+  },
+  {
+    id: 270,
+    name: "反時計回りに90度",
+  },
+];
+
+/**
+ * ページ画像化の出力形式プルダウンの選択肢を生成する。
+ *
+ * idは `format` としてBEへ送る値で、BEの `PdfImageFormat` のコード値と一致させる。
+ *
+ * @returns {{id: string, name: string}[]} 画像形式の選択肢
+ */
+const createImageFormatItems = () => [
+  {
+    id: "PNG",
+    name: "PNG（可逆・文字がにじまない）",
+  },
+  {
+    id: "JPG",
+    name: "JPG（非可逆・写真向き）",
+  },
+  {
+    id: "TIFF",
+    name: "TIFF（可逆・印刷向き）",
+  },
+  {
+    id: "BMP",
+    name: "BMP（無圧縮）",
+  },
+];
+
+/**
  * 差し込みPDF行の次の行番号を計算する。
  *
  * @param {{fileNo: number}[]} insertFiles 現在の差し込みPDF行リスト
@@ -224,8 +285,95 @@ const createImageDraftState = () => ({
   previewUrl: "",
 });
 
+/**
+ * PDFから出力するOffice形式プルダウンの選択肢を生成する。
+ *
+ * idは `format` としてBEへ送る値で、BEの `OfficeDocumentType` のコード値と一致させる。
+ *
+ * @returns {{id: string, name: string}[]} Office形式の選択肢
+ */
+const createOfficeFormatItems = () => [
+  {
+    id: "DOCX",
+    name: "Word（文字は編集可・レイアウト不可）",
+  },
+  {
+    id: "XLSX",
+    name: "Excel（1ページ1シート・表は復元しない）",
+  },
+  {
+    id: "PPTX",
+    name: "PowerPoint（見た目は保持・文字は選択不可）",
+  },
+];
+
+/**
+ * EPUBからPDFを作るカードの初期画面状態を生成する。
+ *
+ * @returns {{fileObject: File|null, fileName: string}} EPUBカードの画面状態
+ */
+const createEpubState = () => ({
+  fileObject: null,
+  fileName: "",
+});
+
+/**
+ * Office文書変換カードの初期画面状態を生成する。
+ *
+ * @returns {{fileObject: File|null, fileName: string}} Office文書カードの画面状態
+ */
+const createOfficeState = () => ({
+  fileObject: null,
+  fileName: "",
+});
+
+/**
+ * HTMLからPDFを作るカードの初期画面状態を生成する。
+ *
+ * @returns {{fileObject: File|null, fileName: string}} HTML PDFカードの画面状態
+ */
+const createHtmlPdfState = () => ({
+  fileObject: null,
+  fileName: "",
+});
+
+/**
+ * 画像からPDFを作るカードの初期画面状態を生成する。
+ *
+ * @returns {{files: File[], pageSize: string}} 画像PDFカードの画面状態
+ */
+const createImagesPdfState = () => ({
+  files: [],
+  // 印刷や共有に回すことが多いため、既定はA4に収める。原寸を保ちたい場合だけFITへ切り替える。
+  pageSize: "A4",
+});
+
+/**
+ * 画像からPDFを作る際のページサイズプルダウンの選択肢を生成する。
+ *
+ * idは `pageSize` としてBEへ送る値で、BEの `PdfImagePageSize` のコード値と一致させる。
+ *
+ * @returns {{id: string, name: string}[]} ページサイズの選択肢
+ */
+const createImagePageSizeItems = () => [
+  {
+    id: "A4",
+    name: "A4に収める（縦横比は保持）",
+  },
+  {
+    id: "FIT",
+    name: "画像サイズに合わせる（余白なし）",
+  },
+];
+
 export default {
   createImageDraftState,
+  createImagesPdfState,
+  createHtmlPdfState,
+  createOfficeState,
+  createEpubState,
+  createOfficeFormatItems,
+  createImagePageSizeItems,
   createOriginalFileState,
   createThumbnailState,
   createPdfMetadataState,
@@ -234,5 +382,7 @@ export default {
   createInitialInsertFiles,
   createInsertOptionItems,
   createMarkdownDraftModeItems,
+  createRotationItems,
+  createImageFormatItems,
   calculateNextInsertFileNo,
 };

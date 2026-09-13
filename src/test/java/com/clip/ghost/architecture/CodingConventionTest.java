@@ -442,6 +442,64 @@ class CodingConventionTest {
 	}
 
 	@Test
+	@DisplayName("Apache POIへの依存をofficecontent.logicへ閉じる")
+	void apachePoiIsLimitedToOfficeContentLogic() {
+		// Office読み取りライブラリ(POI)の依存はofficecontent.logicだけに閉じ込める。
+		// `docs/future-document-ai-roadmap.md` の Phase G の注意書き「PDFロジックへ混ぜない」を機械的に守る。
+		noClasses().that().resideOutsideOfPackage(BASE_PACKAGE + ".officecontent.logic..").should()
+				.dependOnClassesThat().resideInAPackage("org.apache.poi..")
+				.because("Office読み取りの依存はofficecontent.logicへ閉じ込めます。").check(PRODUCTION_CLASSES);
+	}
+
+	@Test
+	@DisplayName("commons-csvへの依存をexportcontent.logicへ閉じる")
+	void commonsCsvIsLimitedToExportContentLogic() {
+		// CSV出力ライブラリ(commons-csv)の依存はexportcontent.logicだけに閉じ込める。
+		// `docs/future-document-ai-roadmap.md` の Phase G の注意書き
+		// 「CSV読み書き専用クラスを作り、PDFロジックへ混ぜない」を機械的に守る。
+		noClasses().that().resideOutsideOfPackage(BASE_PACKAGE + ".exportcontent.logic..").should()
+				.dependOnClassesThat().resideInAPackage("org.apache.commons.csv..")
+				.because("CSV出力の依存はexportcontent.logicへ閉じ込めます。").check(PRODUCTION_CLASSES);
+	}
+
+	@Test
+	@DisplayName("本番コードがopenCsv packageへ依存しない")
+	void productionCodeDoesNotDependOnOpenCsvPackages() {
+		// openCsvはcommons-beanutils経由でcommons-collections 3.xを引き込み、
+		// 本プロジェクトが統一しているcommons-collections4と2系統が同居する。CSVはcommons-csvへ寄せる。
+		noClasses().should().dependOnClassesThat().resideInAPackage("com.opencsv..")
+				.because("CSV出力はcommons-csvへ統一し、commons-collections 3.xを引き込むopenCsvへ戻さない。")
+				.check(PRODUCTION_CLASSES);
+	}
+
+	@Test
+	@DisplayName("CSV出力の依存方向をController → Service → Logicに保つ")
+	void exportControllerServiceLogicDependenciesKeepDirection() {
+		Architectures.layeredArchitecture().consideringAllDependencies().layer("Controller")
+				.definedBy("..exportcontent.controller..").layer("Service").definedBy("..exportcontent.service..")
+				.layer("Logic").definedBy("..exportcontent.logic..").whereLayer("Controller")
+				.mayNotBeAccessedByAnyLayer().whereLayer("Service").mayOnlyBeAccessedByLayers("Controller")
+				.whereLayer("Logic").mayOnlyBeAccessedByLayers("Service")
+				.because("CSV出力もController -> Service -> Logicの順に依存させます。").check(PRODUCTION_CLASSES);
+	}
+
+	@Test
+	@DisplayName("Office処理の依存方向を保ち、共有のOffice読み書きだけ横断利用を許す")
+	void officeControllerServiceLogicDependenciesKeepDirection() {
+		// Office読み書き(officecontent.logic)は共有機能として、PDFからOffice文書を起こす
+		// pdfcontent.serviceからも使う。POIの依存を1packageへ閉じるという判断を守るには、
+		// 書き出し側もここに置くしかないため。この横断利用だけを許可し、他の依存方向は維持する。
+		Architectures.layeredArchitecture().consideringAllDependencies().layer("Controller")
+				.definedBy("..officecontent.controller..").layer("Service").definedBy("..officecontent.service..")
+				.layer("Logic").definedBy("..officecontent.logic..").optionalLayer("PdfOfficeService")
+				.definedBy("..pdfcontent.service..").whereLayer("Controller").mayNotBeAccessedByAnyLayer()
+				.whereLayer("Service").mayOnlyBeAccessedByLayers("Controller").whereLayer("Logic")
+				.mayOnlyBeAccessedByLayers("Service", "PdfOfficeService")
+				.because("Office処理もController -> Service -> Logicの順に依存させ、共有のOffice読み書きのみpdfcontent.serviceからの利用を許可します。")
+				.check(PRODUCTION_CLASSES);
+	}
+
+	@Test
 	@DisplayName("pdfcontent.enumsの区分値enumがCodeEnumを実装する")
 	void pdfEnumsImplementCodeEnum() {
 		classes().that().resideInAPackage("..pdfcontent.enums..").and().areEnums().should()
@@ -475,14 +533,25 @@ class CodingConventionTest {
 	}
 
 	@Test
-	@DisplayName("Markdown処理の依存方向をController → Service → Logicに保つ")
+	@DisplayName("Markdown処理の依存方向を保ち、共有HTMLレンダラーだけ横断利用を許す")
 	void markdownControllerServiceLogicDependenciesKeepDirection() {
+		// Markdown -> HTML変換(markdowncontent.logic)は共有機能として、PDFからHTMLを起こす
+		// pdfcontent.serviceとOffice文書をPDF化するofficecontent.serviceからも使う。
+		// 変換規則を分けると、画面プレビューとダウンロード結果で同じMarkdownの見た目が食い違うため。
+		// 保存済みMarkdown一覧のCSV出力(exportcontent.service)は、画面と同じ一覧を出すために
+		// markdowncontent.serviceを使う。CSV専用の一覧取得を作ると画面と内容がずれる。
+		// これらの横断利用だけを許可し、他の依存方向は維持する。
 		Architectures.layeredArchitecture().consideringAllDependencies().layer("Controller")
 				.definedBy("..markdowncontent.controller..").layer("Service").definedBy("..markdowncontent.service..")
-				.layer("Logic").definedBy("..markdowncontent.logic..").whereLayer("Controller")
-				.mayNotBeAccessedByAnyLayer().whereLayer("Service").mayOnlyBeAccessedByLayers("Controller")
-				.whereLayer("Logic").mayOnlyBeAccessedByLayers("Service")
-				.because("Markdown処理もController -> Service -> Logicの順に依存させます。").check(PRODUCTION_CLASSES);
+				.layer("Logic").definedBy("..markdowncontent.logic..").optionalLayer("PdfHtmlService")
+				.definedBy("..pdfcontent.service..").optionalLayer("OfficePdfService")
+				.definedBy("..officecontent.service..").optionalLayer("MarkdownCsvService")
+				.definedBy("..exportcontent.service..").whereLayer("Controller").mayNotBeAccessedByAnyLayer()
+				.whereLayer("Service")
+				.mayOnlyBeAccessedByLayers("Controller", "MarkdownCsvService").whereLayer("Logic")
+				.mayOnlyBeAccessedByLayers("Service", "PdfHtmlService", "OfficePdfService")
+				.because("Markdown処理もController -> Service -> Logicの順に依存させ、共有のHTML/PDFレンダラーのみpdfcontent.service・officecontent.serviceからの利用を許可します。")
+				.check(PRODUCTION_CLASSES);
 	}
 
 	@Test

@@ -23,7 +23,11 @@ import com.clip.ghost.imagecontent.exception.OcrUnavailableException;
 import com.clip.ghost.markdowncontent.exception.MarkdownPdfException;
 import com.clip.ghost.pdfcontent.exception.PdfPageLimitExceededException;
 import com.clip.ghost.pdfcontent.exception.PdfPasswordProtectedException;
+import com.clip.ghost.officecontent.exception.OfficeInputException;
+import com.clip.ghost.officecontent.exception.OfficeProcessingException;
+import com.clip.ghost.pdfcontent.exception.PdfImageInputException;
 import com.clip.ghost.pdfcontent.exception.PdfProcessingException;
+import com.clip.ghost.pdfcontent.exception.PdfRenderDpiException;
 import com.clip.ghost.pdfcontent.exception.PdfSplitRangeException;
 
 /**
@@ -46,6 +50,10 @@ public class GlobalExceptionErrorHandler extends ResponseEntityExceptionHandler 
 	private static final String PDF_PASSWORD_INCORRECT_ERROR_CODE = "pdfPasswordIncorrect";
 	private static final String PDF_PASSWORD_PROTECTED_ERROR_MESSAGE = "このPDFはパスワードで保護されています。PDFを開くパスワードを入力してください。";
 	private static final String PDF_PASSWORD_INCORRECT_ERROR_MESSAGE = "パスワードが違うためPDFを開けません。もう一度入力してください。";
+	private static final String PDF_IMAGE_INPUT_ERROR_CODE = "pdfImageInputError";
+	private static final String PDF_IMAGE_INPUT_ERROR_MESSAGE = "「%s」を画像として読み込めません。PNG / JPEG / TIFF / BMPを指定してください。";
+	private static final String PDF_RENDER_DPI_ERROR_CODE = "pdfRenderDpiExceeded";
+	private static final String PDF_RENDER_DPI_ERROR_MESSAGE = "指定された解像度 %d dpi は上限を超えています。%d dpi以下で指定してください。";
 	private static final String PDF_SPLIT_RANGE_ERROR_CODE = "pdfSplitRangeOutOfBounds";
 	private static final String PDF_SPLIT_RANGE_ERROR_MESSAGE = "分割範囲「%s」はPDFのページ範囲外です。このPDFは全 %d ページです。";
 	private static final String IMAGE_INPUT_ERROR_CODE = "imageInputError";
@@ -54,6 +62,10 @@ public class GlobalExceptionErrorHandler extends ResponseEntityExceptionHandler 
 	private static final String IMAGE_INPUT_ERROR_MESSAGE = "画像として扱えないファイルです。PNG / JPEG / GIF / WEBPを指定してください。";
 	private static final String IMAGE_PROCESSING_ERROR_MESSAGE = "画像Markdown下書き生成に失敗しました。";
 	private static final String OCR_UNAVAILABLE_ERROR_MESSAGE = "画像Markdown下書き機能は無効です。";
+	private static final String OFFICE_INPUT_ERROR_CODE = "officeInputError";
+	private static final String OFFICE_INPUT_ERROR_MESSAGE = "「%s」をOffice文書として読み込めません。.docx / .xlsx / .pptx を指定してください。";
+	private static final String OFFICE_PROCESSING_ERROR_CODE = "officeProcessingError";
+	private static final String OFFICE_PROCESSING_ERROR_MESSAGE = "Office文書の処理に失敗しました。";
 	private static final String MARKDOWN_PDF_ERROR_CODE = "markdownPdfError";
 	private static final String MARKDOWN_PDF_ERROR_MESSAGE = "MarkdownからのPDF出力に失敗しました。";
 
@@ -146,6 +158,71 @@ public class GlobalExceptionErrorHandler extends ResponseEntityExceptionHandler 
 		LOGGER.warn("パスワードで保護されたPDFが指定されました。");
 		return createErrorResponse(PDF_PASSWORD_PROTECTED_ERROR_CODE, PDF_PASSWORD_PROTECTED_ERROR_MESSAGE,
 				HttpStatus.BAD_REQUEST);
+	}
+
+	/**
+	 * 画像からPDFを作る際に画像として読めないファイルを受け取った場合、レスポンスステータスを400にする。
+	 * <p>
+	 * 利用者が別のファイルを選べば通るエラーのため、どのファイルが読めなかったかをメッセージへ含める。
+	 * ファイル名は利用者自身が付けたものなので、返しても情報漏洩にならない。
+	 *
+	 * @param ex 画像入力例外
+	 * @return 画像入力エラーのレスポンス
+	 */
+	@ResponseStatus(HttpStatus.BAD_REQUEST)
+	@ExceptionHandler(PdfImageInputException.class)
+	protected ResponseEntity<ErrorResponse> handlePdfImageInput(PdfImageInputException ex) {
+		LOGGER.warn("画像として読み込めないファイルです。fileName={}", ex.getFileName());
+		return createErrorResponse(PDF_IMAGE_INPUT_ERROR_CODE,
+				PDF_IMAGE_INPUT_ERROR_MESSAGE.formatted(ex.getFileName()), HttpStatus.BAD_REQUEST);
+	}
+
+	/**
+	 * Office文書として読み込めないファイルを受け取った場合、レスポンスステータスを400にする。
+	 * <p>
+	 * 対象外の拡張子、旧形式、壊れたOOXMLがここへ来る。いずれも利用者が別のファイルを用意すれば通るため、
+	 * どのファイルが読めなかったかと対応形式をメッセージへ含める。
+	 *
+	 * @param ex Office入力例外
+	 * @return Office入力エラーのレスポンス
+	 */
+	@ResponseStatus(HttpStatus.BAD_REQUEST)
+	@ExceptionHandler(OfficeInputException.class)
+	protected ResponseEntity<ErrorResponse> handleOfficeInput(OfficeInputException ex) {
+		LOGGER.warn("Office文書として読み込めないファイルです。fileName={}", ex.getFileName());
+		return createErrorResponse(OFFICE_INPUT_ERROR_CODE, OFFICE_INPUT_ERROR_MESSAGE.formatted(ex.getFileName()),
+				HttpStatus.BAD_REQUEST);
+	}
+
+	/**
+	 * Office文書の処理で想定外の失敗が起きた場合、レスポンスステータスを500にする。
+	 *
+	 * @param ex Office処理例外
+	 * @return Office処理エラーのレスポンス
+	 */
+	@ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+	@ExceptionHandler(OfficeProcessingException.class)
+	protected ResponseEntity<ErrorResponse> handleOfficeProcessing(OfficeProcessingException ex) {
+		LOGGER.error("Office文書の処理に失敗しました。message={}", ex.getMessage());
+		LOGGER.debug("Office処理失敗の詳細です。", ex);
+		return createErrorResponse(OFFICE_PROCESSING_ERROR_CODE, OFFICE_PROCESSING_ERROR_MESSAGE,
+				HttpStatus.INTERNAL_SERVER_ERROR);
+	}
+
+	/**
+	 * 指定された解像度が上限を超えていた場合、レスポンスステータスを400にする。
+	 * <p>
+	 * 利用者が入力を直せるエラーのため、指定値と上限をメッセージへ含める。
+	 *
+	 * @param ex 解像度上限例外
+	 * @return 解像度エラーのレスポンス
+	 */
+	@ResponseStatus(HttpStatus.BAD_REQUEST)
+	@ExceptionHandler(PdfRenderDpiException.class)
+	protected ResponseEntity<ErrorResponse> handlePdfRenderDpi(PdfRenderDpiException ex) {
+		LOGGER.warn("指定された解像度が上限を超えています。requestedDpi={}, maxDpi={}", ex.getRequestedDpi(), ex.getMaxDpi());
+		return createErrorResponse(PDF_RENDER_DPI_ERROR_CODE,
+				PDF_RENDER_DPI_ERROR_MESSAGE.formatted(ex.getRequestedDpi(), ex.getMaxDpi()), HttpStatus.BAD_REQUEST);
 	}
 
 	/**

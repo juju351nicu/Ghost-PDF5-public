@@ -100,6 +100,136 @@ const buildSplitPayload = (fileObject, splitRanges) => {
 };
 
 /**
+ * PDFページ回転API用のmultipart payloadを生成する。
+ *
+ * 回転ページが空の場合はkeyを送らない。BE側は未指定を「全ページを回転」として扱うため、
+ * 空値を送ると「ページ指定あり」との区別が曖昧になる。
+ *
+ * @param {File} fileObject 回転対象PDF
+ * @param {number} rotation 回転角（90 / 180 / 270）
+ * @param {number[]} [rotatePages] 回転対象ページ番号リスト
+ * @returns {{key: string, value: unknown}[]} multipart payload
+ */
+const buildRotatePayload = (fileObject, rotation, rotatePages) => {
+  const payload = [
+    { key: "originalFile", value: fileObject },
+    { key: "rotation", value: rotation },
+  ];
+  if (Array.isArray(rotatePages) && rotatePages.length > 0) {
+    payload.push({ key: "rotatePages", value: rotatePages });
+  }
+  return payload;
+};
+
+/**
+ * PDFページ画像化API用のmultipart payloadを生成する。
+ *
+ * 解像度と対象ページは空の場合にkeyを送らない。BE側は解像度未指定をサーバー設定の既定値、
+ * ページ未指定を「全ページ」として扱うため、空値を送ると指定ありと区別できない。
+ *
+ * @param {File} fileObject 画像化対象PDF
+ * @param {string} format 画像形式（PNG / JPG / TIFF / BMP）
+ * @param {number|string} [dpi] 解像度（DPI）
+ * @param {number[]} [imagePages] 画像化対象ページ番号リスト
+ * @returns {{key: string, value: unknown}[]} multipart payload
+ */
+const buildImagesPayload = (fileObject, format, dpi, imagePages) => {
+  const payload = [
+    { key: "originalFile", value: fileObject },
+    { key: "format", value: format },
+  ];
+  if (dpi !== null && dpi !== undefined && String(dpi).trim() !== "") {
+    payload.push({ key: "dpi", value: dpi });
+  }
+  if (Array.isArray(imagePages) && imagePages.length > 0) {
+    payload.push({ key: "imagePages", value: imagePages });
+  }
+  return payload;
+};
+
+/**
+ * 画像からPDF作成API用のmultipart payloadを生成する。
+ *
+ * 画像は選択順にpayloadへ積む。BEは受信順をそのままページ順にするため、ここでの並びが最終的なページ順になる。
+ *
+ * @param {File[]} imageFiles PDF化する画像
+ * @param {string} pageSize ページサイズ（A4 / FIT）
+ * @returns {{key: string, value: unknown}[]} multipart payload
+ */
+const buildPdfFromImagesPayload = (imageFiles, pageSize) => {
+  const payload = imageFiles.map((imageFile) => ({
+    key: "imageFiles",
+    value: imageFile,
+  }));
+  payload.push({ key: "pageSize", value: pageSize });
+  return payload;
+};
+
+/**
+ * PDFからHTML出力API用のmultipart payloadを生成する。
+ *
+ * 変換モードは空の場合にkeyを送らない。BE側は未指定を「文字レイヤーのみの従来動作」として扱うため、
+ * 空文字を送るとモード指定ありとして型変換に回ってしまう。
+ *
+ * @param {File} fileObject 変換対象PDF
+ * @param {string} [mode] 変換モード（AUTO / VISION）
+ * @returns {{key: string, value: unknown}[]} multipart payload
+ */
+const buildHtmlPdfPayload = (fileObject, mode) => {
+  const payload = [{ key: "originalFile", value: fileObject }];
+  if (mode) {
+    payload.push({ key: "mode", value: mode });
+  }
+  return payload;
+};
+
+/**
+ * HTMLからPDF作成API用のmultipart payloadを生成する。
+ *
+ * @param {File} fileObject PDF化するHTMLファイル
+ * @returns {{key: string, value: unknown}[]} multipart payload
+ */
+const buildPdfFromHtmlPayload = (fileObject) => {
+  return [{ key: "htmlFile", value: fileObject }];
+};
+
+/**
+ * Office文書変換API用のmultipart payloadを生成する。
+ *
+ * Markdown化とPDF化で同じ形を送る。形式はBEがファイルの拡張子から判定するため、FEからは指定しない。
+ *
+ * @param {File} fileObject 変換するOffice文書
+ * @returns {{key: string, value: unknown}[]} multipart payload
+ */
+const buildOfficePayload = (fileObject) => {
+  return [{ key: "officeFile", value: fileObject }];
+};
+
+/**
+ * PDFからOffice文書出力API用のmultipart payloadを生成する。
+ *
+ * @param {File} fileObject 変換対象PDF
+ * @param {string} format 出力形式（DOCX / XLSX / PPTX）
+ * @returns {{key: string, value: unknown}[]} multipart payload
+ */
+const buildOfficeFromPdfPayload = (fileObject, format) => {
+  return [
+    { key: "originalFile", value: fileObject },
+    { key: "format", value: format },
+  ];
+};
+
+/**
+ * EPUBからPDF作成API用のmultipart payloadを生成する。
+ *
+ * @param {File} fileObject PDF化するEPUBファイル
+ * @returns {{key: string, value: unknown}[]} multipart payload
+ */
+const buildPdfFromEpubPayload = (fileObject) => {
+  return [{ key: "epubFile", value: fileObject }];
+};
+
+/**
  * ページ選択用サムネイルAPI用のmultipart payloadを生成する。
  *
  * ページ番号は送らない。1リクエストで全ページ分のサムネイルを受け取る設計のため。
@@ -197,6 +327,14 @@ export default {
   buildExtractPayload,
   buildMergePayload,
   buildSplitPayload,
+  buildRotatePayload,
+  buildImagesPayload,
+  buildPdfFromImagesPayload,
+  buildHtmlPdfPayload,
+  buildPdfFromHtmlPayload,
+  buildOfficePayload,
+  buildOfficeFromPdfPayload,
+  buildPdfFromEpubPayload,
   buildThumbnailPayload,
   buildDeletePayload,
   buildInsertPayload,

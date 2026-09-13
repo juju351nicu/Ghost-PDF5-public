@@ -19,6 +19,7 @@ import com.clip.ghost.pdfcontent.dto.OriginalPdfRequest;
 import com.clip.ghost.pdfcontent.dto.PdfMetadataResponse;
 import com.clip.ghost.pdfcontent.dto.PdfTextResponse;
 import com.clip.ghost.pdfcontent.dto.PdfUploadResult;
+import com.clip.ghost.pdfcontent.dto.RotatePdfRequest;
 import com.clip.ghost.pdfcontent.dto.SplitPdfRequest;
 import com.clip.ghost.common.response.ApiResult;
 import com.clip.ghost.common.utils.ResponseUtils;
@@ -95,6 +96,18 @@ public class GhostPdfService {
 		Path inputPath = pdfLogic.loadPdf(form.getOriginalFile(), form.getPassword());
 		Path extractPath = pdfLogic.extractPdf(form.getExtractPages(), inputPath);
 		return buildPdfResponse(extractPath);
+	}
+
+	/**
+	 * アップロードされたPDFの指定ページを回転し、PDFレスポンスとして返却する。
+	 *
+	 * @param form 回転元PDF、回転角、回転ページ番号を含むフォーム
+	 * @return 回転後PDFのinline表示レスポンス
+	 */
+	public ResponseEntity<Resource> rotatePdfPages(RotatePdfRequest form) {
+		Path inputPath = pdfLogic.loadPdf(form.getOriginalFile(), form.getPassword());
+		Path rotatePath = pdfLogic.rotatePdf(form.getRotation(), form.getRotatePages(), inputPath);
+		return buildPdfResponse(rotatePath);
 	}
 
 	/**
