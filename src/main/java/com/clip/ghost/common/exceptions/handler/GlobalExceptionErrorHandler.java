@@ -22,6 +22,7 @@ import com.clip.ghost.imagecontent.exception.ImageProcessingException;
 import com.clip.ghost.imagecontent.exception.OcrUnavailableException;
 import com.clip.ghost.markdowncontent.exception.MarkdownPdfException;
 import com.clip.ghost.pdfcontent.exception.PdfPageLimitExceededException;
+import com.clip.ghost.pdfcontent.exception.PdfPasswordProtectedException;
 import com.clip.ghost.pdfcontent.exception.PdfProcessingException;
 import com.clip.ghost.pdfcontent.exception.PdfSplitRangeException;
 
@@ -41,6 +42,10 @@ public class GlobalExceptionErrorHandler extends ResponseEntityExceptionHandler 
 	private static final String PDF_PROCESSING_ERROR_MESSAGE = "PDF処理に失敗しました。入力ファイルを確認してください。";
 	private static final String PDF_PAGE_LIMIT_ERROR_MESSAGE = "画像変換の対象ページ数が上限を超えています。対象 %d ページ / 上限 %d ページ";
 	private static final String PDF_PAGE_LIMIT_ERROR_DETAIL_MESSAGE = "%s（%s）";
+	private static final String PDF_PASSWORD_PROTECTED_ERROR_CODE = "pdfPasswordProtected";
+	private static final String PDF_PASSWORD_INCORRECT_ERROR_CODE = "pdfPasswordIncorrect";
+	private static final String PDF_PASSWORD_PROTECTED_ERROR_MESSAGE = "このPDFはパスワードで保護されています。PDFを開くパスワードを入力してください。";
+	private static final String PDF_PASSWORD_INCORRECT_ERROR_MESSAGE = "パスワードが違うためPDFを開けません。もう一度入力してください。";
 	private static final String PDF_SPLIT_RANGE_ERROR_CODE = "pdfSplitRangeOutOfBounds";
 	private static final String PDF_SPLIT_RANGE_ERROR_MESSAGE = "分割範囲「%s」はPDFのページ範囲外です。このPDFは全 %d ページです。";
 	private static final String IMAGE_INPUT_ERROR_CODE = "imageInputError";
@@ -115,6 +120,32 @@ public class GlobalExceptionErrorHandler extends ResponseEntityExceptionHandler 
 			return message;
 		}
 		return PDF_PAGE_LIMIT_ERROR_DETAIL_MESSAGE.formatted(message, ex.getTargetDescription());
+	}
+
+	/**
+	 * パスワードで保護されたPDFを開けなかった場合、レスポンスステータスを400にする。
+	 * <p>
+	 * 利用者がパスワードを入力すれば通るため、処理失敗（500）とは分ける。
+	 * 「パスワードが必要」と「入力されたパスワードが違う」でコードとメッセージを分ける。画面が
+	 * 入力欄を出すのか、入力し直しを促すのかを判断できるようにするため。
+	 * <p>
+	 * 入力されたパスワード、ファイル名、パス、PDFBoxの例外メッセージはレスポンスへ含めない。
+	 * 原因の特定はログ側で行う。ログにもパスワードそのものは残さない。
+	 *
+	 * @param ex パスワード保護例外
+	 * @return パスワード保護エラーのレスポンス
+	 */
+	@ResponseStatus(HttpStatus.BAD_REQUEST)
+	@ExceptionHandler(PdfPasswordProtectedException.class)
+	protected ResponseEntity<ErrorResponse> handlePdfPasswordProtected(PdfPasswordProtectedException ex) {
+		if (ex.isPasswordProvided()) {
+			LOGGER.warn("指定されたパスワードではPDFを開けませんでした。");
+			return createErrorResponse(PDF_PASSWORD_INCORRECT_ERROR_CODE, PDF_PASSWORD_INCORRECT_ERROR_MESSAGE,
+					HttpStatus.BAD_REQUEST);
+		}
+		LOGGER.warn("パスワードで保護されたPDFが指定されました。");
+		return createErrorResponse(PDF_PASSWORD_PROTECTED_ERROR_CODE, PDF_PASSWORD_PROTECTED_ERROR_MESSAGE,
+				HttpStatus.BAD_REQUEST);
 	}
 
 	/**

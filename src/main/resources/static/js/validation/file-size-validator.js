@@ -33,7 +33,22 @@ const buildPdfSizeLimitMessage = (fileObject) => {
     formatExceededMegabytes(fileObject.size) +
     "MB です。アップロードできるPDFは1ファイル " +
     formatLimitMegabytes(CONST.FILE_SIZE.MAX_PDF_BYTES) +
-    "MB 未満です。ページを分割してから指定してください。"
+    "MB 未満です。"
+  );
+};
+
+/**
+ * 上限を超えたときに利用者が取れる行動を組み立てる。
+ *
+ * 以前は「ページを分割してから指定してください」とだけ出していたが、この画面の分割も
+ * 同じ上限を通るため、超過したPDFはここでは分割できない。実行できない指示を出さない。
+ *
+ * @returns {string} 画面表示用の次の行動
+ */
+const buildPdfSizeLimitHint = () => {
+  return (
+    "この画面の分割・抽出も同じ上限を通るため、超過したPDFをここで小さくすることはできません。" +
+    "PDFの作成元でページを分けたファイルを指定してください。"
   );
 };
 
@@ -62,4 +77,5 @@ const formatLimitMegabytes = (bytes) => {
 export default {
   isWithinPdfSizeLimit,
   buildPdfSizeLimitMessage,
+  buildPdfSizeLimitHint,
 };

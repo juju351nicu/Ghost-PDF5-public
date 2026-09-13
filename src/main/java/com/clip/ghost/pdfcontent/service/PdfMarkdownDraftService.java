@@ -69,9 +69,10 @@ public class PdfMarkdownDraftService {
 		MultipartFile originalFile = form.getOriginalFile();
 		Optional<PdfMarkdownDraftMode> mode = resolveMode(form.getMode());
 		if (mode.isEmpty()) {
-			return ResponseEntity.ok(ApiResult.of(buildResponse(originalFile, buildTextPages(originalFile))));
+			return ResponseEntity
+					.ok(ApiResult.of(buildResponse(originalFile, buildTextPages(originalFile, form.getPassword()))));
 		}
-		List<PdfPageContent> contents = extractConvertedPageContents(originalFile, mode.get());
+		List<PdfPageContent> contents = extractConvertedPageContents(originalFile, mode.get(), form.getPassword());
 		PdfMarkdownDraftResponse response = buildResponse(originalFile, buildConvertedPages(contents));
 		List<Integer> failedPageNumbers = collectConversionFailedPageNumbers(contents);
 		if (CollectionUtils.isEmpty(failedPageNumbers)) {
@@ -98,10 +99,11 @@ public class PdfMarkdownDraftService {
 	 * 文字レイヤーだけを使う従来動作でページレスポンスを生成する。
 	 *
 	 * @param originalFile アップロードされた元PDF
+	 * @param password     パスワードで保護されたPDFを開くためのパスワード
 	 * @return PDF順のページレスポンス
 	 */
-	private List<PdfMarkdownDraftPageResponse> buildTextPages(MultipartFile originalFile) {
-		Path inputPath = pdfLogic.loadPdf(originalFile);
+	private List<PdfMarkdownDraftPageResponse> buildTextPages(MultipartFile originalFile, String password) {
+		Path inputPath = pdfLogic.loadPdf(originalFile, password);
 		List<String> pageTexts = pdfLogic.extractPdfPageTexts(inputPath);
 		List<PdfMarkdownDraftPageResponse> pages = new ArrayList<>(pageTexts.size());
 		for (int index = 0; index < pageTexts.size(); index++) {
@@ -119,16 +121,18 @@ public class PdfMarkdownDraftService {
 	 *
 	 * @param originalFile アップロードされた元PDF
 	 * @param mode         変換対象ページを決める変換モード
+	 * @param password     パスワードで保護されたPDFを開くためのパスワード
 	 * @return PDF順のページ内容
 	 * @throws OcrUnavailableException       画像変換が無効、またはproviderが未対応の場合
 	 * @throws PdfPageLimitExceededException 変換対象ページ数が上限を超えた場合
 	 */
-	private List<PdfPageContent> extractConvertedPageContents(MultipartFile originalFile, PdfMarkdownDraftMode mode) {
+	private List<PdfPageContent> extractConvertedPageContents(MultipartFile originalFile, PdfMarkdownDraftMode mode,
+			String password) {
 		ImageToMarkdownConverter converter = converterResolver.resolve();
 		if (!converter.isEnabled()) {
 			throw new OcrUnavailableException("画像PDFのOCRは無効です。providerを有効化してください。");
 		}
-		Path inputPath = pdfLogic.loadPdf(originalFile);
+		Path inputPath = pdfLogic.loadPdf(originalFile, password);
 		return pdfLogic.extractPdfPageContents(inputPath, properties.getRenderDpi(), properties.getMaxPages(), mode,
 				pngBytes -> converter.convert(pngBytes, IMAGE_MEDIA_TYPE));
 	}

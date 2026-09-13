@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Objects;
 
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Component;
@@ -12,12 +13,14 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.clip.ghost.pdfcontent.enums.PdfMarkdownDraftMode;
 import com.clip.ghost.pdfcontent.exception.PdfPageLimitExceededException;
+import com.clip.ghost.pdfcontent.exception.PdfPasswordProtectedException;
 import com.clip.ghost.pdfcontent.exception.PdfProcessingException;
 import com.clip.ghost.pdfcontent.dto.GhostPdfDto;
 import com.clip.ghost.pdfcontent.dto.PdfMetadataResponse;
 import com.clip.ghost.pdfcontent.dto.PdfPageContent;
 import com.clip.ghost.pdfcontent.dto.PdfPageThumbnail;
 import com.clip.ghost.pdfcontent.dto.PdfTextResponse;
+import com.clip.ghost.pdfcontent.dto.PdfUploadResult;
 
 import lombok.NoArgsConstructor;
 
@@ -51,7 +54,45 @@ public class GhostPdfLogic {
 	 * @throws PdfProcessingException PDFではない、空ファイル、または保存に失敗した場合
 	 */
 	public Path loadPdf(MultipartFile multipartFile) {
-		return temporaryFileStorage().saveUploadedPdf(multipartFile);
+		return loadPdf(multipartFile, null);
+	}
+
+	/**
+	 * アップロードされたPDFを一時保存し、その保存先パスを返却する。
+	 * <p>
+	 * パスワードが指定された場合は、保護を外した一時ファイルを作ってそのパスを返す。以降のPDF操作は
+	 * 保護の無いPDFとして同じ経路を通るため、ページ削除や分割などの各methodはパスワードを受け取らない。
+	 * <p>
+	 * パスワードを指定しても保護されていなかった場合は、そのまま保存したファイルを使う。
+	 *
+	 * @param multipartFile アップロードされたPDFファイル
+	 * @param password      PDFを開くためのパスワード。未指定の場合はnullまたは空文字
+	 * @return 一時保存先のパス
+	 * @throws PdfPasswordProtectedException 指定されたパスワードでPDFを開けない場合
+	 * @throws PdfProcessingException        PDFではない、空ファイル、または保存に失敗した場合
+	 */
+	public Path loadPdf(MultipartFile multipartFile, String password) {
+		return loadPdfUpload(multipartFile, password).path();
+	}
+
+	/**
+	 * アップロードされたPDFを一時保存し、保存結果を返却する。
+	 * <p>
+	 * 保護を外したかどうかまで必要な場合に使う。保存先のPDFを読んでも、利用者がアップロードしたファイルが
+	 * 保護されていたかどうかは分からなくなるため、保存時点の事実を持ち回る。
+	 *
+	 * @param multipartFile アップロードされたPDFファイル
+	 * @param password      PDFを開くためのパスワード。未指定の場合はnullまたは空文字
+	 * @return 一時保存先のパスと、元のPDFが保護されていたかどうか
+	 * @throws PdfPasswordProtectedException 指定されたパスワードでPDFを開けない場合
+	 * @throws PdfProcessingException        PDFではない、空ファイル、または保存に失敗した場合
+	 */
+	public PdfUploadResult loadPdfUpload(MultipartFile multipartFile, String password) {
+		Path inputPath = temporaryFileStorage().saveUploadedPdf(multipartFile);
+		if (StringUtils.isEmpty(password)) {
+			return new PdfUploadResult(inputPath, false);
+		}
+		return new PdfDecryptionSupport(temporaryFileStorage()).removePasswordProtection(inputPath, password);
 	}
 
 	/**

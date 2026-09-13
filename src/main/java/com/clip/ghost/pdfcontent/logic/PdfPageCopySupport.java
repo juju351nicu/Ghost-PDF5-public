@@ -3,7 +3,6 @@ package com.clip.ghost.pdfcontent.logic;
 import java.io.IOException;
 import java.nio.file.Path;
 
-import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.cos.COSDictionary;
 import org.apache.pdfbox.cos.COSName;
 import org.apache.pdfbox.multipdf.PDFCloneUtility;
@@ -42,7 +41,7 @@ final class PdfPageCopySupport {
 	 * @throws IOException PDFの読み込みまたはページ追加に失敗した場合
 	 */
 	void appendDocument(Path sourcePath) throws IOException {
-		try (PDDocument sourceDocument = Loader.loadPDF(sourcePath.toFile())) {
+		try (PDDocument sourceDocument = PdfDocumentLoader.load(sourcePath)) {
 			for (int pageIndex = 0; pageIndex < sourceDocument.getNumberOfPages(); pageIndex++) {
 				appendPage(sourceDocument.getPage(pageIndex));
 			}

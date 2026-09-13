@@ -13,6 +13,7 @@ import org.springframework.web.multipart.MultipartException;
 
 import com.clip.ghost.common.exceptions.CustomFieldError;
 import com.clip.ghost.common.exceptions.ErrorResponse;
+import com.clip.ghost.pdfcontent.exception.PdfPasswordProtectedException;
 import com.clip.ghost.pdfcontent.exception.PdfProcessingException;
 
 /**
@@ -25,6 +26,10 @@ class GlobalExceptionErrorHandlerTest {
 	private static final String PDF_PROCESSING_ERROR_CODE = "pdfProcessingError";
 	private static final String MULTIPART_ERROR_MESSAGE = "許可されないサイズのファイルが入っております。";
 	private static final String PDF_PROCESSING_ERROR_MESSAGE = "PDF処理に失敗しました。入力ファイルを確認してください。";
+	private static final String PDF_PASSWORD_PROTECTED_ERROR_CODE = "pdfPasswordProtected";
+	private static final String PDF_PASSWORD_INCORRECT_ERROR_CODE = "pdfPasswordIncorrect";
+	private static final String PDF_PASSWORD_PROTECTED_ERROR_MESSAGE = "このPDFはパスワードで保護されています。PDFを開くパスワードを入力してください。";
+	private static final String PDF_PASSWORD_INCORRECT_ERROR_MESSAGE = "パスワードが違うためPDFを開けません。もう一度入力してください。";
 
 	private GlobalExceptionErrorHandler handler;
 
@@ -50,6 +55,26 @@ class GlobalExceptionErrorHandlerTest {
 
 		assertCommonErrorResponse(response, HttpStatus.INTERNAL_SERVER_ERROR, PDF_PROCESSING_ERROR_CODE,
 				PDF_PROCESSING_ERROR_MESSAGE);
+	}
+
+	@Test
+	@DisplayName("パスワード未指定で開けなかった場合_不正リクエストとパスワード入力を促すメッセージを返す")
+	void handlePdfPasswordProtectedReturnsBadRequestAndPasswordRequiredMessage() {
+		ResponseEntity<ErrorResponse> response = handler.handlePdfPasswordProtected(
+				new PdfPasswordProtectedException("パスワードで保護されたPDFのため開けません。", null, false));
+
+		assertCommonErrorResponse(response, HttpStatus.BAD_REQUEST, PDF_PASSWORD_PROTECTED_ERROR_CODE,
+				PDF_PASSWORD_PROTECTED_ERROR_MESSAGE);
+	}
+
+	@Test
+	@DisplayName("指定したパスワードで開けなかった場合_入力し直しを促す別コードのメッセージを返す")
+	void handlePdfPasswordProtectedReturnsBadRequestAndPasswordIncorrectMessage() {
+		ResponseEntity<ErrorResponse> response = handler.handlePdfPasswordProtected(
+				new PdfPasswordProtectedException("指定されたパスワードではPDFを開けません。", null, true));
+
+		assertCommonErrorResponse(response, HttpStatus.BAD_REQUEST, PDF_PASSWORD_INCORRECT_ERROR_CODE,
+				PDF_PASSWORD_INCORRECT_ERROR_MESSAGE);
 	}
 
 	/**

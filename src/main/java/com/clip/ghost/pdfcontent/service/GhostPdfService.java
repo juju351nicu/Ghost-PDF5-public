@@ -18,6 +18,7 @@ import com.clip.ghost.pdfcontent.dto.MergePdfRequest;
 import com.clip.ghost.pdfcontent.dto.OriginalPdfRequest;
 import com.clip.ghost.pdfcontent.dto.PdfMetadataResponse;
 import com.clip.ghost.pdfcontent.dto.PdfTextResponse;
+import com.clip.ghost.pdfcontent.dto.PdfUploadResult;
 import com.clip.ghost.pdfcontent.dto.SplitPdfRequest;
 import com.clip.ghost.common.response.ApiResult;
 import com.clip.ghost.common.utils.ResponseUtils;
@@ -47,7 +48,7 @@ public class GhostPdfService {
 	 * @return PDFのinline表示レスポンス
 	 */
 	public ResponseEntity<Resource> showPdf(OriginalPdfRequest form) {
-		Path originalFilePath = pdfLogic.loadPdf(form.getOriginalFile());
+		Path originalFilePath = pdfLogic.loadPdf(form.getOriginalFile(), form.getPassword());
 		return buildPdfResponse(originalFilePath);
 	}
 
@@ -59,9 +60,14 @@ public class GhostPdfService {
 	 */
 	public ResponseEntity<ApiResult<PdfMetadataResponse>> getPdfMetadata(OriginalPdfRequest form) {
 		MultipartFile originalFile = form.getOriginalFile();
-		Path originalFilePath = pdfLogic.loadPdf(originalFile);
-		PdfMetadataResponse metadata = pdfLogic.getPdfMetadata(originalFilePath, originalFile.getOriginalFilename(),
+		PdfUploadResult upload = pdfLogic.loadPdfUpload(originalFile, form.getPassword());
+		PdfMetadataResponse metadata = pdfLogic.getPdfMetadata(upload.path(), originalFile.getOriginalFilename(),
 				originalFile.getSize());
+		if (upload.passwordProtected()) {
+			// 解析対象は保護を外したコピーのため、そのまま読むと「暗号化なし」になる。
+			// この項目は利用者がアップロードしたファイルについての情報なので、保存時点の事実で上書きする。
+			metadata.setEncrypted(true);
+		}
 		return ResponseEntity.ok(ApiResult.of(metadata));
 	}
 
@@ -73,7 +79,7 @@ public class GhostPdfService {
 	 */
 	public ResponseEntity<ApiResult<PdfTextResponse>> extractPdfText(OriginalPdfRequest form) {
 		MultipartFile originalFile = form.getOriginalFile();
-		Path originalFilePath = pdfLogic.loadPdf(originalFile);
+		Path originalFilePath = pdfLogic.loadPdf(originalFile, form.getPassword());
 		PdfTextResponse textResponse = pdfLogic.extractPdfText(originalFilePath, originalFile.getOriginalFilename(),
 				originalFile.getSize());
 		return ResponseEntity.ok(ApiResult.of(textResponse));
@@ -86,7 +92,7 @@ public class GhostPdfService {
 	 * @return 抽出後PDFのinline表示レスポンス
 	 */
 	public ResponseEntity<Resource> extractPdfByPages(ExtractPdfRequest form) {
-		Path inputPath = pdfLogic.loadPdf(form.getOriginalFile());
+		Path inputPath = pdfLogic.loadPdf(form.getOriginalFile(), form.getPassword());
 		Path extractPath = pdfLogic.extractPdf(form.getExtractPages(), inputPath);
 		return buildPdfResponse(extractPath);
 	}
@@ -98,8 +104,9 @@ public class GhostPdfService {
 	 * @return 結合後PDFのinline表示レスポンス
 	 */
 	public ResponseEntity<Resource> mergePdfs(MergePdfRequest form) {
-		List<Path> inputPaths = CollectionUtils.emptyIfNull(form.getMergeFiles()).stream().map(pdfLogic::loadPdf)
-				.toList();
+		// 結合対象すべてへ同じパスワードを適用する。保護されていないPDFは指定されても影響を受けない。
+		List<Path> inputPaths = CollectionUtils.emptyIfNull(form.getMergeFiles()).stream()
+				.map(mergeFile -> pdfLogic.loadPdf(mergeFile, form.getPassword())).toList();
 		Path mergePath = pdfLogic.mergePdf(inputPaths);
 		return buildPdfResponse(mergePath);
 	}
@@ -115,7 +122,7 @@ public class GhostPdfService {
 	 * @return 分割後PDFを格納したZIPのダウンロードレスポンス
 	 */
 	public ResponseEntity<Resource> splitPdf(SplitPdfRequest form) {
-		Path inputPath = pdfLogic.loadPdf(form.getOriginalFile());
+		Path inputPath = pdfLogic.loadPdf(form.getOriginalFile(), form.getPassword());
 		Path splitZipPath = pdfLogic.splitPdf(inputPath, form.getSplitRanges());
 		return ResponseUtils.downloadZip(SPLIT_ZIP_FILE_NAME,
 				pdfLogic.openTemporaryFileForResponse(splitZipPath));
@@ -128,7 +135,7 @@ public class GhostPdfService {
 	 * @return 削除後PDFのinline表示レスポンス
 	 */
 	public ResponseEntity<Resource> deletePdfByPages(OriginalPdfRequest form) {
-		Path inputPath = pdfLogic.loadPdf(form.getOriginalFile());
+		Path inputPath = pdfLogic.loadPdf(form.getOriginalFile(), form.getPassword());
 		Path deletePath = pdfLogic.deletePdf(form.getOriginalDeletePages(), inputPath);
 		return buildPdfResponse(deletePath);
 	}
@@ -140,7 +147,7 @@ public class GhostPdfService {
 	 * @return 差し込み後PDFのinline表示レスポンス
 	 */
 	public ResponseEntity<Resource> insertPdfs(OriginalPdfRequest form) {
-		Path inputPath = pdfLogic.loadPdf(form.getOriginalFile());
+		Path inputPath = pdfLogic.loadPdf(form.getOriginalFile(), form.getPassword());
 		inputPath = deleteOriginalPagesIfRequested(form, inputPath);
 
 		List<GhostPdfDto> insertPdfDtoList = buildInsertPdfDtos(form);
@@ -187,9 +194,12 @@ public class GhostPdfService {
 	 * @return PDF処理ロジックへ渡す差し込みPDF情報
 	 */
 	private List<GhostPdfDto> buildInsertPdfDtos(OriginalPdfRequest form) {
+		// 差し込みPDFにも編集元と同じパスワードを適用する。保護されていないPDFは指定されても影響を受けない。
 		return CollectionUtils.emptyIfNull(form.getInsertPdfForm()).stream().filter(Objects::nonNull)
 				.filter(this::hasSelectedInsertFile)
-				.map(insertPdfForm -> buildInsertPdfDto(insertPdfForm, insertPdfForm.getInsertFile())).toList();
+				.map(insertPdfForm -> buildInsertPdfDto(insertPdfForm, insertPdfForm.getInsertFile(),
+						form.getPassword()))
+				.toList();
 	}
 
 	/**
@@ -212,11 +222,12 @@ public class GhostPdfService {
 	 *
 	 * @param insertPdfForm 差し込みPDFフォーム1行分
 	 * @param insertFile    差し込み対象PDFファイル
+	 * @param password      パスワードで保護されたPDFを開くためのパスワード
 	 * @return PDF処理ロジック用DTO
 	 */
-	private GhostPdfDto buildInsertPdfDto(InsertPdfRequest insertPdfForm, MultipartFile insertFile) {
+	private GhostPdfDto buildInsertPdfDto(InsertPdfRequest insertPdfForm, MultipartFile insertFile, String password) {
 		GhostPdfDto dto = new GhostPdfDto();
-		dto.setInsertPath(pdfLogic.loadPdf(insertFile));
+		dto.setInsertPath(pdfLogic.loadPdf(insertFile, password));
 		dto.setInsertPage(resolveInsertPage(insertPdfForm));
 		dto.setInsertOption(resolveInsertOption(insertPdfForm));
 		return dto;

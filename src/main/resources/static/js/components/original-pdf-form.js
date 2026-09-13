@@ -1,6 +1,7 @@
 import PdfFormState from "../models/pdf-form-state.js";
 import PageNumberValidator from "../validation/page-number-validator.js";
 import PdfThumbnailList from "./pdf-thumbnail-list.js";
+import FileDropZone from "./file-drop-zone.js";
 
 /**
  * 編集元PDFカードの表示と入力イベントを扱うVueコンポーネント。
@@ -12,6 +13,7 @@ export default {
   name: "OriginalPdfForm",
   components: {
     "pdf-thumbnail-list": PdfThumbnailList,
+    "file-drop-zone": FileDropZone,
   },
   props: {
     originalFile: { type: Object, required: true },
@@ -21,6 +23,7 @@ export default {
   },
   emits: [
     "file-change",
+    "files-dropped",
     "request-thumbnails-pdf",
     "toggle-thumbnail-page",
     "clear-thumbnail-selection",
@@ -37,9 +40,12 @@ export default {
     <article class="pdf-card">
       <header>編集元ファイル(PDFのみ)</header>
       <div class="pdf-card__body">
-        <div class="file-control">
-          <input type="file" @change="handleFileChange($event)" accept=".pdf" />
-        </div>
+        <file-drop-zone accept=".pdf" label="ここにPDFをドロップ、またはファイルを選択"
+          @files-dropped="handleFilesDropped">
+          <div class="file-control">
+            <input type="file" @change="handleFileChange($event)" accept=".pdf" />
+          </div>
+        </file-drop-zone>
         <div class="pdf-card__preview" v-if="originalFile.previewUrl">
           <div class="pdf-card__preview-head">
             <span>{{ originalFile.fileName }}</span>
@@ -132,6 +138,14 @@ export default {
      */
     handleFileChange(event) {
       this.$emit("file-change", event);
+    },
+    /**
+     * ドロップされた編集元PDFを親コンポーネントへ通知する。
+     *
+     * @param {File[]} files ドロップされたファイル
+     */
+    handleFilesDropped(files) {
+      this.$emit("files-dropped", files);
     },
     /**
      * 選択中の編集元PDFを別タブで開くリクエストを親コンポーネントへ通知する。

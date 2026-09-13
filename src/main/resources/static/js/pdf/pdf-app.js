@@ -7,6 +7,7 @@ import TheFooter from "../components/thefooter.js";
 import OriginalPdfForm from "../components/original-pdf-form.js";
 import InsertPdfRow from "../components/insert-pdf-row.js";
 import ImageOcrForm from "../components/image-ocr-form.js";
+import ProcessPanel from "../components/process-panel.js";
 import PdfApiClient from "../api/pdf-api-client.js";
 import FileResponseHandler from "../api/file-response-handler.js";
 import ImageApiClient from "../api/image-api-client.js";
@@ -14,8 +15,11 @@ import MarkdownApiClient from "../api/markdown-api-client.js";
 import PdfPayload from "../api/pdf-payload.js";
 import ImagePayload from "../api/image-payload.js";
 import PdfFormState from "../models/pdf-form-state.js";
+import ProcessState from "../models/process-state.js";
 import PageNumberValidator from "../validation/page-number-validator.js";
 import FileSizeValidator from "../validation/file-size-validator.js";
+import FileTypeValidator from "../validation/file-type-validator.js";
+import ApiErrorUtils from "../api/api-error-utils.js";
 
 const draggable = window["vuedraggable"];
 const SPLIT_PDF_FILE_NAME = "split.zip";
@@ -35,6 +39,7 @@ const pdfApp = {
     "original-pdf-form": OriginalPdfForm,
     "insert-pdf-row": InsertPdfRow,
     "image-ocr-form": ImageOcrForm,
+    "process-panel": ProcessPanel,
     "api-message-list": ApiMessageList,
   },
   data() {
@@ -48,7 +53,10 @@ const pdfApp = {
       isShowModal: false,
       errorMessages: [],
       apiMessages: [],
-      isProcessing: false,
+      processPanel: ProcessState.createProcessPanelState(),
+      elapsedTimerId: null,
+      pdfPassword: "",
+      pendingPasswordRetry: null,
       imageDraft: PdfFormState.createImageDraftState(),
       markdownFileName: "design-note.md",
       markdownContent: "",
@@ -61,6 +69,28 @@ const pdfApp = {
   mounted() {
     Util.detectBrowserName();
     Util.canUseLocalStorage();
+    // ドロップ領域の外へ落としたPDFは、既定動作のままだとブラウザがそのファイルを開いて
+    // 画面を離れてしまい、入力中の内容が失われる。window側で既定動作だけを止める。
+    window.addEventListener("dragover", this.preventWindowFileDrop);
+    window.addEventListener("drop", this.preventWindowFileDrop);
+  },
+  beforeUnmount() {
+    window.removeEventListener("dragover", this.preventWindowFileDrop);
+    window.removeEventListener("drop", this.preventWindowFileDrop);
+    this.stopElapsedTimer();
+  },
+  computed: {
+    /**
+     * 利用者の操作を止めるべき状態か判定する。
+     *
+     * 各コンポーネントへ渡している `is-processing` の契約を保つため、
+     * 状態機械へ移行した後もこの名前のまま公開する。
+     *
+     * @returns {boolean} 処理中の場合はtrue
+     */
+    isProcessing() {
+      return ProcessState.isBusyState(this.processPanel.state);
+    },
   },
   watch: {
     originalFile: {
@@ -76,6 +106,179 @@ const pdfApp = {
     },
   },
   methods: {
+    /**
+     * 処理中状態へ移し、何を待っているかを画面へ出す。
+     *
+     * @param {string} label 実行中の処理を説明する文言
+     */
+    beginProcess(label) {
+      this.processPanel = {
+        state: ProcessState.PROCESS_STATE.PROCESSING,
+        title: label,
+        detail: "",
+        hint: "",
+        elapsedSeconds: 0,
+      };
+      this.startElapsedTimer();
+    },
+    /**
+     * 完了状態へ移し、結果とやり直す導線を出す。
+     *
+     * 結果の表示場所を別に持つ操作（Markdown欄へ反映するなど）は完了パネルを出さず、
+     * `resetProcess` で初期状態へ戻す。同じ文言を2箇所へ出さないため。
+     *
+     * @param {string} message 完了内容を説明する文言
+     */
+    finishProcess(message) {
+      this.stopElapsedTimer();
+      this.processPanel = {
+        state: ProcessState.PROCESS_STATE.DONE,
+        title: message,
+        detail: "",
+        hint: "",
+        elapsedSeconds: 0,
+      };
+    },
+    /**
+     * 利用者が自分で直せる失敗として、直し方とともに表示する。
+     *
+     * @param {string} title 何が起きたか
+     * @param {string} hint 次に取れる行動
+     */
+    blockProcess(title, hint) {
+      this.stopElapsedTimer();
+      this.processPanel = {
+        state: ProcessState.PROCESS_STATE.NEEDS_ACTION,
+        title: title,
+        detail: "",
+        hint: hint,
+        elapsedSeconds: 0,
+      };
+    },
+    /**
+     * APIエラーを、利用者が直せるかどうかで振り分ける。
+     *
+     * 直せる失敗（サイズ超過、パスワード保護、ページ上限超過など）は、次の行動を添えて
+     * パネルへ出す。直せない失敗は従来どおりモーダルで通知する。
+     *
+     * @param {string[]} errorMessages APIが返したエラーメッセージ
+     * @param {string[]} errorCodes APIが返したエラーコード
+     */
+    failProcess(errorMessages, errorCodes) {
+      this.stopElapsedTimer();
+      if (ApiErrorUtils.isPasswordError(errorCodes)) {
+        this.processPanel = {
+          state: ProcessState.PROCESS_STATE.PASSWORD_REQUIRED,
+          title: errorMessages[0],
+          detail: "",
+          hint: "入力したパスワードは、このPDFを開くためだけに使い、保存しません。",
+          elapsedSeconds: 0,
+          password: "",
+        };
+        return;
+      }
+      if (ApiErrorUtils.isRecoverableError(errorCodes)) {
+        this.processPanel = {
+          state: ProcessState.PROCESS_STATE.NEEDS_ACTION,
+          title: errorMessages[0],
+          detail: errorMessages.slice(1).join(" "),
+          hint: "",
+          elapsedSeconds: 0,
+        };
+        return;
+      }
+      this.processPanel = ProcessState.createProcessPanelState();
+      this.errorMessages = errorMessages;
+      this.showMessageModal();
+    },
+    /**
+     * 想定外エラーを従来どおりモーダルで通知し、パネルを初期状態へ戻す。
+     *
+     * @param {string} message 画面表示用メッセージ
+     */
+    failUnexpectedProcess(message) {
+      this.stopElapsedTimer();
+      this.processPanel = ProcessState.createProcessPanelState();
+      this.errorMessages = [message];
+      this.showMessageModal();
+    },
+    /**
+     * 処理状態パネルを初期状態へ戻す。
+     */
+    resetProcess() {
+      this.stopElapsedTimer();
+      this.processPanel = ProcessState.createProcessPanelState();
+    },
+    /**
+     * 処理中のまま取り残された場合に初期状態へ戻す。
+     *
+     * 成功・失敗の分岐で状態を決めた後の保険として `finally` から呼ぶ。
+     * 分岐の中で例外が起きても、操作できないまま固まらないようにする。
+     */
+    endProcessIfBusy() {
+      if (this.isProcessing) {
+        this.resetProcess();
+      }
+    },
+    /**
+     * 経過秒の計測を開始する。
+     *
+     * VISIONのMarkdown下書きはページ数分の外部API呼び出しで分単位かかる。数字が動いていれば
+     * 止まっていないことが分かり、再読み込みによる呼び出しの無駄打ちを防げる。
+     */
+    startElapsedTimer() {
+      this.stopElapsedTimer();
+      this.elapsedTimerId = window.setInterval(() => {
+        this.processPanel.elapsedSeconds = this.processPanel.elapsedSeconds + 1;
+      }, 1000);
+    },
+    /**
+     * 経過秒の計測を止める。
+     */
+    stopElapsedTimer() {
+      if (this.elapsedTimerId === null) {
+        return;
+      }
+      window.clearInterval(this.elapsedTimerId);
+      this.elapsedTimerId = null;
+    },
+    /**
+     * ドロップ領域の外へ落とされたファイルの既定動作を止める。
+     *
+     * @param {DragEvent} event ドラッグイベント
+     */
+    preventWindowFileDrop(event) {
+      event.preventDefault();
+    },
+    /**
+     * 入力されたパスワードで、直前と同じ操作をやり直す。
+     *
+     * パスワードは画面状態として保持し、以降の操作にも自動で付ける。同じPDFを操作するたびに
+     * 入力し直さずに済ませるため。ファイルを選び直したときと全クリア時に破棄する。
+     */
+    submitPdfPassword() {
+      const retry = this.pendingPasswordRetry;
+      if (Util.isEmpty(this.processPanel.password) || Util.isEmpty(retry)) {
+        return;
+      }
+      this.pdfPassword = this.processPanel.password;
+      this.resetProcess();
+      retry();
+    },
+    /**
+     * 保持しているPDFのパスワードを破棄する。
+     */
+    clearPdfPassword() {
+      this.pdfPassword = "";
+      this.pendingPasswordRetry = null;
+    },
+    /**
+     * 完了パネルから次のファイルへ進む。
+     */
+    startOverProcess() {
+      this.resetProcess();
+      this.clearAll();
+    },
     /**
      * 成功レスポンスの通知メッセージを画面へ反映する。
      *
@@ -224,6 +427,7 @@ const pdfApp = {
     clearAll() {
       // 画面状態を作り直す前に、プレビュー用Object URLを解放する。
       this.clearOriginalPdfPreview();
+      this.clearPdfPassword();
       this.originalFile = PdfFormState.createOriginalFileState();
       this.pdfMetadata = PdfFormState.createPdfMetadataState();
       this.pdfThumbnails = PdfFormState.createThumbnailState();
@@ -257,33 +461,70 @@ const pdfApp = {
      * @param {number} fileNo 差し込みPDF行番号。編集元PDFの場合は-1
      */
     handlePdfFileChange(event, fileNo) {
-      const index = this.findInsertFileIndex(fileNo);
       const fileObject = event.target.files[0];
       if (Util.isEmpty(fileObject)) {
         return;
       }
+      if (!this.applyPdfFile(fileObject, fileNo)) {
+        // 受け付けなかったファイル名が選択欄に残ると、保持中のPDFと表示が食い違うため戻す。
+        event.target.value = "";
+      }
+    },
+    /**
+     * ドロップされたPDFを、ファイル選択と同じ経路で画面状態へ反映する。
+     *
+     * 検証を通す経路をファイル選択と共通にする。ドロップ経路だけ検証が緩い状態を作らないため。
+     *
+     * @param {File[]} files ドロップされたファイル
+     * @param {number} fileNo 差し込みPDF行番号。編集元PDFの場合は-1
+     */
+    handlePdfFilesDropped(files, fileNo) {
+      const fileObject = files[0];
+      if (Util.isEmpty(fileObject)) {
+        return;
+      }
+      this.applyPdfFile(fileObject, fileNo);
+    },
+    /**
+     * PDFを検証し、受け付けられる場合だけ画面状態へ反映する。
+     *
+     * @param {File} fileObject 受け取ったファイル
+     * @param {number} fileNo 差し込みPDF行番号。編集元PDFの場合は-1
+     * @returns {boolean} 受け付けた場合はtrue
+     */
+    applyPdfFile(fileObject, fileNo) {
+      if (!FileTypeValidator.isPdfFile(fileObject)) {
+        this.blockProcess(
+          FileTypeValidator.buildPdfFileTypeMessage(fileObject),
+          "拡張子が .pdf のファイルを指定してください。"
+        );
+        return false;
+      }
       if (!FileSizeValidator.isWithinPdfSizeLimit(fileObject)) {
         // 上限超過はサーバーへ送らずここで止める。送るとTomcatが上限検知時に接続を切るため、
         // ブラウザには413ではなく理由の分からないネットワークエラーだけが残る。
-        this.errorMessages = [
+        this.blockProcess(
           FileSizeValidator.buildPdfSizeLimitMessage(fileObject),
-        ];
-        this.showMessageModal();
-        // 受け付けなかったファイル名が選択欄に残ると、保持中のPDFと表示が食い違うため戻す。
-        event.target.value = "";
-        return;
+          FileSizeValidator.buildPdfSizeLimitHint()
+        );
+        return false;
       }
+      this.resetProcess();
+      // 別のPDFには前のパスワードが通らない。持ち越すと「違う」とだけ言われて理由が分からなくなる。
+      this.clearPdfPassword();
+      const index = this.findInsertFileIndex(fileNo);
       if (index !== -1) {
         this.insertFiles[index].fileObject = fileObject;
         this.insertFiles[index].fileName = fileObject.name;
         // 差し込みPDFはカード内に表示枠を持たないため、従来どおり別タブで開く。
         FileResponseHandler.openPdfBlob(fileObject);
-        return;
+        return true;
       }
       this.originalFile.fileObject = fileObject;
       this.originalFile.fileName = fileObject.name;
       this.pdfMetadata = PdfFormState.createPdfMetadataState();
       this.updateOriginalPdfPreview(fileObject);
+      return true;
     },
     /**
      * 編集元PDFのプレビュー用Object URLを差し替える。
@@ -480,7 +721,7 @@ const pdfApp = {
       if (this.isProcessing) {
         return Promise.resolve();
       }
-      this.isProcessing = true;
+      this.beginProcess(ProcessState.PROCESS_LABEL.IMAGE_DRAFT);
       this.errorMessages = [];
       this.clearApiMessages();
       this.markdownMessage = "";
@@ -490,8 +731,7 @@ const pdfApp = {
       )
         .then((result) => {
           if (!Util.isEmpty(result.errorMessages)) {
-            this.errorMessages = result.errorMessages;
-            this.showMessageModal();
+            this.failProcess(result.errorMessages, result.errorCodes);
             return;
           }
           this.applyApiMessages(result.messages);
@@ -505,13 +745,12 @@ const pdfApp = {
             draftResponse.fileName + " の文字起こしをMarkdown欄へ反映しました。";
         })
         .catch((error) => {
-          this.errorMessages = [
-            ImageApiClient.buildUnexpectedErrorMessage(error),
-          ];
-          this.showMessageModal();
+          this.failUnexpectedProcess(
+            ImageApiClient.buildUnexpectedErrorMessage(error)
+          );
         })
         .finally(() => {
-          this.isProcessing = false;
+          this.endProcessIfBusy();
         });
     },
     /**
@@ -819,7 +1058,7 @@ const pdfApp = {
       if (this.isProcessing) {
         return Promise.resolve();
       }
-      this.isProcessing = true;
+      this.beginProcess(ProcessState.PROCESS_LABEL.MARKDOWN_PDF);
       this.errorMessages = [];
       this.clearApiMessages();
       this.markdownMessage = "";
@@ -829,8 +1068,7 @@ const pdfApp = {
       })
         .then(async (result) => {
           if (!Util.isEmpty(result.errorMessages)) {
-            this.errorMessages = result.errorMessages;
-            this.showMessageModal();
+            this.failProcess(result.errorMessages, result.errorCodes);
             return;
           }
           // 保存名はBEのContent-Dispositionに合わせる。拡張子の正規化はBE側に寄せている。
@@ -842,13 +1080,12 @@ const pdfApp = {
           this.markdownMessage = "MarkdownをPDFで出力しました。";
         })
         .catch((error) => {
-          this.errorMessages = [
-            MarkdownApiClient.buildUnexpectedErrorMessage(error),
-          ];
-          this.showMessageModal();
+          this.failUnexpectedProcess(
+            MarkdownApiClient.buildUnexpectedErrorMessage(error)
+          );
         })
         .finally(() => {
-          this.isProcessing = false;
+          this.endProcessIfBusy();
         });
     },
     /**
@@ -905,28 +1142,26 @@ const pdfApp = {
       if (this.isProcessing) {
         return Promise.resolve();
       }
-      this.isProcessing = true;
+      this.beginProcess(ProcessState.PROCESS_LABEL.MARKDOWN_FILE);
       this.errorMessages = [];
       this.clearApiMessages();
       this.markdownMessage = "";
       return request()
         .then((result) => {
           if (!Util.isEmpty(result.errorMessages)) {
-            this.errorMessages = result.errorMessages;
-            this.showMessageModal();
+            this.failProcess(result.errorMessages, result.errorCodes);
             return;
           }
           this.applyApiMessages(result.messages);
           onSuccess(result.data);
         })
         .catch((error) => {
-          this.errorMessages = [
-            MarkdownApiClient.buildUnexpectedErrorMessage(error),
-          ];
-          this.showMessageModal();
+          this.failUnexpectedProcess(
+            MarkdownApiClient.buildUnexpectedErrorMessage(error)
+          );
         })
         .finally(() => {
-          this.isProcessing = false;
+          this.endProcessIfBusy();
         });
     },
     /**
@@ -966,24 +1201,28 @@ const pdfApp = {
       if (this.isProcessing) {
         return Promise.resolve();
       }
-      this.isProcessing = true;
+      this.pendingPasswordRetry = () => this.requestPdfAndOpen(url, payload);
+      this.beginProcess(ProcessState.PROCESS_LABEL.PDF_EDIT);
       this.errorMessages = [];
       this.clearApiMessages();
-      return PdfApiClient.requestPdfAndOpen(url, payload)
-        .then((errorMessages) => {
-          if (!Util.isEmpty(errorMessages)) {
-            this.errorMessages = errorMessages;
-            this.showMessageModal();
+      return PdfApiClient.requestPdfAndOpen(
+        url,
+        PdfPayload.withPassword(payload, this.pdfPassword)
+      )
+        .then((result) => {
+          if (!Util.isEmpty(result.errorMessages)) {
+            this.failProcess(result.errorMessages, result.errorCodes);
+            return;
           }
+          this.finishProcess("PDFを作成し、別タブで開きました。");
         })
         .catch((error) => {
-          this.errorMessages = [
-            PdfApiClient.buildUnexpectedErrorMessage(error),
-          ];
-          this.showMessageModal();
+          this.failUnexpectedProcess(
+            PdfApiClient.buildUnexpectedErrorMessage(error)
+          );
         })
         .finally(() => {
-          this.isProcessing = false;
+          this.endProcessIfBusy();
         });
     },
     /**
@@ -999,29 +1238,31 @@ const pdfApp = {
       if (this.isProcessing) {
         return Promise.resolve();
       }
-      this.isProcessing = true;
+      this.pendingPasswordRetry = () =>
+        this.requestFileAndDownload(url, payload, defaultFileName, saveTarget);
+      this.beginProcess(ProcessState.PROCESS_LABEL.FILE_DOWNLOAD);
       this.errorMessages = [];
       this.clearApiMessages();
       return PdfApiClient.requestFileAndDownload(
         url,
-        payload,
+        PdfPayload.withPassword(payload, this.pdfPassword),
         defaultFileName,
         saveTarget
       )
-        .then((errorMessages) => {
-          if (!Util.isEmpty(errorMessages)) {
-            this.errorMessages = errorMessages;
-            this.showMessageModal();
+        .then((result) => {
+          if (!Util.isEmpty(result.errorMessages)) {
+            this.failProcess(result.errorMessages, result.errorCodes);
+            return;
           }
+          this.finishProcess(defaultFileName + " をダウンロードしました。");
         })
         .catch((error) => {
-          this.errorMessages = [
-            PdfApiClient.buildUnexpectedErrorMessage(error),
-          ];
-          this.showMessageModal();
+          this.failUnexpectedProcess(
+            PdfApiClient.buildUnexpectedErrorMessage(error)
+          );
         })
         .finally(() => {
-          this.isProcessing = false;
+          this.endProcessIfBusy();
         });
     },
     /**
@@ -1034,29 +1275,32 @@ const pdfApp = {
       if (this.isProcessing) {
         return Promise.resolve();
       }
-      this.isProcessing = true;
+      this.pendingPasswordRetry = () => this.requestPdfMetadata(payload);
+      this.beginProcess(ProcessState.PROCESS_LABEL.METADATA);
       this.errorMessages = [];
       this.clearApiMessages();
-      return PdfApiClient.requestPdfMetadata(CONST.REST_PATH.METADATA_PDF, payload)
+      return PdfApiClient.requestPdfMetadata(
+        CONST.REST_PATH.METADATA_PDF,
+        PdfPayload.withPassword(payload, this.pdfPassword)
+      )
         .then((result) => {
           if (!Util.isEmpty(result.errorMessages)) {
-            this.errorMessages = result.errorMessages;
-            this.showMessageModal();
+            this.failProcess(result.errorMessages, result.errorCodes);
             return;
           }
           this.applyApiMessages(result.messages);
           this.pdfMetadata = PdfFormState.createLoadedPdfMetadataState(
             result.metadata
           );
+          this.finishProcess("PDFの基本情報を読み取りました。");
         })
         .catch((error) => {
-          this.errorMessages = [
-            PdfApiClient.buildUnexpectedErrorMessage(error),
-          ];
-          this.showMessageModal();
+          this.failUnexpectedProcess(
+            PdfApiClient.buildUnexpectedErrorMessage(error)
+          );
         })
         .finally(() => {
-          this.isProcessing = false;
+          this.endProcessIfBusy();
         });
     },
     /**
@@ -1069,15 +1313,18 @@ const pdfApp = {
       if (this.isProcessing) {
         return Promise.resolve();
       }
-      this.isProcessing = true;
+      this.pendingPasswordRetry = () => this.requestPdfText(payload);
+      this.beginProcess(ProcessState.PROCESS_LABEL.TEXT);
       this.errorMessages = [];
       this.clearApiMessages();
       this.markdownMessage = "";
-      return PdfApiClient.requestPdfText(CONST.REST_PATH.TEXT_PDF, payload)
+      return PdfApiClient.requestPdfText(
+        CONST.REST_PATH.TEXT_PDF,
+        PdfPayload.withPassword(payload, this.pdfPassword)
+      )
         .then((result) => {
           if (!Util.isEmpty(result.errorMessages)) {
-            this.errorMessages = result.errorMessages;
-            this.showMessageModal();
+            this.failProcess(result.errorMessages, result.errorCodes);
             return;
           }
           this.applyApiMessages(result.messages);
@@ -1092,13 +1339,12 @@ const pdfApp = {
             " の抽出テキストをMarkdown欄へ反映しました。";
         })
         .catch((error) => {
-          this.errorMessages = [
-            PdfApiClient.buildUnexpectedErrorMessage(error),
-          ];
-          this.showMessageModal();
+          this.failUnexpectedProcess(
+            PdfApiClient.buildUnexpectedErrorMessage(error)
+          );
         })
         .finally(() => {
-          this.isProcessing = false;
+          this.endProcessIfBusy();
         });
     },
     /**
@@ -1118,18 +1364,21 @@ const pdfApp = {
       if (this.isProcessing) {
         return Promise.resolve();
       }
-      this.isProcessing = true;
+      this.pendingPasswordRetry = () => this.requestPdfThumbnails();
+      this.beginProcess(ProcessState.PROCESS_LABEL.THUMBNAILS);
       this.errorMessages = [];
       this.clearApiMessages();
       this.pdfThumbnails.message = "";
       return PdfApiClient.requestPdfThumbnails(
         CONST.REST_PATH.THUMBNAILS_PDF,
-        PdfPayload.buildThumbnailPayload(originalFileData.fileObject)
+        PdfPayload.withPassword(
+          PdfPayload.buildThumbnailPayload(originalFileData.fileObject),
+          this.pdfPassword
+        )
       )
         .then((result) => {
           if (!Util.isEmpty(result.errorMessages)) {
-            this.errorMessages = result.errorMessages;
-            this.showMessageModal();
+            this.failProcess(result.errorMessages, result.errorCodes);
             return;
           }
           this.applyApiMessages(result.messages);
@@ -1141,13 +1390,12 @@ const pdfApp = {
             "ページのサムネイルを表示しています。ページを選ぶとページ指定へ反映します。";
         })
         .catch((error) => {
-          this.errorMessages = [
-            PdfApiClient.buildUnexpectedErrorMessage(error),
-          ];
-          this.showMessageModal();
+          this.failUnexpectedProcess(
+            PdfApiClient.buildUnexpectedErrorMessage(error)
+          );
         })
         .finally(() => {
-          this.isProcessing = false;
+          this.endProcessIfBusy();
         });
     },
     /**
@@ -1160,18 +1408,18 @@ const pdfApp = {
       if (this.isProcessing) {
         return Promise.resolve();
       }
-      this.isProcessing = true;
+      this.pendingPasswordRetry = () => this.requestPdfMarkdownDraft(payload);
+      this.beginProcess(ProcessState.PROCESS_LABEL.MARKDOWN_DRAFT);
       this.errorMessages = [];
       this.clearApiMessages();
       this.markdownMessage = "";
       return PdfApiClient.requestPdfMarkdownDraft(
         CONST.REST_PATH.MARKDOWN_DRAFT_PDF,
-        payload
+        PdfPayload.withPassword(payload, this.pdfPassword)
       )
         .then((result) => {
           if (!Util.isEmpty(result.errorMessages)) {
-            this.errorMessages = result.errorMessages;
-            this.showMessageModal();
+            this.failProcess(result.errorMessages, result.errorCodes);
             return;
           }
           this.applyApiMessages(result.messages);
@@ -1186,13 +1434,12 @@ const pdfApp = {
             " のページ単位Markdown下書きを反映しました。";
         })
         .catch((error) => {
-          this.errorMessages = [
-            PdfApiClient.buildUnexpectedErrorMessage(error),
-          ];
-          this.showMessageModal();
+          this.failUnexpectedProcess(
+            PdfApiClient.buildUnexpectedErrorMessage(error)
+          );
         })
         .finally(() => {
-          this.isProcessing = false;
+          this.endProcessIfBusy();
         });
     },
   },

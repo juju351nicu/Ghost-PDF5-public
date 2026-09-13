@@ -35,4 +35,9 @@ public class ExtractPdfRequest {
 	@NotEmpty(message = "抽出ページを入れてください。")
 	@CheckNumericList
 	private List<Integer> extractPages;
+
+	/** パスワードで保護されたPDFを開くためのパスワード。保護されていない場合は指定しない。 */
+	@Schema(description = "パスワードで保護されたPDFを開くためのパスワード。保護されていない場合は指定しません。")
+	@JsonProperty("password")
+	private String password;
 }

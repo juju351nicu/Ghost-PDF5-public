@@ -21,12 +21,19 @@
 		</div>
 		<main class="main">
 			<modal :messages="errorMessages" v-if="isShowModal" @close-modal="hideMessageModal()"></modal>
+			<process-panel
+				:panel-state="processPanel"
+				@start-over="startOverProcess"
+				@submit-password="submitPdfPassword"
+				@dismiss="resetProcess">
+			</process-panel>
 			<original-pdf-form
 				:original-file="originalFile"
 				:pdf-metadata="pdfMetadata"
 				:thumbnail-state="pdfThumbnails"
 				:is-processing="isProcessing"
 				@file-change="handlePdfFileChange($event, -1)"
+				@files-dropped="handlePdfFilesDropped($event, -1)"
 				@request-thumbnails-pdf="requestPdfThumbnails"
 				@toggle-thumbnail-page="toggleThumbnailPage"
 				@clear-thumbnail-selection="clearThumbnailSelection"

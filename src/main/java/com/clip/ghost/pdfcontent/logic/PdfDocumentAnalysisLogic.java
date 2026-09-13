@@ -14,7 +14,6 @@ import java.util.stream.IntStream;
 import javax.imageio.ImageIO;
 
 import org.apache.commons.lang3.StringUtils;
-import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.rendering.ImageType;
 import org.apache.pdfbox.rendering.PDFRenderer;
@@ -52,7 +51,7 @@ final class PdfDocumentAnalysisLogic {
 	 * @throws PdfProcessingException PDFの読み込みまたはメタデータ取得に失敗した場合
 	 */
 	PdfMetadataResponse getPdfMetadata(Path inputPath, String fileName, long fileSize) {
-		try (PDDocument document = Loader.loadPDF(inputPath.toFile())) {
+		try (PDDocument document = PdfDocumentLoader.load(inputPath)) {
 			PdfMetadataResponse response = new PdfMetadataResponse();
 			response.setFileName(fileName);
 			response.setFileSize(fileSize);
@@ -74,7 +73,7 @@ final class PdfDocumentAnalysisLogic {
 	 * @throws PdfProcessingException PDFの読み込みまたはテキスト抽出に失敗した場合
 	 */
 	PdfTextResponse extractPdfText(Path inputPath, String fileName, long fileSize) {
-		try (PDDocument document = Loader.loadPDF(inputPath.toFile())) {
+		try (PDDocument document = PdfDocumentLoader.load(inputPath)) {
 			PDFTextStripper textStripper = new PDFTextStripper();
 			PdfTextResponse response = new PdfTextResponse();
 			response.setFileName(fileName);
@@ -97,7 +96,7 @@ final class PdfDocumentAnalysisLogic {
 	 * @throws PdfProcessingException PDFの読み込みまたはテキスト抽出に失敗した場合
 	 */
 	List<String> extractPdfPageTexts(Path inputPath) {
-		try (PDDocument document = Loader.loadPDF(inputPath.toFile())) {
+		try (PDDocument document = PdfDocumentLoader.load(inputPath)) {
 			return extractPageTexts(document);
 		} catch (IllegalStateException | IOException e) {
 			throw new PdfProcessingException("PDFページ単位テキスト抽出に失敗しました。path=" + inputPath, e);
@@ -136,7 +135,7 @@ final class PdfDocumentAnalysisLogic {
 	 */
 	List<PdfPageContent> extractPdfPageContents(Path inputPath, int renderDpi, int maxPages,
 			PdfMarkdownDraftMode mode, PdfPageImageConverter pageImageConverter) {
-		try (PDDocument document = Loader.loadPDF(inputPath.toFile())) {
+		try (PDDocument document = PdfDocumentLoader.load(inputPath)) {
 			List<String> pageTexts = extractPageTexts(document);
 			List<Integer> renderTargetPages = collectConversionTargetPageNumbers(pageTexts, mode);
 			if (renderTargetPages.size() > maxPages) {
@@ -202,7 +201,7 @@ final class PdfDocumentAnalysisLogic {
 	 * @throws PdfProcessingException        PDFの読み込みまたは画像化に失敗した場合
 	 */
 	List<PdfPageThumbnail> extractPdfThumbnails(Path inputPath, int renderDpi, int maxPages) {
-		try (PDDocument document = Loader.loadPDF(inputPath.toFile())) {
+		try (PDDocument document = PdfDocumentLoader.load(inputPath)) {
 			int totalPages = document.getNumberOfPages();
 			if (totalPages > maxPages) {
 				LOGGER.warn("総ページ数が上限を超えたためサムネイルを生成しません。pageCount={}, maxPages={}", totalPages, maxPages);

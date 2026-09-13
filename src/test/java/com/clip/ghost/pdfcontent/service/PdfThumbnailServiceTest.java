@@ -62,7 +62,7 @@ class PdfThumbnailServiceTest {
 		PdfThumbnailRequest form = createRequest(originalFile);
 		when(properties.getDpi()).thenReturn(THUMBNAIL_DPI);
 		when(properties.getMaxPages()).thenReturn(THUMBNAIL_MAX_PAGES);
-		doReturn(inputPath).when(pdfLogic).loadPdf(originalFile);
+		doReturn(inputPath).when(pdfLogic).loadPdf(originalFile, null);
 		doReturn(List.of(new PdfPageThumbnail(1, DATA_URI_PREFIX + "first", 331, 468),
 				new PdfPageThumbnail(2, DATA_URI_PREFIX + "second", 331, 468))).when(pdfLogic)
 				.extractPdfThumbnails(eq(inputPath), eq(THUMBNAIL_DPI), eq(THUMBNAIL_MAX_PAGES));
@@ -91,7 +91,7 @@ class PdfThumbnailServiceTest {
 		PdfThumbnailRequest form = createRequest(originalFile);
 		when(properties.getDpi()).thenReturn(72);
 		when(properties.getMaxPages()).thenReturn(10);
-		doReturn(inputPath).when(pdfLogic).loadPdf(originalFile);
+		doReturn(inputPath).when(pdfLogic).loadPdf(originalFile, null);
 		doReturn(List.of(new PdfPageThumbnail(1, DATA_URI_PREFIX + "first", 595, 842))).when(pdfLogic)
 				.extractPdfThumbnails(eq(inputPath), eq(72), eq(10));
 
@@ -108,7 +108,7 @@ class PdfThumbnailServiceTest {
 		PdfThumbnailRequest form = createRequest(originalFile);
 		when(properties.getDpi()).thenReturn(THUMBNAIL_DPI);
 		when(properties.getMaxPages()).thenReturn(1);
-		doReturn(inputPath).when(pdfLogic).loadPdf(originalFile);
+		doReturn(inputPath).when(pdfLogic).loadPdf(originalFile, null);
 		doThrow(new PdfPageLimitExceededException(3, 1)).when(pdfLogic).extractPdfThumbnails(eq(inputPath),
 				eq(THUMBNAIL_DPI), eq(1));
 

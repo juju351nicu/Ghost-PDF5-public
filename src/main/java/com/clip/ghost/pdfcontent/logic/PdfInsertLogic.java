@@ -9,7 +9,6 @@ import java.util.Map;
 import java.util.Objects;
 
 import org.apache.commons.collections4.CollectionUtils;
-import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 
 import com.clip.ghost.pdfcontent.constant.PdfConstants;
@@ -38,7 +37,7 @@ final class PdfInsertLogic {
 	 */
 	void insertPdf(Path originalFilePath, List<GhostPdfDto> insertPdfDtos, Path outputPath) {
 		try (PDDocument outputDocument = new PDDocument();
-				PDDocument originalDocument = Loader.loadPDF(originalFilePath.toFile())) {
+				PDDocument originalDocument = PdfDocumentLoader.load(originalFilePath)) {
 			int totalPages = originalDocument.getNumberOfPages();
 			Map<Integer, List<PdfSegment>> mergePlanByPageNumber = buildInitialMergePlan(totalPages);
 			// リクエスト順に計画を書き換えることで、同一ページへの複数差し込み順も維持する。
