@@ -12,6 +12,43 @@ const NETWORK_ERROR_MESSAGE_PATTERN =
   /failed to fetch|networkerror|network request failed|load failed/i;
 
 /**
+ * BEが返すエラーコード。
+ *
+ * `GlobalExceptionErrorHandler` の定数と同じ文字列を保つ。
+ * ずれると「利用者が直せる失敗」の判定が静かに外れ、専用表示へ回らなくなるため、
+ * 一致は `FrontendProcessStateContractTest` が検証する。
+ */
+const ERROR_CODE = {
+  MULTIPART: "multipartError",
+  PDF_PASSWORD_PROTECTED: "pdfPasswordProtected",
+  PDF_PASSWORD_INCORRECT: "pdfPasswordIncorrect",
+  PDF_PAGE_LIMIT_EXCEEDED: "pdfPageLimitExceeded",
+  PDF_SPLIT_RANGE_OUT_OF_BOUNDS: "pdfSplitRangeOutOfBounds",
+  PDF_PROCESSING: "pdfProcessingError",
+  IMAGE_INPUT: "imageInputError",
+  IMAGE_PROCESSING: "imageProcessingError",
+  OCR_UNAVAILABLE: "ocrUnavailable",
+  MARKDOWN_PDF: "markdownPdfError",
+};
+
+/**
+ * 利用者が自分で対処できるエラーコード。
+ *
+ * 別のファイルを用意する、入力を直す、設定を有効にするといった行動で通るようになるもの。
+ * ここへ挙げていないコード（{@code pdfProcessingError} などサーバー側の想定外エラー）は
+ * 利用者側で打つ手が無いため、扱いを分ける。
+ */
+const RECOVERABLE_ERROR_CODES = [
+  ERROR_CODE.MULTIPART,
+  ERROR_CODE.PDF_PASSWORD_PROTECTED,
+  ERROR_CODE.PDF_PASSWORD_INCORRECT,
+  ERROR_CODE.PDF_PAGE_LIMIT_EXCEEDED,
+  ERROR_CODE.PDF_SPLIT_RANGE_OUT_OF_BOUNDS,
+  ERROR_CODE.IMAGE_INPUT,
+  ERROR_CODE.OCR_UNAVAILABLE,
+];
+
+/**
  * APIのエラーレスポンスから画面表示用メッセージを抽出する。
  * <p>
  * 既存のBE共通エラー形式である {@code fieldErrors} を優先し、
@@ -25,11 +62,49 @@ const extractErrorMessages = async (
   response,
   fallbackMessage = DEFAULT_PDF_ERROR_MESSAGE
 ) => {
+  const errorDetail = await extractErrorDetail(response, fallbackMessage);
+  return errorDetail.messages;
+};
+
+/**
+ * APIのエラーレスポンスからメッセージとエラーコードを取り出す。
+ *
+ * レスポンスボディは1度しか読めないため、メッセージとコードを別々に取りに行かず
+ * ここで同時に取り出す。
+ *
+ * @param {Response} response APIのエラーレスポンス
+ * @param {string} [fallbackMessage] 既定のエラーメッセージ
+ * @returns {Promise<{messages: string[], errorCodes: string[]}>} エラーメッセージとエラーコード
+ */
+const extractErrorDetail = async (
+  response,
+  fallbackMessage = DEFAULT_PDF_ERROR_MESSAGE
+) => {
   const responseBody = await response.json().catch(() => null);
-  if (!Util.isEmpty(responseBody?.fieldErrors)) {
-    return responseBody.fieldErrors.map((fieldError) => fieldError.message);
+  if (Util.isEmpty(responseBody?.fieldErrors)) {
+    return { messages: [fallbackMessage], errorCodes: [] };
   }
-  return [fallbackMessage];
+  return {
+    messages: responseBody.fieldErrors.map((fieldError) => fieldError.message),
+    errorCodes: responseBody.fieldErrors
+      .map((fieldError) => fieldError.errorCode)
+      .filter((errorCode) => !Util.isEmpty(errorCode)),
+  };
+};
+
+/**
+ * エラーコードのいずれかが「利用者が自分で対処できる失敗」か判定する。
+ *
+ * @param {string[]} errorCodes APIが返したエラーコード
+ * @returns {boolean} 対処できる失敗が含まれる場合true
+ */
+const isRecoverableError = (errorCodes) => {
+  if (Util.isEmpty(errorCodes)) {
+    return false;
+  }
+  return errorCodes.some((errorCode) =>
+    RECOVERABLE_ERROR_CODES.includes(errorCode)
+  );
 };
 
 /**
@@ -57,6 +132,26 @@ const buildUnexpectedErrorMessage = (
 };
 
 /**
+ * パスワードを入力すれば通るエラーか判定する。
+ *
+ * 「パスワードが必要」と「入力されたパスワードが違う」の両方を対象にする。画面はどちらでも
+ * 同じ入力欄を出し、BEが返したメッセージで違いを伝える。
+ *
+ * @param {string[]} errorCodes APIが返したエラーコード
+ * @returns {boolean} パスワード入力で通る可能性がある場合true
+ */
+const isPasswordError = (errorCodes) => {
+  if (Util.isEmpty(errorCodes)) {
+    return false;
+  }
+  return errorCodes.some(
+    (errorCode) =>
+      errorCode === ERROR_CODE.PDF_PASSWORD_PROTECTED ||
+      errorCode === ERROR_CODE.PDF_PASSWORD_INCORRECT
+  );
+};
+
+/**
  * fetchがサーバーへ到達できなかったエラーか判定する。
  *
  * 型だけで判定すると通常のコーディングミス（`TypeError`）も到達失敗扱いになるため、
@@ -73,6 +168,10 @@ const isNetworkError = (error) => {
 };
 
 export default {
+  ERROR_CODE,
   extractErrorMessages,
+  extractErrorDetail,
+  isRecoverableError,
+  isPasswordError,
   buildUnexpectedErrorMessage,
 };

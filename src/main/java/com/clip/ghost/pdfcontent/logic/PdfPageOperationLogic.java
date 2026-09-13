@@ -12,7 +12,6 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 import org.apache.commons.collections4.CollectionUtils;
-import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 
@@ -41,7 +40,7 @@ final class PdfPageOperationLogic {
 	 * @throws PdfProcessingException PDFの読み込み、ページ削除、保存に失敗した場合
 	 */
 	void deletePdf(List<Integer> deletePages, Path inputPath, Path outputPath) {
-		try (PDDocument document = Loader.loadPDF(inputPath.toFile())) {
+		try (PDDocument document = PdfDocumentLoader.load(inputPath)) {
 			List<Integer> remainingPageNumbers = selectRemainingPageNumbers(document, deletePages);
 			removePagesExcept(document, remainingPageNumbers);
 			document.save(outputPath.toFile());
@@ -60,7 +59,7 @@ final class PdfPageOperationLogic {
 	 */
 	void extractPdf(List<Integer> extractPages, Path inputPath, Path outputPath) {
 		try (PDDocument outputDocument = new PDDocument();
-				PDDocument inputDocument = Loader.loadPDF(inputPath.toFile())) {
+				PDDocument inputDocument = PdfDocumentLoader.load(inputPath)) {
 			List<Integer> extractPageNumbers = selectExtractPageNumbers(inputDocument, extractPages);
 			PdfPageCopySupport pageCopySupport = new PdfPageCopySupport(outputDocument);
 			for (Integer pageNumber : extractPageNumbers) {
@@ -104,7 +103,7 @@ final class PdfPageOperationLogic {
 	 */
 	void splitPdf(Path inputPath, Path outputPath, List<String> splitRanges) {
 		List<PageRange> pageRanges = PageUtils.parsePageRanges(splitRanges);
-		try (PDDocument inputDocument = Loader.loadPDF(inputPath.toFile())) {
+		try (PDDocument inputDocument = PdfDocumentLoader.load(inputPath)) {
 			int totalPages = inputDocument.getNumberOfPages();
 			validatePageRangesWithinDocument(pageRanges, totalPages);
 			try (OutputStream outputStream = Files.newOutputStream(outputPath);

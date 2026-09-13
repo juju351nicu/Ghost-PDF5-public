@@ -25,7 +25,7 @@ const buildFileNameQuery = (fileName) => {
  * 成功時のmessagesは現時点では画面へ出さないが、後続フェーズで通知を表示できるよう受け取っておく。
  *
  * @param {Function} request APIリクエスト実行関数
- * @returns {Promise<{data: Object|null, messages: Object[], errorMessages: string[]}>} API結果
+ * @returns {Promise<{data: Object|null, messages: Object[], errorMessages: string[], errorCodes: string[]}>} API結果
  */
 const requestJson = async (request) => {
   const response = await request();
@@ -33,10 +33,7 @@ const requestJson = async (request) => {
     return {
       data: null,
       messages: [],
-      errorMessages: await ApiErrorUtils.extractErrorMessages(
-        response,
-        MARKDOWN_ERROR_MESSAGE
-      ),
+      ...(await toErrorResult(response)),
     };
   }
   const apiResult = await ApiResultUtils.readApiResult(response);
@@ -44,6 +41,24 @@ const requestJson = async (request) => {
     data: apiResult.data,
     messages: apiResult.messages,
     errorMessages: [],
+    errorCodes: [],
+  };
+};
+
+/**
+ * エラーレスポンスを、画面が扱う共通のエラー内容へ変換する。
+ *
+ * @param {Response} response APIのエラーレスポンス
+ * @returns {Promise<{errorMessages: string[], errorCodes: string[]}>} エラー内容
+ */
+const toErrorResult = async (response) => {
+  const errorDetail = await ApiErrorUtils.extractErrorDetail(
+    response,
+    MARKDOWN_ERROR_MESSAGE
+  );
+  return {
+    errorMessages: errorDetail.messages,
+    errorCodes: errorDetail.errorCodes,
   };
 };
 
@@ -54,7 +69,7 @@ const requestJson = async (request) => {
  * 失敗時のbodyは共通エラー形式のJSONなので、エラーメッセージの取り出しだけ共通処理へ乗せる。
  *
  * @param {{fileName: string, content: string}} payload PDF出力リクエスト
- * @returns {Promise<{fileBlob: Blob|null, headers: Headers|null, errorMessages: string[]}>} PDF生成結果
+ * @returns {Promise<{fileBlob: Blob|null, headers: Headers|null, errorMessages: string[], errorCodes: string[]}>} PDF生成結果
  */
 const requestMarkdownPdf = async (payload) => {
   const response = await FetchClient.postRequestForFile(
@@ -66,23 +81,21 @@ const requestMarkdownPdf = async (payload) => {
     return {
       fileBlob: null,
       headers: null,
-      errorMessages: await ApiErrorUtils.extractErrorMessages(
-        response,
-        MARKDOWN_ERROR_MESSAGE
-      ),
+      ...(await toErrorResult(response)),
     };
   }
   return {
     fileBlob: await response.blob(),
     headers: response.headers,
     errorMessages: [],
+    errorCodes: [],
   };
 };
 
 /**
  * 保存済みMarkdown一覧を取得する。
  *
- * @returns {Promise<{data: Object[]|null, messages: Object[], errorMessages: string[]}>} 一覧取得結果
+ * @returns {Promise<{data: Object[]|null, messages: Object[], errorMessages: string[], errorCodes: string[]}>} 一覧取得結果
  */
 const listMarkdownFiles = () => {
   return requestJson(() =>
@@ -94,7 +107,7 @@ const listMarkdownFiles = () => {
  * 保存済みMarkdown本文を取得する。
  *
  * @param {string} fileName 対象Markdownファイル名
- * @returns {Promise<{data: Object|null, messages: Object[], errorMessages: string[]}>} 本文取得結果
+ * @returns {Promise<{data: Object|null, messages: Object[], errorMessages: string[], errorCodes: string[]}>} 本文取得結果
  */
 const getMarkdownFile = (fileName) => {
   return requestJson(() =>
@@ -108,7 +121,7 @@ const getMarkdownFile = (fileName) => {
  * 保存済みMarkdownのHTMLプレビューを取得する。
  *
  * @param {string} fileName 対象Markdownファイル名
- * @returns {Promise<{data: Object|null, messages: Object[], errorMessages: string[]}>} プレビュー取得結果
+ * @returns {Promise<{data: Object|null, messages: Object[], errorMessages: string[], errorCodes: string[]}>} プレビュー取得結果
  */
 const previewMarkdownFile = (fileName) => {
   return requestJson(() =>
@@ -122,7 +135,7 @@ const previewMarkdownFile = (fileName) => {
  * 入力中Markdown本文のHTMLプレビューを取得する。
  *
  * @param {string} content Markdown本文
- * @returns {Promise<{data: Object|null, messages: Object[], errorMessages: string[]}>} プレビュー取得結果
+ * @returns {Promise<{data: Object|null, messages: Object[], errorMessages: string[], errorCodes: string[]}>} プレビュー取得結果
  */
 const previewMarkdownContent = (content) => {
   return requestJson(() =>
@@ -135,7 +148,7 @@ const previewMarkdownContent = (content) => {
  *
  * @param {string} fileName 保存Markdownファイル名
  * @param {string} content Markdown本文
- * @returns {Promise<{data: Object|null, messages: Object[], errorMessages: string[]}>} 保存結果
+ * @returns {Promise<{data: Object|null, messages: Object[], errorMessages: string[], errorCodes: string[]}>} 保存結果
  */
 const saveMarkdown = (fileName, content) => {
   return requestJson(() =>
@@ -151,7 +164,7 @@ const saveMarkdown = (fileName, content) => {
  *
  * @param {string} fileName 更新対象Markdownファイル名
  * @param {string} content Markdown本文
- * @returns {Promise<{data: Object|null, messages: Object[], errorMessages: string[]}>} 更新結果
+ * @returns {Promise<{data: Object|null, messages: Object[], errorMessages: string[], errorCodes: string[]}>} 更新結果
  */
 const updateMarkdownFile = (fileName, content) => {
   return requestJson(() =>
@@ -166,7 +179,7 @@ const updateMarkdownFile = (fileName, content) => {
  * 保存済みMarkdownファイルを削除する。
  *
  * @param {string} fileName 削除対象Markdownファイル名
- * @returns {Promise<{data: Object|null, messages: Object[], errorMessages: string[]}>} 削除結果
+ * @returns {Promise<{data: Object|null, messages: Object[], errorMessages: string[], errorCodes: string[]}>} 削除結果
  */
 const deleteMarkdownFile = (fileName) => {
   return requestJson(() =>

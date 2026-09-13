@@ -25,4 +25,9 @@ public class MergePdfRequest {
 	@JsonProperty("mergeFiles")
 	@NotEmpty(message = "結合するファイルを入れてください。")
 	private List<MultipartFile> mergeFiles;
+
+	/** パスワードで保護されたPDFを開くためのパスワード。保護されていない場合は指定しない。 */
+	@Schema(description = "パスワードで保護されたPDFを開くためのパスワード。保護されていない場合は指定しません。")
+	@JsonProperty("password")
+	private String password;
 }

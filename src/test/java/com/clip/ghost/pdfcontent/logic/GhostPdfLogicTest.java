@@ -17,6 +17,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -29,6 +30,8 @@ import org.apache.pdfbox.pdmodel.PDResources;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
+import org.apache.pdfbox.pdmodel.encryption.AccessPermission;
+import org.apache.pdfbox.pdmodel.encryption.StandardProtectionPolicy;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -39,6 +42,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.clip.ghost.pdfcontent.exception.PdfPageLimitExceededException;
+import com.clip.ghost.pdfcontent.exception.PdfPasswordProtectedException;
 import com.clip.ghost.pdfcontent.exception.PdfProcessingException;
 import com.clip.ghost.pdfcontent.dto.GhostPdfDto;
 import com.clip.ghost.pdfcontent.dto.PdfMetadataResponse;
@@ -443,6 +447,59 @@ class GhostPdfLogicTest {
 	}
 
 	@Test
+	@DisplayName("パスワード付きPDFを正しいパスワードで読み込むと、保護を外したPDFを返し以降の操作が通る")
+	void loadPdfRemovesPasswordProtectionWhenPasswordIsCorrect() throws IOException {
+		MockMultipartFile pdfFile = protectedPdfUpload("protected.pdf", "user-secret");
+
+		Path outputPath = pdfLogic.loadPdf(pdfFile, "user-secret");
+
+		assertTrue(outputPath.toFile().exists());
+		// 保護が外れていることを、パスワードを渡さない後続処理が通ることで確認する。
+		PdfMetadataResponse metadata = pdfLogic.getPdfMetadata(outputPath, "protected.pdf", 1L);
+		assertEquals(1, metadata.getPageCount());
+		assertFalse(metadata.getEncrypted());
+	}
+
+	@Test
+	@DisplayName("パスワード付きPDFをパスワードなしで読み込むと、パスワード未指定としてパスワード保護例外にする")
+	void loadPdfThrowsPasswordProtectedExceptionWhenPasswordIsMissing() throws IOException {
+		MockMultipartFile pdfFile = protectedPdfUpload("protected-no-password.pdf", "user-secret");
+
+		Path outputPath = pdfLogic.loadPdf(pdfFile);
+
+		PdfPasswordProtectedException exception = assertThrows(PdfPasswordProtectedException.class,
+				() -> pdfLogic.getPdfMetadata(outputPath, "protected-no-password.pdf", 1L));
+		assertFalse(exception.isPasswordProvided());
+	}
+
+	@Test
+	@DisplayName("パスワードが違う場合はパスワード指定ありの例外にし、一時ファイルを残さない")
+	void loadPdfThrowsPasswordProtectedExceptionAndDeletesTemporaryFilesWhenPasswordIsWrong() throws IOException {
+		MockMultipartFile pdfFile = protectedPdfUpload("wrong-password.pdf", "user-secret");
+
+		PdfPasswordProtectedException exception = assertThrows(PdfPasswordProtectedException.class,
+				() -> pdfLogic.loadPdf(pdfFile, "wrong"));
+
+		assertTrue(exception.isPasswordProvided());
+		// 呼び出し元はパスを受け取れないため、ここで消さないと一時ファイルが残り続ける。
+		assertTrue(listTemporaryPdfFiles().isEmpty());
+	}
+
+	@Test
+	@DisplayName("保護されていないPDFにパスワードを指定しても、そのまま読み込める")
+	void loadPdfKeepsUnprotectedPdfWhenPasswordIsSpecified() throws IOException {
+		Path sourcePath = createPdf("unprotected.pdf", page(100, 200, 0));
+		byte[] sourceBytes = Files.readAllBytes(sourcePath);
+		MockMultipartFile pdfFile = new MockMultipartFile("originalFile", "unprotected.pdf", "application/pdf",
+				sourceBytes);
+
+		Path outputPath = pdfLogic.loadPdf(pdfFile, "unnecessary-password");
+
+		assertTrue(outputPath.toFile().exists());
+		assertArrayEquals(sourceBytes, Files.readAllBytes(outputPath));
+	}
+
+	@Test
 	@DisplayName("PDF以外のアップロードは例外にする")
 	void loadPdfThrowsExceptionWhenUploadedFileIsNotPdf() {
 		MockMultipartFile textFile = new MockMultipartFile("originalFile", "sample.txt", "text/plain",
@@ -605,5 +662,40 @@ class GhostPdfLogicTest {
 	}
 
 	private record PageLayout(float width, float height, int rotation) {
+	}
+
+	/**
+	 * ユーザーパスワードで保護したテスト用PDFのアップロードファイルを作る。
+	 *
+	 * @param fileName     アップロードファイル名
+	 * @param userPassword PDFを開くために必要なユーザーパスワード
+	 * @return 保護されたPDFのアップロードファイル
+	 * @throws IOException PDFの作成に失敗した場合
+	 */
+	private MockMultipartFile protectedPdfUpload(String fileName, String userPassword) throws IOException {
+		Path path = tempDirectory.resolve("source-" + fileName);
+		try (PDDocument document = new PDDocument()) {
+			document.addPage(new PDPage());
+			StandardProtectionPolicy protectionPolicy = new StandardProtectionPolicy("owner-secret", userPassword,
+					new AccessPermission());
+			protectionPolicy.setEncryptionKeyLength(128);
+			document.protect(protectionPolicy);
+			document.save(path.toFile());
+		}
+		byte[] protectedBytes = Files.readAllBytes(path);
+		Files.delete(path);
+		return new MockMultipartFile("originalFile", fileName, "application/pdf", protectedBytes);
+	}
+
+	/**
+	 * 一時ディレクトリに残っているPDF一時ファイルを取得する。
+	 *
+	 * @return PDF一時ファイルのパス
+	 * @throws IOException 一時ディレクトリを読めない場合
+	 */
+	private List<Path> listTemporaryPdfFiles() throws IOException {
+		try (Stream<Path> paths = Files.list(tempDirectory)) {
+			return paths.filter(Files::isRegularFile).toList();
+		}
 	}
 }

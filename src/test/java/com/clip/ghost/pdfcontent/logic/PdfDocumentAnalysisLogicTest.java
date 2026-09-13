@@ -24,6 +24,8 @@ import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
+import org.apache.pdfbox.pdmodel.encryption.AccessPermission;
+import org.apache.pdfbox.pdmodel.encryption.StandardProtectionPolicy;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -34,6 +36,7 @@ import com.clip.ghost.pdfcontent.dto.PdfPageThumbnail;
 import com.clip.ghost.pdfcontent.dto.PdfTextResponse;
 import com.clip.ghost.pdfcontent.enums.PdfMarkdownDraftMode;
 import com.clip.ghost.pdfcontent.exception.PdfPageLimitExceededException;
+import com.clip.ghost.pdfcontent.exception.PdfPasswordProtectedException;
 import com.clip.ghost.pdfcontent.exception.PdfProcessingException;
 
 /**
@@ -341,6 +344,38 @@ class PdfDocumentAnalysisLogicTest {
 		return ImageIO.read(new ByteArrayInputStream(pngBytes));
 	}
 
+	@Test
+	@DisplayName("ユーザーパスワード付きPDFのメタデータ取得は、PDF処理例外ではなくパスワード保護例外になる")
+	void getPdfMetadataThrowsPasswordProtectedExceptionForUserPasswordPdf() throws IOException {
+		Path inputPath = createProtectedPdf("user-protected.pdf", "owner-secret", "user-secret");
+		PdfDocumentAnalysisLogic analysisLogic = new PdfDocumentAnalysisLogic();
+
+		assertThrows(PdfPasswordProtectedException.class,
+				() -> analysisLogic.getPdfMetadata(inputPath, "user-protected.pdf", 123L));
+	}
+
+	@Test
+	@DisplayName("ユーザーパスワード付きPDFのテキスト抽出は、PDF処理例外ではなくパスワード保護例外になる")
+	void extractPdfTextThrowsPasswordProtectedExceptionForUserPasswordPdf() throws IOException {
+		Path inputPath = createProtectedPdf("user-protected-text.pdf", "owner-secret", "user-secret");
+		PdfDocumentAnalysisLogic analysisLogic = new PdfDocumentAnalysisLogic();
+
+		assertThrows(PdfPasswordProtectedException.class,
+				() -> analysisLogic.extractPdfText(inputPath, "user-protected-text.pdf", 456L));
+	}
+
+	@Test
+	@DisplayName("所有者パスワードだけのPDFは、暗号化済みでも従来どおり読み込める")
+	void getPdfMetadataReadsOwnerPasswordOnlyPdf() throws IOException {
+		Path inputPath = createProtectedPdf("owner-protected.pdf", "owner-secret", "");
+		PdfDocumentAnalysisLogic analysisLogic = new PdfDocumentAnalysisLogic();
+
+		PdfMetadataResponse response = analysisLogic.getPdfMetadata(inputPath, "owner-protected.pdf", 789L);
+
+		assertEquals(1, response.getPageCount());
+		assertTrue(response.getEncrypted());
+	}
+
 	/**
 	 * 指定DPIで画像化されたページの画像幅を取得する。
 	 *
@@ -379,6 +414,31 @@ class PdfDocumentAnalysisLogicTest {
 					contentStream.endText();
 				}
 			}
+			document.save(path.toFile());
+		}
+		return path;
+	}
+
+	/**
+	 * パスワードで保護したテスト用PDFを1ページ作成する。
+	 * <p>
+	 * {@code userPassword} を空文字にすると所有者パスワードだけの保護になり、PDFBoxは空パスワードで開ける。
+	 * ユーザーパスワードを指定した場合だけ読み込み時に失敗する。この違いを固定するためのヘルパー。
+	 *
+	 * @param fileName       作成するファイル名
+	 * @param ownerPassword  所有者パスワード
+	 * @param userPassword   PDFを開くために必要なユーザーパスワード。空文字の場合は設定しない
+	 * @return 作成したPDFのパス
+	 * @throws IOException PDFの作成に失敗した場合
+	 */
+	private Path createProtectedPdf(String fileName, String ownerPassword, String userPassword) throws IOException {
+		Path path = tempDirectory.resolve(fileName);
+		try (PDDocument document = new PDDocument()) {
+			document.addPage(new PDPage());
+			StandardProtectionPolicy protectionPolicy = new StandardProtectionPolicy(ownerPassword, userPassword,
+					new AccessPermission());
+			protectionPolicy.setEncryptionKeyLength(128);
+			document.protect(protectionPolicy);
 			document.save(path.toFile());
 		}
 		return path;

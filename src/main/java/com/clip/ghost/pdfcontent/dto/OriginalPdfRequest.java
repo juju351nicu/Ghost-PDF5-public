@@ -45,4 +45,9 @@ public class OriginalPdfRequest {
 	@Schema(description = "差し込み・差し替え対象PDFの行情報リスト。")
 	@JsonProperty("insertPdfForm")
 	private List<@Valid InsertPdfRequest> insertPdfForm;
+
+	/** パスワードで保護されたPDFを開くためのパスワード。保護されていない場合は指定しない。 */
+	@Schema(description = "パスワードで保護されたPDFを開くためのパスワード。保護されていない場合は指定しません。")
+	@JsonProperty("password")
+	private String password;
 }

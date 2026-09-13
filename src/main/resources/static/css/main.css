@@ -68,6 +68,115 @@ body > #app {
 	gap: 12px;
 }
 
+/* 実行中の操作と結果を1箇所へ出すパネル。状態ごとに左の色帯だけを変え、レイアウトは共通にする。 */
+.process-panel {
+	margin: 0 0 20px;
+	border-left: 4px solid var(--ghost-color-border);
+	background-color: var(--ghost-color-surface);
+}
+
+.process-panel__body {
+	display: grid;
+	gap: 6px;
+	padding: 14px 16px;
+}
+
+.process-panel__title {
+	margin: 0;
+	font-weight: 700;
+}
+
+.process-panel__detail,
+.process-panel__hint,
+.process-panel__elapsed {
+	margin: 0;
+	font-size: 14px;
+}
+
+/* 次に取れる行動は、何が起きたかの説明と見分けが付くようにする。 */
+.process-panel__hint {
+	color: var(--ghost-color-warning-text);
+}
+
+.process-panel__elapsed {
+	color: var(--ghost-color-text);
+	font-variant-numeric: tabular-nums;
+}
+
+.process-panel__actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin-top: 4px;
+}
+
+.process-panel__actions button {
+	width: auto;
+	margin: 0;
+}
+
+/* パスワード入力欄。入力してすぐ実行できるよう、ボタンと横並びにする。 */
+.process-panel__password {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+	margin-top: 4px;
+}
+
+.process-panel__password input[type="password"] {
+	width: min(18rem, 100%);
+	margin-bottom: 0;
+}
+
+.process-panel__password button {
+	width: auto;
+	margin: 0;
+}
+
+.process-panel--password_required {
+	border-left-color: var(--ghost-color-warning-border);
+	background-color: var(--ghost-color-warning-bg);
+}
+
+.process-panel--processing {
+	border-left-color: var(--pico-primary);
+}
+
+.process-panel--done {
+	border-left-color: var(--pico-primary);
+	background-color: var(--ghost-color-section-bg);
+}
+
+/* 利用者が自分で直せる失敗。想定外エラー（モーダル）と色で区別する。 */
+.process-panel--needs_action {
+	border-left-color: var(--ghost-color-warning-border);
+	background-color: var(--ghost-color-warning-bg);
+}
+
+.process-panel--error {
+	border-left-color: var(--ghost-color-error);
+}
+
+/* ファイル選択欄を囲うドロップ領域。枠線だけで示し、既存の選択欄はそのまま残す。 */
+.file-drop-zone {
+	display: grid;
+	gap: 8px;
+	padding: 12px;
+	border: 1px dashed var(--ghost-color-border);
+	border-radius: 6px;
+}
+
+.file-drop-zone--over {
+	border-color: var(--pico-primary);
+	background-color: var(--ghost-color-section-bg);
+}
+
+.file-drop-zone__label {
+	margin: 0;
+	font-size: 14px;
+}
+
 .file-control input[type="file"] {
 	width: min(34rem, 100%);
 	margin-bottom: 0;

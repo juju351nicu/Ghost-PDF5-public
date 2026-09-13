@@ -40,7 +40,7 @@ public class PdfThumbnailService {
 	 */
 	public ResponseEntity<ApiResult<PdfThumbnailResponse>> generateThumbnails(PdfThumbnailRequest form) {
 		MultipartFile originalFile = form.getOriginalFile();
-		Path inputPath = pdfLogic.loadPdf(originalFile);
+		Path inputPath = pdfLogic.loadPdf(originalFile, form.getPassword());
 		List<PdfPageThumbnail> thumbnails = pdfLogic.extractPdfThumbnails(inputPath, properties.getDpi(),
 				properties.getMaxPages());
 		return ResponseEntity.ok(ApiResult.of(buildResponse(originalFile, thumbnails)));

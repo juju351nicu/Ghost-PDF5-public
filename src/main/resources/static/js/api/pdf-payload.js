@@ -168,7 +168,29 @@ const buildInsertPayload = (originalFile, deletePages, insertFiles) => {
   return payload;
 };
 
+/**
+ * multipart payloadへPDFのパスワードを足したものを返す。
+ *
+ * payloadを組み立てる各methodへパスワードを配らず、送信直前にここでまとめて足す。
+ * パスワードは「PDFを開けなかったので入力してもらう」という後から決まる値で、
+ * payloadを組み立てる時点では分かっていないため。
+ *
+ * 未入力の場合はkeyを送らない。空文字を送ると、BE側が「パスワード指定あり」と解釈して
+ * 保護されていないPDFまで復号処理へ回ってしまう。
+ *
+ * @param {{key: string, value: unknown}[]} payload 元のmultipart payload
+ * @param {string} password PDFを開くためのパスワード
+ * @returns {{key: string, value: unknown}[]} パスワードを足したmultipart payload
+ */
+const withPassword = (payload, password) => {
+  if (!password) {
+    return payload;
+  }
+  return payload.concat({ key: "password", value: password });
+};
+
 export default {
+  withPassword,
   buildMetadataPayload,
   buildTextPayload,
   buildMarkdownDraftPayload,

@@ -12,7 +12,7 @@ const UNEXPECTED_IMAGE_ERROR_MESSAGE =
  *
  * @param {string} url 画像Markdown下書きAPIのURL
  * @param {{key: string, value: unknown}[]} payload multipart formとして送信する値
- * @returns {Promise<{imageDraftResponse: Object|null, messages: Object[], errorMessages: string[]}>} 文字起こし結果
+ * @returns {Promise<{imageDraftResponse: Object|null, messages: Object[], errorMessages: string[], errorCodes: string[]}>} 文字起こし結果
  */
 const requestImageMarkdownDraft = async (url, payload) => {
   const response = await FetchClient.multipartRequest(url, payload);
@@ -20,10 +20,7 @@ const requestImageMarkdownDraft = async (url, payload) => {
     return {
       imageDraftResponse: null,
       messages: [],
-      errorMessages: await ApiErrorUtils.extractErrorMessages(
-        response,
-        IMAGE_ERROR_MESSAGE
-      ),
+      ...(await toErrorResult(response)),
     };
   }
   const apiResult = await ApiResultUtils.readApiResult(response);
@@ -31,6 +28,24 @@ const requestImageMarkdownDraft = async (url, payload) => {
     imageDraftResponse: apiResult.data,
     messages: apiResult.messages,
     errorMessages: [],
+    errorCodes: [],
+  };
+};
+
+/**
+ * エラーレスポンスを、画面が扱う共通のエラー内容へ変換する。
+ *
+ * @param {Response} response APIのエラーレスポンス
+ * @returns {Promise<{errorMessages: string[], errorCodes: string[]}>} エラー内容
+ */
+const toErrorResult = async (response) => {
+  const errorDetail = await ApiErrorUtils.extractErrorDetail(
+    response,
+    IMAGE_ERROR_MESSAGE
+  );
+  return {
+    errorMessages: errorDetail.messages,
+    errorCodes: errorDetail.errorCodes,
   };
 };
 

@@ -42,4 +42,9 @@ public class PdfMarkdownDraftRequest {
 			+ "小文字指定も受け付けます。", type = "string", example = "AUTO", allowableValues = { "AUTO", "VISION" })
 	@JsonProperty("mode")
 	private PdfMarkdownDraftMode mode;
+
+	/** パスワードで保護されたPDFを開くためのパスワード。保護されていない場合は指定しない。 */
+	@Schema(description = "パスワードで保護されたPDFを開くためのパスワード。保護されていない場合は指定しません。")
+	@JsonProperty("password")
+	private String password;
 }

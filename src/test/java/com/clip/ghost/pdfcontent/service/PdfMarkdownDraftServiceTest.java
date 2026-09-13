@@ -77,7 +77,7 @@ class PdfMarkdownDraftServiceTest {
 		Path inputPath = Path.of("temporary", "sample.pdf");
 		MockMultipartFile originalFile = createPdfFile("sample.pdf", new byte[] { 1, 2, 3 });
 		PdfMarkdownDraftRequest form = createRequest(originalFile);
-		doReturn(inputPath).when(pdfLogic).loadPdf(originalFile);
+		doReturn(inputPath).when(pdfLogic).loadPdf(originalFile, null);
 		doReturn(List.of("first page", "second page")).when(pdfLogic).extractPdfPageTexts(inputPath);
 
 		ResponseEntity<ApiResult<PdfMarkdownDraftResponse>> result = service.generateMarkdownDraft(form);
@@ -96,7 +96,7 @@ class PdfMarkdownDraftServiceTest {
 		assertEquals("## Page 1\n\nfirst page\n\n## Page 2\n\nsecond page", response.getMarkdown());
 
 		InOrder orderedCalls = inOrder(pdfLogic);
-		orderedCalls.verify(pdfLogic).loadPdf(originalFile);
+		orderedCalls.verify(pdfLogic).loadPdf(originalFile, null);
 		orderedCalls.verify(pdfLogic).extractPdfPageTexts(inputPath);
 	}
 
@@ -106,7 +106,7 @@ class PdfMarkdownDraftServiceTest {
 		Path inputPath = Path.of("temporary", "line-endings.pdf");
 		MockMultipartFile originalFile = createPdfFile("line-endings.pdf", new byte[] { 1 });
 		PdfMarkdownDraftRequest form = createRequest(originalFile);
-		doReturn(inputPath).when(pdfLogic).loadPdf(originalFile);
+		doReturn(inputPath).when(pdfLogic).loadPdf(originalFile, null);
 		doReturn(List.of("first\r\nline  \r\n", " \t\r\n", "third\rline\t  ")).when(pdfLogic)
 				.extractPdfPageTexts(inputPath);
 
@@ -131,7 +131,7 @@ class PdfMarkdownDraftServiceTest {
 		when(converter.isEnabled()).thenReturn(true);
 		when(properties.getRenderDpi()).thenReturn(OCR_RENDER_DPI);
 		when(properties.getMaxPages()).thenReturn(OCR_MAX_PAGES);
-		doReturn(inputPath).when(pdfLogic).loadPdf(originalFile);
+		doReturn(inputPath).when(pdfLogic).loadPdf(originalFile, null);
 		doReturn(List.of(new PdfPageContent(1, "text page", null, false),
 				new PdfPageContent(2, "", "scanned\r\nmarkdown  ", false))).when(pdfLogic)
 				.extractPdfPageContents(eq(inputPath), eq(OCR_RENDER_DPI), eq(OCR_MAX_PAGES),
@@ -158,7 +158,7 @@ class PdfMarkdownDraftServiceTest {
 		when(converter.isEnabled()).thenReturn(true);
 		when(properties.getRenderDpi()).thenReturn(150);
 		when(properties.getMaxPages()).thenReturn(5);
-		doReturn(inputPath).when(pdfLogic).loadPdf(originalFile);
+		doReturn(inputPath).when(pdfLogic).loadPdf(originalFile, null);
 		doReturn("converted markdown").when(converter).convert(pngBytes, "image/png");
 		ArgumentCaptor<PdfPageImageConverter> pageImageConverterCaptor = ArgumentCaptor
 				.forClass(PdfPageImageConverter.class);
@@ -184,7 +184,7 @@ class PdfMarkdownDraftServiceTest {
 		when(converter.isEnabled()).thenReturn(true);
 		when(properties.getRenderDpi()).thenReturn(OCR_RENDER_DPI);
 		when(properties.getMaxPages()).thenReturn(OCR_MAX_PAGES);
-		doReturn(inputPath).when(pdfLogic).loadPdf(originalFile);
+		doReturn(inputPath).when(pdfLogic).loadPdf(originalFile, null);
 		doReturn(List.of(new PdfPageContent(1, "", "scanned markdown", false), new PdfPageContent(2, "", null, true),
 				new PdfPageContent(3, "text page", null, false))).when(pdfLogic)
 				.extractPdfPageContents(eq(inputPath), eq(OCR_RENDER_DPI), eq(OCR_MAX_PAGES),
@@ -220,7 +220,7 @@ class PdfMarkdownDraftServiceTest {
 		when(converter.isEnabled()).thenReturn(true);
 		when(properties.getRenderDpi()).thenReturn(OCR_RENDER_DPI);
 		when(properties.getMaxPages()).thenReturn(OCR_MAX_PAGES);
-		doReturn(inputPath).when(pdfLogic).loadPdf(originalFile);
+		doReturn(inputPath).when(pdfLogic).loadPdf(originalFile, null);
 		doReturn(List.of(new PdfPageContent(1, "", null, true), new PdfPageContent(2, "", "scanned", false),
 				new PdfPageContent(3, "", null, true))).when(pdfLogic)
 				.extractPdfPageContents(eq(inputPath), eq(OCR_RENDER_DPI), eq(OCR_MAX_PAGES),
@@ -245,7 +245,7 @@ class PdfMarkdownDraftServiceTest {
 		when(converter.isEnabled()).thenReturn(true);
 		when(properties.getRenderDpi()).thenReturn(OCR_RENDER_DPI);
 		when(properties.getMaxPages()).thenReturn(OCR_MAX_PAGES);
-		doReturn(inputPath).when(pdfLogic).loadPdf(originalFile);
+		doReturn(inputPath).when(pdfLogic).loadPdf(originalFile, null);
 		doReturn(List.of(new PdfPageContent(1, "", "scanned markdown", false),
 				new PdfPageContent(2, "text page", null, false))).when(pdfLogic)
 				.extractPdfPageContents(eq(inputPath), eq(OCR_RENDER_DPI), eq(OCR_MAX_PAGES),
@@ -269,7 +269,7 @@ class PdfMarkdownDraftServiceTest {
 		when(converter.isEnabled()).thenReturn(true);
 		when(properties.getRenderDpi()).thenReturn(OCR_RENDER_DPI);
 		when(properties.getMaxPages()).thenReturn(OCR_MAX_PAGES);
-		doReturn(inputPath).when(pdfLogic).loadPdf(originalFile);
+		doReturn(inputPath).when(pdfLogic).loadPdf(originalFile, null);
 		// 全滅は部分的成功ではないため、Logicが投げた失敗をServiceで200へ丸めない。
 		doThrow(new ImageProcessingException("変換に失敗しました。")).when(pdfLogic).extractPdfPageContents(eq(inputPath),
 				eq(OCR_RENDER_DPI), eq(OCR_MAX_PAGES), eq(PdfMarkdownDraftMode.AUTO), any());
@@ -288,7 +288,7 @@ class PdfMarkdownDraftServiceTest {
 		when(converter.isEnabled()).thenReturn(true);
 		when(properties.getRenderDpi()).thenReturn(OCR_RENDER_DPI);
 		when(properties.getMaxPages()).thenReturn(1);
-		doReturn(inputPath).when(pdfLogic).loadPdf(originalFile);
+		doReturn(inputPath).when(pdfLogic).loadPdf(originalFile, null);
 		doThrow(new PdfPageLimitExceededException(2, 1)).when(pdfLogic).extractPdfPageContents(eq(inputPath),
 				eq(OCR_RENDER_DPI), eq(1), eq(PdfMarkdownDraftMode.AUTO), any());
 
@@ -308,7 +308,7 @@ class PdfMarkdownDraftServiceTest {
 
 		assertThrows(OcrUnavailableException.class, () -> service.generateMarkdownDraft(form));
 
-		verify(pdfLogic, never()).loadPdf(any());
+		verify(pdfLogic, never()).loadPdf(any(), any());
 	}
 
 	@Test
@@ -319,7 +319,7 @@ class PdfMarkdownDraftServiceTest {
 		PdfMarkdownDraftRequest form = createRequest(originalFile);
 		form.setMode(PdfMarkdownDraftMode.VISION);
 		stubEnabledConverter(OCR_MAX_PAGES);
-		doReturn(inputPath).when(pdfLogic).loadPdf(originalFile);
+		doReturn(inputPath).when(pdfLogic).loadPdf(originalFile, null);
 		doReturn(List.of(new PdfPageContent(1, "text page", "| 列1 | 列2 |", false),
 				new PdfPageContent(2, "", "scanned\r\nmarkdown  ", false))).when(pdfLogic)
 				.extractPdfPageContents(eq(inputPath), eq(OCR_RENDER_DPI), eq(OCR_MAX_PAGES),
@@ -343,7 +343,7 @@ class PdfMarkdownDraftServiceTest {
 		PdfMarkdownDraftRequest form = createRequest(originalFile);
 		form.setMode(PdfMarkdownDraftMode.VISION);
 		stubEnabledConverter(OCR_MAX_PAGES);
-		doReturn(inputPath).when(pdfLogic).loadPdf(originalFile);
+		doReturn(inputPath).when(pdfLogic).loadPdf(originalFile, null);
 		doReturn(List.of(new PdfPageContent(1, "text page", "converted markdown", false),
 				new PdfPageContent(2, "second page", null, true))).when(pdfLogic)
 				.extractPdfPageContents(eq(inputPath), eq(OCR_RENDER_DPI), eq(OCR_MAX_PAGES),
@@ -371,7 +371,7 @@ class PdfMarkdownDraftServiceTest {
 		PdfMarkdownDraftRequest form = createRequest(originalFile);
 		form.setMode(PdfMarkdownDraftMode.VISION);
 		stubEnabledConverter(OCR_MAX_PAGES);
-		doReturn(inputPath).when(pdfLogic).loadPdf(originalFile);
+		doReturn(inputPath).when(pdfLogic).loadPdf(originalFile, null);
 		doThrow(new ImageProcessingException("変換に失敗しました。")).when(pdfLogic).extractPdfPageContents(eq(inputPath),
 				eq(OCR_RENDER_DPI), eq(OCR_MAX_PAGES), eq(PdfMarkdownDraftMode.VISION), any());
 
@@ -386,7 +386,7 @@ class PdfMarkdownDraftServiceTest {
 		PdfMarkdownDraftRequest form = createRequest(originalFile);
 		form.setMode(PdfMarkdownDraftMode.VISION);
 		stubEnabledConverter(1);
-		doReturn(inputPath).when(pdfLogic).loadPdf(originalFile);
+		doReturn(inputPath).when(pdfLogic).loadPdf(originalFile, null);
 		doThrow(new PdfPageLimitExceededException(3, 1, PdfMarkdownDraftMode.VISION.describeConversionTarget()))
 				.when(pdfLogic).extractPdfPageContents(eq(inputPath), eq(OCR_RENDER_DPI), eq(1),
 						eq(PdfMarkdownDraftMode.VISION), any());
