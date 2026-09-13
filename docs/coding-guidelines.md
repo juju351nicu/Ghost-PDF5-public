@@ -345,9 +345,13 @@ Ghost-PDF5では `JsonUtils` に失敗時null返却のpublicメソッドを増�
 - Markdownライブラリは保存だけの段階では追加しない。HTMLプレビューやMarkdown->PDFなど、具体的な表示/変換要件が出た段階で選ぶ。
 - PDF API以外の画面連動APIでも、同じ画面セッションの `access-token` 検証は `AccessTokenValidator` に集約する。
 - AI連携はClaude / OpenAI / ローカル処理を直接Controllerへ書かず、AI用のServiceやAdapterへ閉じ込める。
-- CSV / openCsv は、学習目的だけでGhostPdf本流へ入れない。
-- CSVを使う場合は、文書メタ情報、変換結果、AI処理結果、テスト観点、Vector DB投入状況などの入出力・レポート用途に限定して検討する。
-- CSV処理を追加する場合は、PDF編集APIと混ぜず、CSV専用のService/UtilsとJUnitを用意する。
+- CSVライブラリは `commons-csv` を使う。`openCsv` は使わない。`commons-beanutils` 経由で
+  `commons-collections` 3.x を引き込み、本プロジェクトが統一している `commons-collections4` と同居するため。
+  この禁止は `CodingConventionTest.productionCodeDoesNotDependOnOpenCsvPackages` が機械的に落とす。
+- CSVは、文書メタ情報、変換結果、AI処理結果、テスト観点、Vector DB投入状況などの入出力・レポート用途に限定する。
+- CSV処理はPDF編集APIと混ぜず、`exportcontent` packageへ閉じ込める。
+  commons-csvを直接触ってよいのは `exportcontent.logic` だけで、他のpackageは文字列のリストだけを渡す
+  （`CodingConventionTest.commonsCsvIsLimitedToExportContentLogic`）。
 - `PathUtils` はPDFだけでなく、Markdown / CSV / Excel / Word の拡張子判定や保存ファイル名生成にも利用する。
 - `FileInfoUtils` は保存済みMarkdown一覧、ファイルサイズ、行数、内容検索、Vector DB投入対象の列挙に利用する。
 

@@ -26,6 +26,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import com.clip.ghost.pdfcontent.enums.PdfRotation;
+import com.clip.ghost.pdfcontent.exception.PdfProcessingException;
 import com.clip.ghost.pdfcontent.exception.PdfSplitRangeException;
 
 /**
@@ -61,6 +63,52 @@ class PdfPageOperationLogicTest {
 
 		assertTrue(Files.exists(inputPath));
 		assertPdfContent(outputPath, 2, "first page", "third page");
+	}
+
+	@Test
+	@DisplayName("回転ページ未指定の場合は全ページを回転し、入力ファイルは削除しない")
+	void rotatePdfRotatesEveryPageWhenPagesNotSpecified() throws IOException {
+		Path inputPath = createPdf("rotate-all-input.pdf", "first page", "second page");
+		Path outputPath = tempDirectory.resolve("rotate-all-output.pdf");
+
+		pageOperationLogic.rotatePdf(PdfRotation.CLOCKWISE_90, List.of(), inputPath, outputPath);
+
+		assertTrue(Files.exists(inputPath));
+		assertPageRotations(outputPath, 90, 90);
+	}
+
+	@Test
+	@DisplayName("回転ページを指定した場合は指定ページだけを回転し、他のページの回転角は変えない")
+	void rotatePdfRotatesOnlySpecifiedPages() throws IOException {
+		Path inputPath = createPdf("rotate-selected-input.pdf", "first page", "second page", "third page");
+		Path outputPath = tempDirectory.resolve("rotate-selected-output.pdf");
+
+		pageOperationLogic.rotatePdf(PdfRotation.UPSIDE_DOWN_180, List.of(2), inputPath, outputPath);
+
+		assertPageRotations(outputPath, 0, 180, 0);
+	}
+
+	@Test
+	@DisplayName("回転は現在の回転角への相対回転となり、360以上は正規化される")
+	void rotatePdfAddsRotationToCurrentAngleAndNormalizes() throws IOException {
+		Path inputPath = createPdf("rotate-relative-input.pdf", "first page");
+		setPageRotation(inputPath, 270);
+		Path outputPath = tempDirectory.resolve("rotate-relative-output.pdf");
+
+		pageOperationLogic.rotatePdf(PdfRotation.UPSIDE_DOWN_180, List.of(), inputPath, outputPath);
+
+		// 270 + 180 = 450 は 90 へ正規化される。
+		assertPageRotations(outputPath, 90);
+	}
+
+	@Test
+	@DisplayName("回転ページ番号が総ページ数を超える場合はPdfProcessingExceptionになる")
+	void rotatePdfThrowsWhenPageNumberIsOutsideDocument() throws IOException {
+		Path inputPath = createPdf("rotate-invalid-input.pdf", "first page");
+		Path outputPath = tempDirectory.resolve("rotate-invalid-output.pdf");
+
+		assertThrows(PdfProcessingException.class,
+				() -> pageOperationLogic.rotatePdf(PdfRotation.CLOCKWISE_90, List.of(2), inputPath, outputPath));
 	}
 
 	@Test
@@ -205,6 +253,36 @@ class PdfPageOperationLogicTest {
 			document.save(path.toFile());
 		}
 		return path;
+	}
+
+	/**
+	 * 指定ページ番号のページへ回転角を直接設定する。
+	 *
+	 * @param path     編集対象PDFのパス
+	 * @param rotation 設定する回転角
+	 * @throws IOException PDFの読み書きに失敗した場合
+	 */
+	private void setPageRotation(Path path, int rotation) throws IOException {
+		try (PDDocument document = Loader.loadPDF(path.toFile())) {
+			document.getPage(0).setRotation(rotation);
+			document.save(path.toFile());
+		}
+	}
+
+	/**
+	 * PDFの各ページの回転角がページ順に期待どおりか検証する。
+	 *
+	 * @param path              検証対象PDFのパス
+	 * @param expectedRotations ページ順の期待回転角
+	 * @throws IOException PDFの読み込みに失敗した場合
+	 */
+	private void assertPageRotations(Path path, int... expectedRotations) throws IOException {
+		try (PDDocument document = Loader.loadPDF(path.toFile())) {
+			assertEquals(expectedRotations.length, document.getNumberOfPages());
+			for (int pageIndex = 0; pageIndex < expectedRotations.length; pageIndex++) {
+				assertEquals(expectedRotations[pageIndex], document.getPage(pageIndex).getRotation());
+			}
+		}
 	}
 
 	private void assertPdfContent(Path path, int expectedPageCount, String... expectedTexts) throws IOException {

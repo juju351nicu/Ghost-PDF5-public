@@ -34,6 +34,11 @@ export default {
     "request-metadata-pdf",
     "request-text-pdf",
     "request-split-pdf",
+    "request-rotate-pdf",
+    "request-images-pdf",
+    "request-html-pdf",
+    "request-office-from-pdf",
+    "request-epub-pdf",
     "clear-all",
   ],
   template: `
@@ -79,6 +84,29 @@ export default {
             :class="{ 'textbox--error': originalFile.splitRangesText.message }"
             placeholder="分割範囲  (入力例：1-5, 6-12 / 空欄で1ページずつ)" />
           <button type="button" :disabled="isProcessing" @click="requestSplitPdf">分割する</button>
+          <select class="rotation-select" v-model="originalFile.rotation" aria-label="ページの回転角">
+            <option v-for="item in rotationItems" :key="item.id" :value="item.id">
+              {{ item.name }}
+            </option>
+          </select>
+          <button type="button" :disabled="isProcessing" @click="requestRotatePdf">回転する</button>
+          <select class="image-format-select" v-model="originalFile.imageFormat" aria-label="画像化の出力形式">
+            <option v-for="item in imageFormatItems" :key="item.id" :value="item.id">
+              {{ item.name }}
+            </option>
+          </select>
+          <input type="number" class="dpi-input" v-model="originalFile.imageDpi" min="1"
+            aria-label="画像化の解像度（DPI）" placeholder="dpi（空欄で既定値）" />
+          <button type="button" :disabled="isProcessing" @click="requestImagesPdf">画像化する</button>
+          <button type="button" :disabled="isProcessing" @click="requestHtmlPdf">HTML出力</button>
+          <select class="office-format-select" v-model="originalFile.officeFormat"
+            aria-label="出力するOffice形式">
+            <option v-for="item in officeFormatItems" :key="item.id" :value="item.id">
+              {{ item.name }}
+            </option>
+          </select>
+          <button type="button" :disabled="isProcessing" @click="requestOfficeFromPdf">Office出力</button>
+          <button type="button" :disabled="isProcessing" @click="requestEpubPdf">EPUB出力</button>
           <button type="button" @click="clearAll">全クリア</button>
           <br />
           <span class="error_message">{{ originalFile.delPagesText.message }}</span>
@@ -118,6 +146,9 @@ export default {
   data() {
     return {
       markdownDraftModeItems: PdfFormState.createMarkdownDraftModeItems(),
+      rotationItems: PdfFormState.createRotationItems(),
+      imageFormatItems: PdfFormState.createImageFormatItems(),
+      officeFormatItems: PdfFormState.createOfficeFormatItems(),
     };
   },
   computed: {
@@ -224,6 +255,36 @@ export default {
      */
     requestSplitPdf() {
       this.$emit("request-split-pdf");
+    },
+    /**
+     * 編集元PDFのページ回転リクエストを親コンポーネントへ通知する。
+     */
+    requestRotatePdf() {
+      this.$emit("request-rotate-pdf");
+    },
+    /**
+     * 編集元PDFのページ画像化リクエストを親コンポーネントへ通知する。
+     */
+    requestImagesPdf() {
+      this.$emit("request-images-pdf");
+    },
+    /**
+     * 編集元PDFのHTML出力リクエストを親コンポーネントへ通知する。
+     */
+    requestHtmlPdf() {
+      this.$emit("request-html-pdf");
+    },
+    /**
+     * 編集元PDFのOffice文書出力リクエストを親コンポーネントへ通知する。
+     */
+    requestOfficeFromPdf() {
+      this.$emit("request-office-from-pdf");
+    },
+    /**
+     * 編集元PDFのEPUB出力リクエストを親コンポーネントへ通知する。
+     */
+    requestEpubPdf() {
+      this.$emit("request-epub-pdf");
     },
     /**
      * サムネイル取得リクエストを親コンポーネントへ通知する。

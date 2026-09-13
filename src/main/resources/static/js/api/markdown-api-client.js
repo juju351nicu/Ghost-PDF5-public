@@ -2,12 +2,14 @@ import CONST from "../const.js";
 import FetchClient from "./fetch-client.js";
 import ApiErrorUtils from "./api-error-utils.js";
 import ApiResultUtils from "./api-result-utils.js";
+import FileResponseHandler from "./file-response-handler.js";
 
 const MARKDOWN_ERROR_MESSAGE =
   "Markdown処理に失敗しました。入力内容を確認してください。";
 const UNEXPECTED_MARKDOWN_ERROR_MESSAGE =
   "Markdown処理中に予期しないエラーが発生しました。";
 const PDF_MEDIA_TYPE = "application/pdf";
+const CSV_MEDIA_TYPE = "text/csv";
 
 /**
  * Markdown APIへ送信するfileName queryを組み立てる。
@@ -97,6 +99,30 @@ const requestMarkdownPdf = async (payload) => {
  *
  * @returns {Promise<{data: Object[]|null, messages: Object[], errorMessages: string[], errorCodes: string[]}>} 一覧取得結果
  */
+/**
+ * 保存済みMarkdown一覧のCSVをダウンロードする。
+ *
+ * @param {string} url CSV出力APIのURL
+ * @param {string} defaultFileName 既定のダウンロードファイル名
+ * @param {FileSystemFileHandle|null} saveTarget 利用者が選んだ保存先
+ * @returns {Promise<{errorMessages: string[], errorCodes: string[]}>} ダウンロード結果
+ */
+const downloadMarkdownFilesCsv = async (url, defaultFileName, saveTarget) => {
+  const response = await FetchClient.getRequestForFile(url, CSV_MEDIA_TYPE);
+  if (!response.ok) {
+    return toErrorResult(response);
+  }
+  const csvBlob = await response.blob();
+  // 書き込み失敗を成功扱いにしないため、awaitして例外を呼び出し元へ伝える。
+  await FileResponseHandler.downloadBlob(
+    csvBlob,
+    response.headers,
+    defaultFileName,
+    saveTarget
+  );
+  return { errorMessages: [], errorCodes: [] };
+};
+
 const listMarkdownFiles = () => {
   return requestJson(() =>
     FetchClient.getRequest(CONST.REST_PATH.MARKDOWN_FILES)
@@ -191,6 +217,7 @@ const deleteMarkdownFile = (fileName) => {
 
 export default {
   requestMarkdownPdf,
+  downloadMarkdownFilesCsv,
   listMarkdownFiles,
   getMarkdownFile,
   previewMarkdownFile,

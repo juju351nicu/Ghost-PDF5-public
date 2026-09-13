@@ -49,6 +49,26 @@ const getRequest = (uri) => {
 };
 
 /**
+ * ファイル（CSVなど）を受け取るGET requestを送信する。
+ *
+ * 既定ヘッダーの `Accept: application/json` のままでは、CSVを返すAPIがHTTP 406になる。
+ * 受け取るmedia typeを呼び出し側から明示できるようにする。
+ *
+ * @param {string} uri リクエストURL
+ * @param {string} acceptMediaType 受け取るmedia type
+ * @returns {Promise<Response>} fetchのレスポンス
+ */
+const getRequestForFile = (uri, acceptMediaType) => {
+  const requestConfig = createRequestConfig(
+    uri,
+    null,
+    { Accept: acceptMediaType },
+    METHOD.GET
+  );
+  return fetcher(requestConfig);
+};
+
+/**
  * JSON body付きPOST requestを送信する。
  *
  * @param {string} uri リクエストURL
@@ -183,6 +203,7 @@ const createRequestConfig = (uri, requestData, customHeader, method) => {
 
 export default {
   getRequest,
+  getRequestForFile,
   postRequest,
   postRequestForFile,
   putRequest,

@@ -75,6 +75,7 @@ class GhostPdfControllerTest {
 	private static final String REQUEST_PATH_METADATA_PDF = "/metadataPdf";
 	private static final String REQUEST_PATH_TEXT_PDF = "/textPdf";
 	private static final String REQUEST_PATH_EXTRACT_PDF = "/extractPdf";
+	private static final String REQUEST_PATH_ROTATE_PDF = "/rotatePdf";
 	private static final String REQUEST_PATH_MERGE_PDF = "/mergePdf";
 	private static final String REQUEST_PATH_SPLIT_PDF = "/splitPdf";
 	private static final String REQUEST_PATH_DELETE_PDF = "/deletePdf";
@@ -91,6 +92,8 @@ class GhostPdfControllerTest {
 	private static final String INSERT_FILE_PART_NAME_0 = "insertPdfForm[0].insertFile";
 	private static final String ORIGINAL_DELETE_PAGES_PARAM_NAME = "originalDeletePages";
 	private static final String EXTRACT_PAGES_PARAM_NAME = "extractPages";
+	private static final String ROTATION_PARAM_NAME = "rotation";
+	private static final String ROTATE_PAGES_PARAM_NAME = "rotatePages";
 	private static final String INSERT_PAGE_PARAM_NAME_0 = "insertPdfForm[0].insertPage";
 	private static final String INSERT_OPTION_PARAM_NAME_0 = "insertPdfForm[0].insertOption";
 	private static final int COOKIE_MAX_AGE_SECONDS = 365 * 24 * 60 * 60;
@@ -325,6 +328,70 @@ class GhostPdfControllerTest {
 		MvcResult result = performExtractPdf(mockPdfFile, INVALID_ACCESS_TOKEN, session, "1");
 
 		verify(pdfService, never()).extractPdfByPages(any());
+		assertEquals(HttpStatus.FORBIDDEN.value(), result.getResponse().getStatus());
+	}
+
+	@Test
+	@DisplayName("PDFページ回転ではtoken一致時にServiceへ処理を委譲する")
+	void rotatePdfPagesDelegatesToServiceWhenTokenMatches() throws Exception {
+		byte[] contents = readTestPdf();
+		MockMultipartFile mockPdfFile = createOriginalPdfFile(contents);
+
+		stubRotatePdfResponse(contents);
+
+		MvcResult result = performRotatePdf(mockPdfFile, ACCESS_TOKEN, session, "90", "1");
+
+		verify(pdfService, times(1)).rotatePdfPages(any());
+		assertEquals(HttpStatus.OK.value(), result.getResponse().getStatus());
+	}
+
+	@Test
+	@DisplayName("PDFページ回転では回転ページ未指定でもServiceへ処理を委譲する")
+	void rotatePdfPagesDelegatesToServiceWhenRotatePagesAreNotSpecified() throws Exception {
+		byte[] contents = readTestPdf();
+		MockMultipartFile mockPdfFile = createOriginalPdfFile(contents);
+
+		stubRotatePdfResponse(contents);
+
+		MvcResult result = performRotatePdf(mockPdfFile, ACCESS_TOKEN, session, "180", null);
+
+		verify(pdfService, times(1)).rotatePdfPages(any());
+		assertEquals(HttpStatus.OK.value(), result.getResponse().getStatus());
+	}
+
+	@Test
+	@DisplayName("PDFページ回転では回転角が90の倍数でない場合に400を返す")
+	void rotatePdfPagesReturnsBadRequestWhenRotationIsNotSupported() throws Exception {
+		byte[] contents = readTestPdf();
+		MockMultipartFile mockPdfFile = createOriginalPdfFile(contents);
+
+		MvcResult result = performRotatePdf(mockPdfFile, ACCESS_TOKEN, session, "45", "1");
+
+		verify(pdfService, never()).rotatePdfPages(any());
+		assertEquals(HttpStatus.BAD_REQUEST.value(), result.getResponse().getStatus());
+	}
+
+	@Test
+	@DisplayName("PDFページ回転では回転角が未指定の場合に400を返す")
+	void rotatePdfPagesReturnsBadRequestWhenRotationIsMissing() throws Exception {
+		byte[] contents = readTestPdf();
+		MockMultipartFile mockPdfFile = createOriginalPdfFile(contents);
+
+		MvcResult result = performRotatePdf(mockPdfFile, ACCESS_TOKEN, session, null, "1");
+
+		verify(pdfService, never()).rotatePdfPages(any());
+		assertEquals(HttpStatus.BAD_REQUEST.value(), result.getResponse().getStatus());
+	}
+
+	@Test
+	@DisplayName("PDFページ回転ではaccess-tokenがsession tokenと不一致の場合に403を返す")
+	void rotatePdfPagesReturnsForbiddenWhenAccessTokenDoesNotMatch() throws Exception {
+		byte[] contents = readTestPdf();
+		MockMultipartFile mockPdfFile = createOriginalPdfFile(contents);
+
+		MvcResult result = performRotatePdf(mockPdfFile, INVALID_ACCESS_TOKEN, session, "90", "1");
+
+		verify(pdfService, never()).rotatePdfPages(any());
 		assertEquals(HttpStatus.FORBIDDEN.value(), result.getResponse().getStatus());
 	}
 
@@ -644,6 +711,10 @@ class GhostPdfControllerTest {
 		doReturn(ResponseUtils.inlinePdf(new ByteArrayResource(contents))).when(pdfService).extractPdfByPages(any());
 	}
 
+	private void stubRotatePdfResponse(byte[] contents) {
+		doReturn(ResponseUtils.inlinePdf(new ByteArrayResource(contents))).when(pdfService).rotatePdfPages(any());
+	}
+
 	private void stubMergePdfResponse(byte[] contents) {
 		doReturn(ResponseUtils.inlinePdf(new ByteArrayResource(contents))).when(pdfService).mergePdfs(any());
 	}
@@ -711,6 +782,20 @@ class GhostPdfControllerTest {
 						.header(ACCESS_TOKEN_HEADER_NAME, accessToken).session(requestSession)
 						.param(EXTRACT_PAGES_PARAM_NAME, extractPages).characterEncoding(CHARACTER_ENCODING_UTF_8))
 				.andReturn();
+	}
+
+	private MvcResult performRotatePdf(MockMultipartFile originalFile, String accessToken,
+			MockHttpSession requestSession, String rotation, String rotatePages) throws Exception {
+		MockMultipartHttpServletRequestBuilder requestBuilder = multipart(REQUEST_PATH_ROTATE_PDF).file(originalFile);
+		requestBuilder.header(ACCESS_TOKEN_HEADER_NAME, accessToken).session(requestSession)
+				.characterEncoding(CHARACTER_ENCODING_UTF_8);
+		if (rotation != null) {
+			requestBuilder.param(ROTATION_PARAM_NAME, rotation);
+		}
+		if (rotatePages != null) {
+			requestBuilder.param(ROTATE_PAGES_PARAM_NAME, rotatePages);
+		}
+		return mockMvc.perform(requestBuilder).andReturn();
 	}
 
 	private MvcResult performMergePdf(MockMultipartFile firstFile, MockMultipartFile secondFile, String accessToken,

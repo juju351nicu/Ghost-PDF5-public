@@ -14,6 +14,7 @@ import org.springframework.core.io.Resource;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.clip.ghost.common.utils.PathUtils;
+import com.clip.ghost.pdfcontent.exception.PdfImageInputException;
 import com.clip.ghost.pdfcontent.exception.PdfProcessingException;
 
 import lombok.RequiredArgsConstructor;
@@ -46,6 +47,32 @@ final class PdfTemporaryFileStorage {
 			multipartFile.transferTo(outputPath);
 		} catch (IllegalStateException | IOException e) {
 			throw new PdfProcessingException("アップロードされたPDFの一時保存に失敗しました。", e);
+		}
+		return outputPath;
+	}
+
+	/**
+	 * アップロードされた画像を一時保存する。
+	 * <p>
+	 * 拡張子やcontent typeで形式を判定しない。ここでは空でないことだけを確かめ、
+	 * 実際に画像として読めるかはImageIOに任せる。利用者が拡張子を付け替えたファイルを
+	 * 「拡張子が正しいから通す」と判断してしまうより、読めた事実で判断するほうが確実なため。
+	 *
+	 * @param multipartFile アップロードされた画像ファイル
+	 * @return 一時保存先のパス
+	 * @throws PdfImageInputException 空ファイルの場合
+	 * @throws PdfProcessingException 保存に失敗した場合
+	 */
+	Path saveUploadedImage(MultipartFile multipartFile) {
+		if (multipartFile == null || multipartFile.isEmpty()) {
+			LOGGER.warn("空のアップロードファイルです。fileName={}", getOriginalFileName(multipartFile));
+			throw new PdfImageInputException(getOriginalFileName(multipartFile));
+		}
+		Path outputPath = createTemporaryFilePath(multipartFile.getOriginalFilename());
+		try {
+			multipartFile.transferTo(outputPath);
+		} catch (IllegalStateException | IOException e) {
+			throw new PdfProcessingException("アップロードされた画像の一時保存に失敗しました。", e);
 		}
 		return outputPath;
 	}

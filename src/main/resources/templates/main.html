@@ -44,6 +44,11 @@
 					@request-metadata-pdf="requestMetadataPdf"
 				@request-text-pdf="requestTextPdf"
 				@request-split-pdf="requestSplitPdf"
+				@request-rotate-pdf="requestRotatePdf"
+				@request-images-pdf="requestImagesPdf"
+				@request-html-pdf="requestHtmlPdf"
+				@request-office-from-pdf="requestOfficeFromPdf"
+				@request-epub-pdf="requestEpubPdf"
 				@clear-all="clearAll">
 			</original-pdf-form>
 			<br />
@@ -64,6 +69,35 @@
 			</div>
 			<button type="button" :disabled="isProcessing" @click="requestInsertPdf">PDF差込み</button>
 			<button type="button" :disabled="isProcessing" @click="requestMergePdf">PDF結合</button>
+			<images-to-pdf-form
+				:images-pdf-state="imagesPdf"
+				:is-processing="isProcessing"
+				@images-selected="handleImagesPdfSelected"
+				@request-pdf-from-images="requestPdfFromImages"
+				@clear-images="clearImagesPdf">
+			</images-to-pdf-form>
+			<office-form
+				:office-state="officeDocument"
+				:is-processing="isProcessing"
+				@office-selected="handleOfficeSelected"
+				@request-office-markdown="requestOfficeMarkdown"
+				@request-pdf-from-office="requestPdfFromOffice"
+				@clear-office="clearOffice">
+			</office-form>
+			<epub-to-pdf-form
+				:epub-state="epubDocument"
+				:is-processing="isProcessing"
+				@epub-selected="handleEpubSelected"
+				@request-pdf-from-epub="requestPdfFromEpub"
+				@clear-epub="clearEpub">
+			</epub-to-pdf-form>
+			<html-to-pdf-form
+				:html-pdf-state="htmlPdf"
+				:is-processing="isProcessing"
+				@html-selected="handleHtmlPdfSelected"
+				@request-pdf-from-html="requestPdfFromHtml"
+				@clear-html="clearHtmlPdf">
+			</html-to-pdf-form>
 			<image-ocr-form
 				:image-state="imageDraft"
 				:is-processing="isProcessing"
@@ -85,6 +119,7 @@
 						<button type="button" :disabled="isProcessing" @click="copyMarkdownContent">コピー</button>
 						<button type="button" :disabled="isProcessing" @click="requestUpdateMarkdownFile">更新</button>
 						<button type="button" :disabled="isProcessing" @click="requestDeleteMarkdownFile">削除</button>
+						<button type="button" :disabled="isProcessing" @click="requestMarkdownFilesCsv">一覧CSV</button>
 					</div>
 					<p class="markdown-panel__message" v-if="markdownMessage">{{ markdownMessage }}</p>
 					<api-message-list :messages="apiMessages"></api-message-list>

@@ -31,6 +31,7 @@ import com.clip.ghost.pdfcontent.dto.MergePdfRequest;
 import com.clip.ghost.pdfcontent.dto.OriginalPdfRequest;
 import com.clip.ghost.pdfcontent.dto.PdfMetadataResponse;
 import com.clip.ghost.pdfcontent.dto.PdfTextResponse;
+import com.clip.ghost.pdfcontent.dto.RotatePdfRequest;
 import com.clip.ghost.pdfcontent.dto.SplitPdfRequest;
 import com.clip.ghost.pdfcontent.service.GhostPdfService;
 
@@ -196,6 +197,32 @@ public class GhostPdfController {
 	}
 
 	/**
+	 * アップロードされたPDFの指定ページを回転し、PDFレスポンスとして返却する。
+	 *
+	 * @param accessToken リクエストヘッダーの一時トークン
+	 * @param form        回転元PDF、回転角、回転ページ番号を含むフォーム
+	 * @param session     トークン検証に使用するHTTPセッション
+	 * @return 回転後PDFのinline表示レスポンス
+	 */
+	@Operation(summary = "PDFページ回転", description = "アップロードされたPDFの指定ページを回転し、PDFレスポンスとして返却します。回転角は現在の回転角へ加算する相対回転で、rotatePagesを省略すると全ページを回転します。", requestBody = @RequestBody(content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE, schema = @Schema(implementation = RotatePdfRequest.class))))
+	@ApiResponses({
+			@ApiResponse(responseCode = "200", description = "回転後PDF", content = @Content(mediaType = MediaType.APPLICATION_PDF_VALUE)),
+			@ApiResponse(responseCode = "400", description = "入力値が不正です。回転角が90・180・270以外の場合、および回転ページ番号がPDFの範囲外の場合も400です。", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+			@ApiResponse(responseCode = "403", description = "access-tokenが不正です。"),
+			@ApiResponse(responseCode = "413", description = "アップロードファイルサイズが上限を超えています。", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
+			@ApiResponse(responseCode = "500", description = "PDF処理に失敗しました。", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))) })
+	@PostMapping(value = "/rotatePdf", produces = MediaType.APPLICATION_PDF_VALUE)
+	@ResponseBody
+	public ResponseEntity<Resource> rotatePdfPages(
+			@Parameter(name = ACCESS_TOKEN_HEADER_NAME, in = ParameterIn.HEADER, required = true, description = ACCESS_TOKEN_HEADER_DESCRIPTION) @RequestHeader(ACCESS_TOKEN_HEADER_NAME) String accessToken,
+			@Valid @ModelAttribute RotatePdfRequest form, HttpSession session) {
+		LOGGER.info("指定ページを回転したPDFを作成します。");
+		accessTokenValidator.validate(accessToken, session);
+		validateOriginalPdfFileSize(form);
+		return pdfService.rotatePdfPages(form);
+	}
+
+	/**
 	 * アップロードされた複数PDFを結合し、PDFレスポンスとして返却する。
 	 *
 	 * @param accessToken リクエストヘッダーの一時トークン
@@ -350,6 +377,16 @@ public class GhostPdfController {
 	 * @throws MultipartException 許容サイズ以上の場合
 	 */
 	private void validateOriginalPdfFileSize(SplitPdfRequest form) {
+		validateOriginalPdfFileSize(form.getOriginalFile());
+	}
+
+	/**
+	 * 回転対象PDFのファイルサイズを検証する。
+	 *
+	 * @param form 回転元PDFを含むフォーム
+	 * @throws MultipartException 許容サイズ以上の場合
+	 */
+	private void validateOriginalPdfFileSize(RotatePdfRequest form) {
 		validateOriginalPdfFileSize(form.getOriginalFile());
 	}
 

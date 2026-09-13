@@ -7,6 +7,10 @@ import TheFooter from "../components/thefooter.js";
 import OriginalPdfForm from "../components/original-pdf-form.js";
 import InsertPdfRow from "../components/insert-pdf-row.js";
 import ImageOcrForm from "../components/image-ocr-form.js";
+import ImagesToPdfForm from "../components/images-to-pdf-form.js";
+import HtmlToPdfForm from "../components/html-to-pdf-form.js";
+import OfficeForm from "../components/office-form.js";
+import EpubToPdfForm from "../components/epub-to-pdf-form.js";
 import ProcessPanel from "../components/process-panel.js";
 import PdfApiClient from "../api/pdf-api-client.js";
 import FileResponseHandler from "../api/file-response-handler.js";
@@ -23,6 +27,10 @@ import ApiErrorUtils from "../api/api-error-utils.js";
 
 const draggable = window["vuedraggable"];
 const SPLIT_PDF_FILE_NAME = "split.zip";
+const IMAGES_PDF_FILE_NAME = "images.zip";
+const HTML_PDF_FILE_NAME = "document.html";
+const EPUB_PDF_FILE_NAME = "document.epub";
+const MARKDOWN_FILES_CSV_FILE_NAME = "markdown-files.csv";
 
 /**
  * PDF編集画面のVue app定義。
@@ -39,6 +47,10 @@ const pdfApp = {
     "original-pdf-form": OriginalPdfForm,
     "insert-pdf-row": InsertPdfRow,
     "image-ocr-form": ImageOcrForm,
+    "images-to-pdf-form": ImagesToPdfForm,
+    "html-to-pdf-form": HtmlToPdfForm,
+    "office-form": OfficeForm,
+    "epub-to-pdf-form": EpubToPdfForm,
     "process-panel": ProcessPanel,
     "api-message-list": ApiMessageList,
   },
@@ -58,6 +70,10 @@ const pdfApp = {
       pdfPassword: "",
       pendingPasswordRetry: null,
       imageDraft: PdfFormState.createImageDraftState(),
+      imagesPdf: PdfFormState.createImagesPdfState(),
+      htmlPdf: PdfFormState.createHtmlPdfState(),
+      officeDocument: PdfFormState.createOfficeState(),
+      epubDocument: PdfFormState.createEpubState(),
       markdownFileName: "design-note.md",
       markdownContent: "",
       markdownFiles: [],
@@ -617,6 +633,33 @@ const pdfApp = {
       this.requestPdfAndOpen(CONST.REST_PATH.EXTRACT_PDF, payload);
     },
     /**
+     * 編集元PDFの指定ページを回転し、結果PDFを別タブで開く。
+     *
+     * ページ指定のチェックが外れている場合はページ番号を送らず、BE側の「全ページ回転」に任せる。
+     * 抽出・削除と違い、回転は未指定を「対象なし」ではなく「全ページ」と解釈するため。
+     */
+    requestRotatePdf() {
+      const originalFileData = this.originalFile;
+      if (Util.isEmpty(originalFileData.fileObject)) {
+        this.originalFile.delPagesText.message =
+          "ファイル選択されておりません。";
+        return;
+      }
+      this.originalFile.delPagesText.message = "";
+      const rotatePages = originalFileData.delPagesChecked.checked
+        ? this.parseDeletePages(originalFileData.delPagesText.text)
+        : [];
+      if (!Util.isEmpty(this.originalFile.delPagesText.message)) {
+        return;
+      }
+      const payload = PdfPayload.buildRotatePayload(
+        originalFileData.fileObject,
+        originalFileData.rotation,
+        rotatePages
+      );
+      this.requestPdfAndOpen(CONST.REST_PATH.ROTATE_PDF, payload);
+    },
+    /**
      * 編集元PDFの基本情報を取得し、画面へ表示する。
      *
      * @returns {Promise<void>} PDFメタデータ取得処理の完了Promise
@@ -696,6 +739,328 @@ const pdfApp = {
     clearImageDraft() {
       this.revokeImagePreview();
       this.imageDraft = PdfFormState.createImageDraftState();
+    },
+    /**
+     * 編集元PDFをHTMLへ変換し、生成されたHTMLをダウンロードする。
+     *
+     * Markdown下書きと同じ変換モードを使う。画面の下書きモード選択をそのまま送るため、
+     * 「下書きで確認した内容がそのままHTMLになる」ことを利用者が予測できる。
+     *
+     * @returns {Promise<void>} HTML出力処理の完了Promise
+     */
+    async requestHtmlPdf() {
+      const originalFileData = this.originalFile;
+      if (Util.isEmpty(originalFileData.fileObject)) {
+        this.originalFile.delPagesText.message =
+          "ファイル選択されておりません。";
+        return;
+      }
+      this.originalFile.delPagesText.message = "";
+      const saveTarget = await this.requestSaveTarget(
+        HTML_PDF_FILE_NAME,
+        FileResponseHandler.FILE_TYPES.HTML
+      );
+      if (saveTarget.cancelled) {
+        return;
+      }
+      const payload = PdfPayload.buildHtmlPdfPayload(
+        originalFileData.fileObject,
+        originalFileData.markdownDraftMode
+      );
+      await this.requestFileAndDownload(
+        CONST.REST_PATH.HTML_PDF,
+        payload,
+        HTML_PDF_FILE_NAME,
+        saveTarget.handle
+      );
+    },
+    /**
+     * 編集元PDFをOffice文書へ変換し、生成されたファイルをダウンロードする。
+     *
+     * 画像化・分割と同じく、対応ブラウザでは先に保存先を選ばせる。File System Access APIは
+     * 利用者操作の直後しか使えないため、API呼び出しの前に呼ぶ必要がある。
+     *
+     * @returns {Promise<void>} Office出力処理の完了Promise
+     */
+    async requestOfficeFromPdf() {
+      const originalFileData = this.originalFile;
+      if (Util.isEmpty(originalFileData.fileObject)) {
+        this.originalFile.delPagesText.message =
+          "ファイル選択されておりません。";
+        return;
+      }
+      this.originalFile.delPagesText.message = "";
+      const fileName = this.buildOfficeFileName(originalFileData.officeFormat);
+      const saveTarget = await this.requestSaveTarget(
+        fileName,
+        FileResponseHandler.FILE_TYPES.OFFICE
+      );
+      if (saveTarget.cancelled) {
+        return;
+      }
+      const payload = PdfPayload.buildOfficeFromPdfPayload(
+        originalFileData.fileObject,
+        originalFileData.officeFormat
+      );
+      await this.requestFileAndDownload(
+        CONST.REST_PATH.OFFICE_FROM_PDF,
+        payload,
+        fileName,
+        saveTarget.handle
+      );
+    },
+    /**
+     * Office出力の既定ダウンロードファイル名を組み立てる。
+     *
+     * サーバーは元PDF名から名前を決めるが、保存ダイアログはAPI呼び出しの前に出すため、
+     * その時点ではサーバーの決めた名前が分からない。ここでは拡張子だけを合わせた既定名を出す。
+     *
+     * @param {string} officeFormat 出力形式（DOCX / XLSX / PPTX）
+     * @returns {string} 既定のダウンロードファイル名
+     */
+    buildOfficeFileName(officeFormat) {
+      return "document." + officeFormat.toLowerCase();
+    },
+    /**
+     * 保存済みMarkdownの一覧をCSVでダウンロードする。
+     *
+     * 他のダウンロードと同じく、対応ブラウザでは先に保存先を選ばせる。
+     *
+     * @returns {Promise<void>} CSV出力処理の完了Promise
+     */
+    async requestMarkdownFilesCsv() {
+      const saveTarget = await this.requestSaveTarget(
+        MARKDOWN_FILES_CSV_FILE_NAME,
+        FileResponseHandler.FILE_TYPES.CSV
+      );
+      if (saveTarget.cancelled) {
+        return;
+      }
+      if (this.isProcessing) {
+        return;
+      }
+      this.beginProcess(ProcessState.PROCESS_LABEL.FILE_DOWNLOAD);
+      this.errorMessages = [];
+      this.clearApiMessages();
+      try {
+        const result = await MarkdownApiClient.downloadMarkdownFilesCsv(
+          CONST.REST_PATH.MARKDOWN_FILES_CSV,
+          MARKDOWN_FILES_CSV_FILE_NAME,
+          saveTarget.handle
+        );
+        if (!Util.isEmpty(result.errorMessages)) {
+          this.failProcess(result.errorMessages, result.errorCodes);
+          return;
+        }
+        this.finishProcess(
+          MARKDOWN_FILES_CSV_FILE_NAME + " をダウンロードしました。"
+        );
+      } catch (error) {
+        this.failUnexpectedProcess(
+          MarkdownApiClient.buildUnexpectedErrorMessage(error)
+        );
+      } finally {
+        this.endProcessIfBusy();
+      }
+    },
+    /**
+     * 編集元PDFをEPUBへ変換し、生成されたEPUBをダウンロードする。
+     *
+     * HTML出力と同じく、画面の下書きモード選択をそのまま送る。
+     *
+     * @returns {Promise<void>} EPUB出力処理の完了Promise
+     */
+    async requestEpubPdf() {
+      const originalFileData = this.originalFile;
+      if (Util.isEmpty(originalFileData.fileObject)) {
+        this.originalFile.delPagesText.message =
+          "ファイル選択されておりません。";
+        return;
+      }
+      this.originalFile.delPagesText.message = "";
+      const saveTarget = await this.requestSaveTarget(
+        EPUB_PDF_FILE_NAME,
+        FileResponseHandler.FILE_TYPES.EPUB
+      );
+      if (saveTarget.cancelled) {
+        return;
+      }
+      const payload = PdfPayload.buildHtmlPdfPayload(
+        originalFileData.fileObject,
+        originalFileData.markdownDraftMode
+      );
+      await this.requestFileAndDownload(
+        CONST.REST_PATH.EPUB_PDF,
+        payload,
+        EPUB_PDF_FILE_NAME,
+        saveTarget.handle
+      );
+    },
+    /**
+     * EPUBカードで選択されたファイルを保持する。
+     *
+     * @param {File} file 選択またはドロップされたEPUB
+     */
+    handleEpubSelected(file) {
+      this.epubDocument.fileObject = file;
+      this.epubDocument.fileName = file.name;
+    },
+    /**
+     * EPUBカードの選択状態を初期化する。
+     */
+    clearEpub() {
+      this.epubDocument = PdfFormState.createEpubState();
+    },
+    /**
+     * 選択したEPUBをPDFへ変換し、結果を別タブで開く。
+     */
+    requestPdfFromEpub() {
+      if (Util.isEmpty(this.epubDocument.fileObject)) {
+        this.errorMessages = ["EPUBが選択されておりません。"];
+        this.showMessageModal();
+        return;
+      }
+      this.requestPdfAndOpen(
+        CONST.REST_PATH.PDF_FROM_EPUB,
+        PdfPayload.buildPdfFromEpubPayload(this.epubDocument.fileObject)
+      );
+    },
+    /**
+     * Office文書カードで選択されたファイルを保持する。
+     *
+     * @param {File} file 選択またはドロップされたOffice文書
+     */
+    handleOfficeSelected(file) {
+      this.officeDocument.fileObject = file;
+      this.officeDocument.fileName = file.name;
+    },
+    /**
+     * Office文書カードの選択状態を初期化する。
+     */
+    clearOffice() {
+      this.officeDocument = PdfFormState.createOfficeState();
+    },
+    /**
+     * 選択したOffice文書からMarkdownを起こし、Markdown編集欄へ反映する。
+     *
+     * PDFのMarkdown下書きと同じく、結果は編集欄へ入れて人間が直せる形で残す。
+     *
+     * @returns {Promise<void>} Markdown生成処理の完了Promise
+     */
+    requestOfficeMarkdown() {
+      if (Util.isEmpty(this.officeDocument.fileObject)) {
+        this.markdownMessage = "Office文書が選択されておりません。";
+        return Promise.resolve();
+      }
+      if (this.isProcessing) {
+        return Promise.resolve();
+      }
+      this.beginProcess(ProcessState.PROCESS_LABEL.OFFICE_MARKDOWN);
+      this.errorMessages = [];
+      this.clearApiMessages();
+      this.markdownMessage = "";
+      return PdfApiClient.requestOfficeMarkdown(
+        CONST.REST_PATH.MARKDOWN_DRAFT_OFFICE,
+        PdfPayload.buildOfficePayload(this.officeDocument.fileObject)
+      )
+        .then((result) => {
+          if (!Util.isEmpty(result.errorMessages)) {
+            this.failProcess(result.errorMessages, result.errorCodes);
+            return;
+          }
+          this.applyApiMessages(result.messages);
+          const officeResponse = result.officeMarkdownResponse;
+          this.markdownFileName = this.buildMarkdownFileNameFromPdf(
+            officeResponse.fileName
+          );
+          this.markdownContent = officeResponse.markdown || "";
+          this.clearMarkdownPreview();
+          this.markdownMessage =
+            officeResponse.fileName + " をMarkdown欄へ反映しました。";
+        })
+        .catch((error) => {
+          this.failUnexpectedProcess(
+            PdfApiClient.buildUnexpectedErrorMessage(error)
+          );
+        })
+        .finally(() => {
+          this.endProcessIfBusy();
+        });
+    },
+    /**
+     * 選択したOffice文書をPDFへ変換し、結果を別タブで開く。
+     */
+    requestPdfFromOffice() {
+      if (Util.isEmpty(this.officeDocument.fileObject)) {
+        this.errorMessages = ["Office文書が選択されておりません。"];
+        this.showMessageModal();
+        return;
+      }
+      this.requestPdfAndOpen(
+        CONST.REST_PATH.PDF_FROM_OFFICE,
+        PdfPayload.buildOfficePayload(this.officeDocument.fileObject)
+      );
+    },
+    /**
+     * HTML PDFカードで選択されたHTMLを保持する。
+     *
+     * @param {File} file 選択またはドロップされたHTML
+     */
+    handleHtmlPdfSelected(file) {
+      this.htmlPdf.fileObject = file;
+      this.htmlPdf.fileName = file.name;
+    },
+    /**
+     * HTML PDFカードの選択状態を初期化する。
+     */
+    clearHtmlPdf() {
+      this.htmlPdf = PdfFormState.createHtmlPdfState();
+    },
+    /**
+     * 選択したHTMLをPDFへ変換し、結果を別タブで開く。
+     */
+    requestPdfFromHtml() {
+      if (Util.isEmpty(this.htmlPdf.fileObject)) {
+        this.errorMessages = ["HTMLが選択されておりません。"];
+        this.showMessageModal();
+        return;
+      }
+      this.requestPdfAndOpen(
+        CONST.REST_PATH.PDF_FROM_HTML,
+        PdfPayload.buildPdfFromHtmlPayload(this.htmlPdf.fileObject)
+      );
+    },
+    /**
+     * 画像PDFカードで選択された画像を保持する。
+     *
+     * 追加選択できるよう、既存の選択へ後ろから足す。選択のたびに置き換えると、
+     * フォルダをまたいで画像を集める操作ができなくなる。
+     *
+     * @param {File[]} files 選択またはドロップされた画像
+     */
+    handleImagesPdfSelected(files) {
+      this.imagesPdf.files = this.imagesPdf.files.concat(files);
+    },
+    /**
+     * 画像PDFカードの選択状態を初期化する。
+     */
+    clearImagesPdf() {
+      this.imagesPdf = PdfFormState.createImagesPdfState();
+    },
+    /**
+     * 選択した画像を1つのPDFへまとめ、結果を別タブで開く。
+     */
+    requestPdfFromImages() {
+      if (this.imagesPdf.files.length === 0) {
+        this.errorMessages = ["画像が選択されておりません。"];
+        this.showMessageModal();
+        return;
+      }
+      const payload = PdfPayload.buildPdfFromImagesPayload(
+        this.imagesPdf.files,
+        this.imagesPdf.pageSize
+      );
+      this.requestPdfAndOpen(CONST.REST_PATH.PDF_FROM_IMAGES, payload);
     },
     /**
      * 選択画像から文字起こしを実行し、結果をMarkdown編集欄へ反映する。
@@ -795,6 +1160,50 @@ const pdfApp = {
         CONST.REST_PATH.SPLIT_PDF,
         payload,
         SPLIT_PDF_FILE_NAME,
+        saveTarget.handle
+      );
+    },
+    /**
+     * 編集元PDFのページを画像化し、生成されたZIPをダウンロードする。
+     *
+     * ページ指定のチェックが外れている場合はページ番号を送らず、BE側の「全ページ画像化」に任せる。
+     *
+     * 分割と同じく、対応ブラウザでは先に保存先を選ばせる。File System Access APIは
+     * 利用者操作の直後しか使えないため、API呼び出しの前に呼ぶ必要がある。
+     *
+     * @returns {Promise<void>} 画像化処理の完了Promise
+     */
+    async requestImagesPdf() {
+      const originalFileData = this.originalFile;
+      if (Util.isEmpty(originalFileData.fileObject)) {
+        this.originalFile.delPagesText.message =
+          "ファイル選択されておりません。";
+        return;
+      }
+      this.originalFile.delPagesText.message = "";
+      const imagePages = originalFileData.delPagesChecked.checked
+        ? this.parseDeletePages(originalFileData.delPagesText.text)
+        : [];
+      if (!Util.isEmpty(this.originalFile.delPagesText.message)) {
+        return;
+      }
+      const saveTarget = await this.requestSaveTarget(
+        IMAGES_PDF_FILE_NAME,
+        FileResponseHandler.FILE_TYPES.ZIP
+      );
+      if (saveTarget.cancelled) {
+        return;
+      }
+      const payload = PdfPayload.buildImagesPayload(
+        originalFileData.fileObject,
+        originalFileData.imageFormat,
+        originalFileData.imageDpi,
+        imagePages
+      );
+      await this.requestFileAndDownload(
+        CONST.REST_PATH.IMAGES_PDF,
+        payload,
+        IMAGES_PDF_FILE_NAME,
         saveTarget.handle
       );
     },

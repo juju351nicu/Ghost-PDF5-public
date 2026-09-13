@@ -12,12 +12,18 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.clip.ghost.pdfcontent.enums.PdfMarkdownDraftMode;
+import com.clip.ghost.pdfcontent.enums.PdfImageFormat;
+import com.clip.ghost.pdfcontent.enums.PdfImagePageSize;
+import com.clip.ghost.pdfcontent.enums.PdfRotation;
+import com.clip.ghost.pdfcontent.exception.PdfImageInputException;
 import com.clip.ghost.pdfcontent.exception.PdfPageLimitExceededException;
 import com.clip.ghost.pdfcontent.exception.PdfPasswordProtectedException;
 import com.clip.ghost.pdfcontent.exception.PdfProcessingException;
 import com.clip.ghost.pdfcontent.dto.GhostPdfDto;
 import com.clip.ghost.pdfcontent.dto.PdfMetadataResponse;
+import com.clip.ghost.pdfcontent.dto.PdfImageSource;
 import com.clip.ghost.pdfcontent.dto.PdfPageContent;
+import com.clip.ghost.pdfcontent.dto.PdfPageImage;
 import com.clip.ghost.pdfcontent.dto.PdfPageThumbnail;
 import com.clip.ghost.pdfcontent.dto.PdfTextResponse;
 import com.clip.ghost.pdfcontent.dto.PdfUploadResult;
@@ -33,11 +39,20 @@ import lombok.NoArgsConstructor;
 @Component
 @NoArgsConstructor
 public class GhostPdfLogic {
+	/** アップロード時のファイル名が取得できなかった場合に、エラーメッセージへ出す代替名。 */
+	private static final String UNKNOWN_IMAGE_FILE_NAME = "（ファイル名不明）";
+
 	/** PDFメタデータ取得とテキスト抽出を担当する内部ロジック。 */
 	private final PdfDocumentAnalysisLogic documentAnalysisLogic = new PdfDocumentAnalysisLogic();
 
 	/** ページ削除、抽出、結合、分割を担当する内部ロジック。 */
 	private final PdfPageOperationLogic pageOperationLogic = new PdfPageOperationLogic();
+
+	/** ページの画像化を担当する内部ロジック。 */
+	private final PdfImageExportLogic imageExportLogic = new PdfImageExportLogic();
+
+	/** 画像からのPDF生成を担当する内部ロジック。 */
+	private final ImagesToPdfLogic imagesToPdfLogic = new ImagesToPdfLogic();
 
 	/** 差し込み、置換、末尾挿入を担当する内部ロジック。 */
 	private final PdfInsertLogic insertLogic = new PdfInsertLogic();
@@ -238,6 +253,98 @@ public class GhostPdfLogic {
 			pageOperationLogic.extractPdf(extractPages, inputPath, outputPath);
 		} finally {
 			temporaryFileStorage().delete(inputPath);
+		}
+		return outputPath;
+	}
+
+	/**
+	 * 一時保存されたPDFの指定ページを回転し、回転後PDFの一時保存先パスを返却する。
+	 *
+	 * @param rotation    加える回転角
+	 * @param rotatePages 回転するページ番号のリスト。未指定の場合は全ページを回転する
+	 * @param inputPath   読み込むPDFのパス
+	 * @return 回転後PDFの一時保存先パス
+	 */
+	public Path rotatePdf(PdfRotation rotation, List<Integer> rotatePages, Path inputPath) {
+		Path outputPath = temporaryFileStorage().createTemporaryFilePath(inputPath.getFileName().toString());
+		try {
+			pageOperationLogic.rotatePdf(rotation, rotatePages, inputPath, outputPath);
+		} finally {
+			temporaryFileStorage().delete(inputPath);
+		}
+		return outputPath;
+	}
+
+	/**
+	 * 一時保存されたPDFのページを画像化し、画像を格納したZIPの一時保存先パスを返却する。
+	 * <p>
+	 * 成功・失敗にかかわらず入力一時ファイルを削除する。ページ上限を超えて拒否した場合も削除する。
+	 *
+	 * @param inputPath  読み込むPDFのパス
+	 * @param format     出力する画像形式
+	 * @param renderDpi  画像化する解像度（DPI）
+	 * @param maxPages   画像化するページ数の上限
+	 * @param imagePages 画像化するページ番号のリスト。未指定の場合は全ページを画像化する
+	 * @return 画像を格納したZIPの一時保存先パス
+	 * @throws PdfPageLimitExceededException 対象ページ数が上限を超えた場合
+	 * @throws PdfProcessingException        PDFの読み込みまたは画像化に失敗した場合
+	 */
+	public Path exportPdfImages(Path inputPath, PdfImageFormat format, int renderDpi, int maxPages,
+			List<Integer> imagePages) {
+		Path outputPath = temporaryFileStorage().createTemporaryFilePath("images.zip");
+		try {
+			imageExportLogic.exportPdfImages(inputPath, outputPath, format, renderDpi, maxPages, imagePages);
+		} finally {
+			temporaryFileStorage().delete(inputPath);
+		}
+		return outputPath;
+	}
+
+	/**
+	 * 一時保存されたPDFのページを画像化して読み出す。
+	 * <p>
+	 * 結果をZIPではなくメモリ上のリストで返す。PowerPointのスライドのように、全ページ分を1つのファイルへ
+	 * 組み立てる用途で使う。成功・失敗にかかわらず入力一時ファイルを削除する。
+	 *
+	 * @param inputPath  読み込むPDFのパス
+	 * @param format     画像のエンコード形式
+	 * @param renderDpi  画像化する解像度（DPI）
+	 * @param maxPages   画像化するページ数の上限
+	 * @param imagePages 画像化するページ番号のリスト。未指定の場合は全ページを画像化する
+	 * @return PDF順のページ画像
+	 * @throws PdfPageLimitExceededException 対象ページ数が上限を超えた場合
+	 * @throws PdfProcessingException        PDFの読み込みまたは画像化に失敗した場合
+	 */
+	public List<PdfPageImage> readPdfPageImages(Path inputPath, PdfImageFormat format, int renderDpi, int maxPages,
+			List<Integer> imagePages) {
+		try {
+			return imageExportLogic.readPdfPageImages(inputPath, format, renderDpi, maxPages, imagePages);
+		} finally {
+			temporaryFileStorage().delete(inputPath);
+		}
+	}
+
+	/**
+	 * アップロードされた複数の画像を一時保存し、1つのPDFへまとめた一時保存先パスを返却する。
+	 * <p>
+	 * 画像は渡された順にページへ並べる。成功・失敗にかかわらず画像の一時ファイルを削除する。
+	 *
+	 * @param imageFiles アップロードされた画像ファイル（並べる順）
+	 * @param pageSize   ページサイズの決め方
+	 * @return 生成したPDFの一時保存先パス
+	 * @throws PdfImageInputException 画像として読めないファイルが含まれる場合
+	 * @throws PdfProcessingException PDFの組み立てまたは保存に失敗した場合
+	 */
+	public Path createPdfFromImages(List<MultipartFile> imageFiles, PdfImagePageSize pageSize) {
+		List<PdfImageSource> imageSources = CollectionUtils.emptyIfNull(imageFiles).stream()
+				.map(imageFile -> new PdfImageSource(temporaryFileStorage().saveUploadedImage(imageFile),
+						StringUtils.defaultIfBlank(imageFile.getOriginalFilename(), UNKNOWN_IMAGE_FILE_NAME)))
+				.toList();
+		Path outputPath = temporaryFileStorage().createTemporaryFilePath("images.pdf");
+		try {
+			imagesToPdfLogic.createPdfFromImages(imageSources, outputPath, pageSize);
+		} finally {
+			deleteTemporaryFiles(imageSources.stream().map(PdfImageSource::path).toList());
 		}
 		return outputPath;
 	}

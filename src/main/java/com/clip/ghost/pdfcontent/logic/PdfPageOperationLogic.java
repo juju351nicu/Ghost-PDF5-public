@@ -8,6 +8,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -18,6 +19,7 @@ import org.apache.pdfbox.pdmodel.PDPage;
 import com.clip.ghost.common.utils.PageRange;
 import com.clip.ghost.common.utils.PageUtils;
 import com.clip.ghost.pdfcontent.constant.PdfConstants;
+import com.clip.ghost.pdfcontent.enums.PdfRotation;
 import com.clip.ghost.pdfcontent.exception.PdfProcessingException;
 import com.clip.ghost.pdfcontent.exception.PdfSplitRangeException;
 
@@ -68,6 +70,30 @@ final class PdfPageOperationLogic {
 			outputDocument.save(outputPath.toFile());
 		} catch (IllegalArgumentException | IllegalStateException | IOException e) {
 			throw new PdfProcessingException("PDFのページ抽出に失敗しました。path=" + inputPath, e);
+		}
+	}
+
+	/**
+	 * PDFの指定ページを回転する。
+	 * <p>
+	 * ページの中身は作り直さず {@code /Rotate} だけを書き換える。ページ内容を再描画すると注釈やリンクが落ちるため。
+	 *
+	 * @param rotation    加える回転角
+	 * @param rotatePages 回転する1始まりのページ番号。空の場合は全ページを回転する
+	 * @param inputPath   読み込むPDFのパス
+	 * @param outputPath  回転後PDFの出力先パス
+	 * @throws PdfProcessingException PDFの読み込み、ページ回転、保存に失敗した場合
+	 */
+	void rotatePdf(PdfRotation rotation, List<Integer> rotatePages, Path inputPath, Path outputPath) {
+		try (PDDocument document = PdfDocumentLoader.load(inputPath)) {
+			List<Integer> rotatePageNumbers = selectRotatePageNumbers(document, rotatePages);
+			for (Integer pageNumber : rotatePageNumbers) {
+				PDPage page = document.getPage(toPdfBoxPageIndex(pageNumber));
+				page.setRotation(rotation.applyTo(page.getRotation()));
+			}
+			document.save(outputPath.toFile());
+		} catch (IllegalArgumentException | IllegalStateException | IOException e) {
+			throw new PdfProcessingException("PDFのページ回転に失敗しました。path=" + inputPath, e);
 		}
 	}
 
@@ -280,6 +306,29 @@ final class PdfPageOperationLogic {
 			throw new IllegalArgumentException("抽出ページ番号がPDFのページ範囲外です。");
 		}
 		return extractPageNumbers;
+	}
+
+	/**
+	 * 回転対象ページ番号をページ番号順・重複なしで取得する。
+	 * <p>
+	 * 抽出と違い、未指定は「全ページ」を意味する。回転は元のページ構成を変えないため、
+	 * 未指定を空集合として扱うと「何も起きないPDF」が返り、利用者から見て失敗と区別できない。
+	 *
+	 * @param document    読み込んだPDFドキュメント
+	 * @param rotatePages 回転するページ番号。未指定の場合は全ページ
+	 * @return 回転対象の1始まりページ番号
+	 * @throws IllegalArgumentException 指定されたページ番号がPDFのページ範囲外の場合
+	 */
+	private List<Integer> selectRotatePageNumbers(PDDocument document, List<Integer> rotatePages) {
+		int totalPages = document.getNumberOfPages();
+		if (CollectionUtils.isEmpty(rotatePages)) {
+			return IntStream.rangeClosed(PdfConstants.START_PAGE, totalPages).boxed().toList();
+		}
+		List<Integer> rotatePageNumbers = rotatePages.stream().distinct().sorted().toList();
+		if (rotatePageNumbers.stream().anyMatch(pageNumber -> isOutsidePageRange(pageNumber, totalPages))) {
+			throw new IllegalArgumentException("回転ページ番号がPDFのページ範囲外です。");
+		}
+		return rotatePageNumbers;
 	}
 
 	/**

@@ -49,6 +49,22 @@ public class MarkdownHtmlRenderer {
 	 */
 	public String render(String markdown) {
 		Node document = markdownParser.parse(StringUtils.defaultString(markdown));
-		return Jsoup.clean(htmlRenderer.render(document), MARKDOWN_SAFELIST);
+		return sanitize(htmlRenderer.render(document));
+	}
+
+	/**
+	 * 外部から渡された生HTMLを、Markdown変換後と同じ許可範囲でsanitizeする。
+	 * <p>
+	 * 許可範囲をMarkdown由来のHTMLと共有する。別のSafelistを用意すると、同じHTMLでも
+	 * 「Markdown経由なら残る要素が、HTMLを直接渡すと消える」といった差が生まれ、後から理由を追えなくなる。
+	 * <p>
+	 * {@code script} / {@code iframe} / {@code object} / {@code on*} 属性はSafelistに含まれないため落ちる。
+	 * ローカル実行でも、渡されたHTMLの指示でサーバーやレンダラーを動かさないことを、この1点で保証する。
+	 *
+	 * @param html sanitize対象のHTML
+	 * @return sanitize済みHTML
+	 */
+	public String sanitize(String html) {
+		return Jsoup.clean(StringUtils.defaultString(html), MARKDOWN_SAFELIST);
 	}
 }

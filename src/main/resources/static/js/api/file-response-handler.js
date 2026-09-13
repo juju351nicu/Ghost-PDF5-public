@@ -10,6 +10,25 @@ const PICKER_CANCEL_ERROR_NAME = "AbortError";
  */
 const FILE_TYPES = {
   ZIP: [{ description: "ZIP", accept: { "application/zip": [".zip"] } }],
+  HTML: [{ description: "HTML", accept: { "text/html": [".html"] } }],
+  CSV: [{ description: "CSV", accept: { "text/csv": [".csv"] } }],
+  EPUB: [
+    { description: "EPUB", accept: { "application/epub+zip": [".epub"] } },
+  ],
+  OFFICE: [
+    {
+      description: "Office文書",
+      accept: {
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+          [".docx"],
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [
+          ".xlsx",
+        ],
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation":
+          [".pptx"],
+      },
+    },
+  ],
 };
 
 /**

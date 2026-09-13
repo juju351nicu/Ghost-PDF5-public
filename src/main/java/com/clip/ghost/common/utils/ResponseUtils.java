@@ -22,6 +22,9 @@ import org.springframework.http.ResponseEntity;
  */
 public final class ResponseUtils {
 	private static final MediaType APPLICATION_ZIP = MediaType.valueOf("application/zip");
+	private static final MediaType TEXT_HTML_UTF8 = MediaType.valueOf("text/html;charset=UTF-8");
+	private static final MediaType APPLICATION_EPUB = MediaType.valueOf("application/epub+zip");
+	private static final MediaType TEXT_CSV_UTF8 = MediaType.valueOf("text/csv;charset=UTF-8");
 
 	private ResponseUtils() {
 	}
@@ -81,6 +84,92 @@ public final class ResponseUtils {
 		requireContents(contents);
 		HttpHeaders headers = new HttpHeaders();
 		headers.setContentType(MediaType.APPLICATION_PDF);
+		headers.setContentLength(resolveContentLength(contents));
+		headers.setContentDisposition(
+				ContentDisposition.attachment().filename(filename, StandardCharsets.UTF_8).build());
+		headers.setCacheControl("must-revalidate, post-check=0, pre-check=0");
+		return new ResponseEntity<>(contents, headers, HttpStatus.OK);
+	}
+
+	/**
+	 * HTMLをダウンロードするためのレスポンスを作成する。
+	 * <p>
+	 * inlineではなくattachmentで返す。生成したHTMLをブラウザが同一オリジンで表示すると、
+	 * 変換元PDF由来の内容がこのアプリのページとして動くことになるため、常に保存させる。
+	 *
+	 * @param filename HTMLファイル名
+	 * @param contents HTML本文のリソース
+	 * @return attachmentダウンロード用HTMLレスポンス
+	 * @throws IllegalArgumentException filenameが未指定、またはcontentsがnullの場合
+	 */
+	public static ResponseEntity<Resource> downloadHtml(String filename, Resource contents) {
+		requireDownloadFileName(filename);
+		requireContents(contents);
+		HttpHeaders headers = new HttpHeaders();
+		headers.setContentType(TEXT_HTML_UTF8);
+		headers.setContentLength(resolveContentLength(contents));
+		headers.setContentDisposition(
+				ContentDisposition.attachment().filename(filename, StandardCharsets.UTF_8).build());
+		headers.setCacheControl("must-revalidate, post-check=0, pre-check=0");
+		return new ResponseEntity<>(contents, headers, HttpStatus.OK);
+	}
+
+	/**
+	 * Office文書をダウンロードするためのレスポンスを作成する。
+	 * <p>
+	 * content typeは形式ごとに分けず {@code application/octet-stream} にする。ブラウザは拡張子で
+	 * アプリケーションを選ぶため、OOXMLの長いMIME typeを3種類持ち回っても保存結果は変わらない。
+	 *
+	 * @param filename Office文書のファイル名
+	 * @param contents Office文書のリソース
+	 * @return attachmentダウンロード用レスポンス
+	 * @throws IllegalArgumentException filenameが未指定、またはcontentsがnullの場合
+	 */
+	public static ResponseEntity<Resource> downloadOffice(String filename, Resource contents) {
+		requireDownloadFileName(filename);
+		requireContents(contents);
+		HttpHeaders headers = new HttpHeaders();
+		headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+		headers.setContentLength(resolveContentLength(contents));
+		headers.setContentDisposition(
+				ContentDisposition.attachment().filename(filename, StandardCharsets.UTF_8).build());
+		headers.setCacheControl("must-revalidate, post-check=0, pre-check=0");
+		return new ResponseEntity<>(contents, headers, HttpStatus.OK);
+	}
+
+	/**
+	 * EPUBをダウンロードするためのレスポンスを作成する。
+	 *
+	 * @param filename EPUBファイル名
+	 * @param contents EPUB本文のリソース
+	 * @return attachmentダウンロード用EPUBレスポンス
+	 * @throws IllegalArgumentException filenameが未指定、またはcontentsがnullの場合
+	 */
+	public static ResponseEntity<Resource> downloadEpub(String filename, Resource contents) {
+		requireDownloadFileName(filename);
+		requireContents(contents);
+		HttpHeaders headers = new HttpHeaders();
+		headers.setContentType(APPLICATION_EPUB);
+		headers.setContentLength(resolveContentLength(contents));
+		headers.setContentDisposition(
+				ContentDisposition.attachment().filename(filename, StandardCharsets.UTF_8).build());
+		headers.setCacheControl("must-revalidate, post-check=0, pre-check=0");
+		return new ResponseEntity<>(contents, headers, HttpStatus.OK);
+	}
+
+	/**
+	 * CSVをダウンロードするためのレスポンスを作成する。
+	 *
+	 * @param filename CSVファイル名
+	 * @param contents CSV本文のリソース
+	 * @return attachmentダウンロード用CSVレスポンス
+	 * @throws IllegalArgumentException filenameが未指定、またはcontentsがnullの場合
+	 */
+	public static ResponseEntity<Resource> downloadCsv(String filename, Resource contents) {
+		requireDownloadFileName(filename);
+		requireContents(contents);
+		HttpHeaders headers = new HttpHeaders();
+		headers.setContentType(TEXT_CSV_UTF8);
 		headers.setContentLength(resolveContentLength(contents));
 		headers.setContentDisposition(
 				ContentDisposition.attachment().filename(filename, StandardCharsets.UTF_8).build());

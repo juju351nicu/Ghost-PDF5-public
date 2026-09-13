@@ -302,7 +302,7 @@ Markdown保存だけの段階では追加しませんでしたが、HTMLプレ�
 
 PDF編集機能を将来的にMarkdown保存、AI要約、Vector DB検索、CSV/Excel/Word出力へ拡張する場合の判断は、[将来拡張メモ](docs/future-document-ai-roadmap.md) に残しています。
 
-現時点では、CSV / openCsv をPDF編集コアへ無理に入れません。CSVは、文書メタ情報、変換結果、AI処理結果、テスト観点、投入状況などの入出力・レポート用途が具体化した段階で扱います。
+CSVはPDF編集コアへ入れず、`exportcontent` packageへ分離しています（Phase G）。用途は文書メタ情報、変換結果、AI処理結果、テスト観点、投入状況などの入出力・レポートに限定します。ライブラリは `commons-csv` を使い、`openCsv` は採用していません（`commons-collections` 3.x を引き込み、本プロジェクトが統一している `commons-collections4` と同居するため）。
 
 `PathUtils` はファイル名・拡張子・一時ファイル名生成で本流利用してよく、`FileInfoUtils` はMarkdown保存・一覧・検索機能が出てきた段階で利用します。
 
