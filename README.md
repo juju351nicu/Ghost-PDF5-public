@@ -15,6 +15,8 @@ PDFの結合、分割、ページ操作、テキスト抽出、Markdown下書き
 - [ページ単位Markdown下書きAPI設計](docs/page-markdown-draft-api-design.md)
 - [画像Markdown下書きAPI設計（vision）](docs/image-markdown-draft-design.md)
 - [MarkdownからのPDF出力API設計](docs/markdown-to-pdf-design.md)
+- [パスワード保護PDFの取り扱い設計](docs/pdf-password-design.md)
+- [画面の処理状態設計](docs/process-state-design.md)
 - [Spring Boot 4移行事前監査](docs/spring-boot-4-migration-readiness.md)
 - [Jackson 3段階移行設計](docs/jackson-3-migration-design.md)
 - [同梱サンプル素材の由来](docs/sample-assets.md)
@@ -95,6 +97,16 @@ Public repository化後も、当面はlocal development / portfolio用途を前�
 - MarkdownからのPDF出力（`POST /markdownPdf`）を追加し、Phase Dを完了
   - `openhtmltopdf`（PDFBox 3系へ描画）＋ 同梱のNoto Sans JPで、日本語・表・コードブロック・ページ番号を出力
   - HTML変換は画面プレビューと共有し、外部リソースはPDFへ取り込まない
+- パスワードで保護されたPDFを、パスワードを受け取って処理できるようにした
+  - 以前はPDFBoxの `InvalidPasswordException` が各Logicの `catch (IOException)` に吸われ、500の「PDF処理に失敗しました」になっていた
+  - PDF読み込みを `PdfDocumentLoader` へ集約し、`pdfPasswordProtected`（パスワードが必要）と `pdfPasswordIncorrect`（パスワードが違う）を400で書き分ける
+  - アップロード直後に保護を外した一時ファイルを作り、以降は保護の無いPDFとして同じ経路を通す。PDF操作の各methodへpasswordを配らない
+  - 設計と対象外は [パスワード保護PDFの取り扱い設計](docs/pdf-password-design.md) を参照
+- 画面の処理状態をbooleanの `isProcessing` から状態機械へ置き換えた
+  - 利用者が自分で直せる失敗（サイズ超過、パスワード保護、ページ上限超過）を、想定外エラーのモーダルから分けて専用パネルへ出す。振り分けはBEのerrorCodeで行う
+  - 編集元PDFのドラッグ&ドロップを追加。ファイル選択と同じ検証を通し、領域外へ落としたPDFでページが離脱する既定動作も止める
+  - `is-processing` propsの契約を壊さないよう、`isProcessing` はcomputedとして状態から導く
+  - 設計と見送った項目は [画面の処理状態設計](docs/process-state-design.md) を参照
 - 区分値をリクエストDTOでもenumで受ける形へ統一（`mode` / `insertOption`）
   - コード値からenumへの変換は `StringToCodeEnumConverterFactory` に集約し、外向きのコード値（`AUTO` / `1`）は変えない
   - 不正値は400のまま、メッセージはenum自身の説明へ差し替える
@@ -426,6 +438,18 @@ Markdown保存を含むJava 25の全286テストが成功しています。
   `authTokenStorage.ts` を参考に、専用モジュールへ責務分離する。
   - 現状は `util.js` の互換維持を優先し、Storage APIへの入口だけを安全化する。
   - `isEmpty` は既存仕様維持のため、空白のみ文字列を空扱いする変更は別関数追加で検討する。
+- アップロード進捗率（%）の表示は見送り中。
+  - `api/fetch-client.js` は `fetch` を使っており、`fetch` はリクエストボディの送信進捗を取れない。取るなら `XMLHttpRequest` へ差し替える。
+  - local-firstでサーバーはlocalhostのため、送信フェーズは体感できる長さにならない。待ち時間の実体はBE処理側（特に `mode=VISION`）にある。
+  - 現状は処理フェーズの文言と経過秒で代替している。リモート配置を検討する段階で再考する。
+  - ページ単位の進捗（「20ページ中7ページ目」）はSSEかポーリングが要るため、アップロードPDFのサーバー保持（`documentId`）が入ってから。
+- アップロード上限（1ファイル20MB）の見直しは保留中。
+  - 超過時の案内文言は「この画面では小さくできない」ことを明示する形へ直したが、上限値は変えていない。
+  - 変えるなら `PdfConstants.MAX_PDF_FILE_SIZE_BYTES` / `const.js` / `application.yml` の `max-file-size` と `max-swallow-size` を揃えて動かし、`/splitPdf` のメモリ実測とセットで判断する。
+  - 値だけ上げると、上限超過時にアプリの413が返らずTomcatが接続を切る側へ倒れる。
+- 差し込みPDF行のドラッグ&ドロップは未対応。`file-drop-zone` に `multiple` propsを用意してあり、編集元PDFで使い勝手を確かめてから広げる。
+- 1画面1目的への分割（機能カテゴリのタブ化）は未着手。
+  - `main.html` に全機能が縦積みで、目的から入れない。まずタブ切り替えで分け方を確かめ、URL分割はVite移行の判断とセットで扱う。
 - 品質チェック用ライブラリ/Pluginの導入検討
   - 優先順位は「追加ライブラリ方針」を参照する。
 
