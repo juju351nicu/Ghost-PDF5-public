@@ -15,8 +15,6 @@
 	--ghost-color-section-bg: #dceff8;
 	--ghost-content-width: 980px;
 	--ghost-control-width: 22rem;
-	--ghost-ad-width: 300px;
-	--ghost-ad-gap: 32px;
 }
 
 body {
@@ -33,18 +31,112 @@ body > #app {
 }
 
 .main {
-	width: min(var(--ghost-content-width), calc(100% - var(--ghost-ad-width) - var(--ghost-ad-gap) - var(--ghost-ad-gap)));
+	width: min(var(--ghost-content-width), calc(100% - 64px));
 	margin: 32px auto 48px;
 	font-size: 16px;
 	flex: 1;
 }
 
-.main > span {
-	display: inline-block;
-	margin: 18px .75rem 1rem 0;
+/* 機能タブ。押した先だけを描画し、それ以外は隠す（状態はpdf-app.js側に残るため切替のたびに読み直さない）。 */
+.tab-nav {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	margin-bottom: 20px;
+	border-bottom: 2px solid var(--ghost-color-border);
 }
 
-.main > button {
+.tab-nav__item {
+	width: auto;
+	margin: 0 0 -2px;
+	padding: 10px 18px;
+	border: none;
+	border-bottom: 2px solid transparent;
+	border-radius: 0;
+	background: none;
+	color: var(--ghost-color-text);
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.tab-nav__item:hover {
+	color: var(--pico-primary);
+}
+
+.tab-nav__item--active {
+	border-bottom-color: var(--pico-primary);
+	color: var(--pico-primary);
+}
+
+.tab-panel {
+	display: grid;
+	gap: 0;
+}
+
+/* ファイル未選択時のプレースホルダ。操作ボタンの代わりに次にすることだけを示す。 */
+.pdf-card__hint {
+	margin: 0;
+	color: #59636e;
+	font-size: .9375rem;
+}
+
+/* 1カード内の操作を役割別に見出しで分ける（ページ操作 / 解析・変換）。 */
+.pdf-card__section-title {
+	margin: 4px 0 0;
+	font-size: .9375rem;
+	font-weight: 700;
+	color: var(--ghost-color-text);
+}
+
+/* 取り消せない操作（保存済みMarkdownの削除など）だけに使う。クリアや補助操作の
+   secondary/outlineより目立たせ、押す前に立ち止まれるようにする。 */
+.btn-danger {
+	color: var(--ghost-color-error);
+	border-color: var(--ghost-color-error);
+	background-color: transparent;
+}
+
+.btn-danger:is(:hover, :focus) {
+	color: #fff;
+	background-color: var(--ghost-color-error);
+	border-color: var(--ghost-color-error);
+}
+
+/* PDF差し込み・結合は初期状態で閉じ、必要なときだけ開く。 */
+.insert-merge-panel {
+	margin: 0 0 28px;
+}
+
+.insert-merge-panel > summary {
+	padding: 10px 14px;
+	border: 1px solid var(--ghost-color-border);
+	border-radius: 6px;
+	background: var(--ghost-color-surface);
+	font-weight: 700;
+	cursor: pointer;
+}
+
+.insert-merge-panel[open] > summary {
+	border-radius: 6px 6px 0 0;
+	border-bottom: none;
+}
+
+.insert-merge-panel__body {
+	padding: 16px;
+	border: 1px solid var(--ghost-color-border);
+	border-top: none;
+	border-radius: 0 0 6px 6px;
+	background: var(--ghost-color-surface);
+}
+
+/* PDF差し込み・結合パネル内の見出しテキストと実行ボタン。以前は.mainの直接の子だったが、
+   折りたたみ(<details>)化に伴いinsert-merge-panel__bodyの直接の子になった。 */
+.insert-merge-panel__body > span {
+	display: inline-block;
+	margin: 0 .75rem 1rem 0;
+}
+
+.insert-merge-panel__body > button {
 	width: auto;
 	margin: 0 .5rem 1rem 0;
 	white-space: nowrap;
@@ -591,32 +683,8 @@ body > #app {
 	font-size: .8em;
 }
 
-.dotted {
-	position: absolute;
-	top: 104px;
-	right: var(--ghost-ad-gap);
-	padding: 10px;
-	width: var(--ghost-ad-width);
-	height: 400px;
-	text-align: center;
-	background-image: linear-gradient(to right, #ff0099 4px, transparent 4px), linear-gradient(to bottom, #ff0099 4px, transparent 4px), linear-gradient(to left, #ff0099 4px, transparent 4px), linear-gradient(to top, #ff0099 4px, transparent 4px);
-	background-size: 10px 2px, 2px 10px, 10px 2px, 2px 10px;
-	background-repeat: repeat-x, repeat-y, repeat-x, repeat-y;
-	background-position: left top, right top, right bottom, left bottom;
-}
-
 .error_message {
 	color: var(--ghost-color-error);
-}
-
-@media (max-width: 1320px) {
-	.main {
-		width: min(var(--ghost-content-width), calc(100% - 32px));
-	}
-
-	.dotted {
-		display: none;
-	}
 }
 
 @media (max-width: 760px) {
@@ -627,6 +695,17 @@ body > #app {
 
 	.pdf-card__body {
 		padding: 16px 12px;
+	}
+
+	/* タブが並びきらない幅では横スクロールにする。折り返すと2段目の位置が
+	   ページごとに動き、押す場所が安定しないため。 */
+	.tab-nav {
+		flex-wrap: nowrap;
+		overflow-x: auto;
+	}
+
+	.tab-nav__item {
+		flex: 0 0 auto;
 	}
 
 	.pdf-action-row {

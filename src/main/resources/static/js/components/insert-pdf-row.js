@@ -40,8 +40,8 @@ export default {
             <input type="checkbox" v-model="insertFile.insertNext.checked" />
             <span>{{ insertFile.insertNext.text }}</span>
           </div>
-          <button type="button" @click="clearInsertFileRow">クリア</button>
-          <button type="button" @click="removeInsertFileRow">行の削除</button>
+          <button type="button" class="secondary" @click="clearInsertFileRow">クリア</button>
+          <button type="button" class="secondary" @click="removeInsertFileRow">行の削除</button>
         </div>
       </div>
     </article>

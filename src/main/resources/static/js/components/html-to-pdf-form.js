@@ -35,7 +35,7 @@ export default {
         <div class="html-pdf-card__actions">
           <button type="button" :disabled="isProcessing || !htmlPdfState.fileObject"
             @click="requestPdfFromHtml">PDFにする</button>
-          <button type="button" :disabled="isProcessing" @click="clearHtml">クリア</button>
+          <button type="button" class="secondary" :disabled="isProcessing" @click="clearHtml">クリア</button>
         </div>
       </div>
     </article>

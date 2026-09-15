@@ -16,9 +16,6 @@
 <body>
 	<div id="app">
 		<the-header></the-header>
-		<div class="dotted">
-			<p>広告</p>
-		</div>
 		<main class="main">
 			<modal :messages="errorMessages" v-if="isShowModal" @close-modal="hideMessageModal()"></modal>
 			<process-panel
@@ -27,121 +24,147 @@
 				@submit-password="submitPdfPassword"
 				@dismiss="resetProcess">
 			</process-panel>
-			<original-pdf-form
-				:original-file="originalFile"
-				:pdf-metadata="pdfMetadata"
-				:thumbnail-state="pdfThumbnails"
-				:is-processing="isProcessing"
-				@file-change="handlePdfFileChange($event, -1)"
-				@files-dropped="handlePdfFilesDropped($event, -1)"
-				@request-thumbnails-pdf="requestPdfThumbnails"
-				@toggle-thumbnail-page="toggleThumbnailPage"
-				@clear-thumbnail-selection="clearThumbnailSelection"
-				@request-open-original-pdf="openOriginalPdfInNewTab"
-				@request-delete-pdf="requestDeletePdf"
+			<nav class="tab-nav" aria-label="機能タブ">
+				<button type="button" class="tab-nav__item" :class="{ 'tab-nav__item--active': activeTab === 'edit' }"
+					@click="activeTab = 'edit'">PDF編集</button>
+				<button type="button" class="tab-nav__item" :class="{ 'tab-nav__item--active': activeTab === 'convert' }"
+					@click="activeTab = 'convert'">変換</button>
+				<button type="button" class="tab-nav__item" :class="{ 'tab-nav__item--active': activeTab === 'ocr' }"
+					@click="activeTab = 'ocr'">OCR・Markdown化</button>
+				<button type="button" class="tab-nav__item" :class="{ 'tab-nav__item--active': activeTab === 'memo' }"
+					@click="activeTab = 'memo'">Markdownメモ</button>
+			</nav>
+
+			<section class="tab-panel" v-show="activeTab === 'edit'">
+				<original-pdf-form
+					:original-file="originalFile"
+					:pdf-metadata="pdfMetadata"
+					:thumbnail-state="pdfThumbnails"
+					:is-processing="isProcessing"
+					@file-change="handlePdfFileChange($event, -1)"
+					@files-dropped="handlePdfFilesDropped($event, -1)"
+					@request-thumbnails-pdf="requestPdfThumbnails"
+					@toggle-thumbnail-page="toggleThumbnailPage"
+					@clear-thumbnail-selection="clearThumbnailSelection"
+					@request-open-original-pdf="openOriginalPdfInNewTab"
+					@request-delete-pdf="requestDeletePdf"
 					@request-extract-pdf="requestExtractPdf"
 					@request-markdown-draft-pdf="requestMarkdownDraftPdf"
 					@request-metadata-pdf="requestMetadataPdf"
-				@request-text-pdf="requestTextPdf"
-				@request-split-pdf="requestSplitPdf"
-				@request-rotate-pdf="requestRotatePdf"
-				@request-images-pdf="requestImagesPdf"
-				@request-html-pdf="requestHtmlPdf"
-				@request-office-from-pdf="requestOfficeFromPdf"
-				@request-epub-pdf="requestEpubPdf"
-				@clear-all="clearAll">
-			</original-pdf-form>
-			<br />
-			<span>差し替え、結合ファイル(PDFのみ)</span>
-			<button type="button" @click="addInsertFileRow">行の追加</button>
-			<div>
-				<draggable v-model="insertFiles" item-key="fileNo" @change="handleInsertFileOrderChange">
-					<template #item="{ element }">
-						<insert-pdf-row
-							:insert-file="element"
-							:insert-page-pulldown="insertPagePulldown"
-							@file-change="handlePdfFileChange"
-							@clear-insert-file-row="clearInsertFileRow"
-							@remove-insert-file-row="removeInsertFileRow">
-						</insert-pdf-row>
-					</template>
-				</draggable>
-			</div>
-			<button type="button" :disabled="isProcessing" @click="requestInsertPdf">PDF差込み</button>
-			<button type="button" :disabled="isProcessing" @click="requestMergePdf">PDF結合</button>
-			<images-to-pdf-form
-				:images-pdf-state="imagesPdf"
-				:is-processing="isProcessing"
-				@images-selected="handleImagesPdfSelected"
-				@request-pdf-from-images="requestPdfFromImages"
-				@clear-images="clearImagesPdf">
-			</images-to-pdf-form>
-			<office-form
-				:office-state="officeDocument"
-				:is-processing="isProcessing"
-				@office-selected="handleOfficeSelected"
-				@request-office-markdown="requestOfficeMarkdown"
-				@request-pdf-from-office="requestPdfFromOffice"
-				@clear-office="clearOffice">
-			</office-form>
-			<epub-to-pdf-form
-				:epub-state="epubDocument"
-				:is-processing="isProcessing"
-				@epub-selected="handleEpubSelected"
-				@request-pdf-from-epub="requestPdfFromEpub"
-				@clear-epub="clearEpub">
-			</epub-to-pdf-form>
-			<html-to-pdf-form
-				:html-pdf-state="htmlPdf"
-				:is-processing="isProcessing"
-				@html-selected="handleHtmlPdfSelected"
-				@request-pdf-from-html="requestPdfFromHtml"
-				@clear-html="clearHtmlPdf">
-			</html-to-pdf-form>
-			<image-ocr-form
-				:image-state="imageDraft"
-				:is-processing="isProcessing"
-				@image-selected="handleImageSelected"
-				@request-image-draft="requestImageDraft"
-				@clear-image="clearImageDraft">
-			</image-ocr-form>
-			<article class="pdf-card markdown-panel">
-				<header>Markdownメモ</header>
-				<div class="pdf-card__body markdown-panel__body">
-					<div class="markdown-panel__toolbar">
-						<input type="text" v-model="markdownFileName" placeholder="design-note.md"
-							aria-label="Markdownファイル名">
-						<button type="button" :disabled="isProcessing" @click="requestSaveMarkdown">保存</button>
-						<button type="button" :disabled="isProcessing" @click="requestListMarkdownFiles">一覧</button>
-						<button type="button" :disabled="isProcessing" @click="requestLoadMarkdownFile">読込</button>
-						<button type="button" :disabled="isProcessing" @click="requestPreviewMarkdownContent">プレビュー</button>
-						<button type="button" :disabled="isProcessing" @click="requestMarkdownPdf">PDF出力</button>
-						<button type="button" :disabled="isProcessing" @click="copyMarkdownContent">コピー</button>
-						<button type="button" :disabled="isProcessing" @click="requestUpdateMarkdownFile">更新</button>
-						<button type="button" :disabled="isProcessing" @click="requestDeleteMarkdownFile">削除</button>
-						<button type="button" :disabled="isProcessing" @click="requestMarkdownFilesCsv">一覧CSV</button>
+					@request-text-pdf="requestTextPdf"
+					@request-split-pdf="requestSplitPdf"
+					@request-rotate-pdf="requestRotatePdf"
+					@request-images-pdf="requestImagesPdf"
+					@request-html-pdf="requestHtmlPdf"
+					@request-office-from-pdf="requestOfficeFromPdf"
+					@request-epub-pdf="requestEpubPdf"
+					@clear-all="clearAll">
+				</original-pdf-form>
+				<details class="insert-merge-panel">
+					<summary>PDF差し込み・結合</summary>
+					<div class="insert-merge-panel__body">
+						<span>差し替え、結合ファイル(PDFのみ)</span>
+						<button type="button" class="outline" @click="addInsertFileRow">行の追加</button>
+						<div>
+							<draggable v-model="insertFiles" item-key="fileNo" @change="handleInsertFileOrderChange">
+								<template #item="{ element }">
+									<insert-pdf-row
+										:insert-file="element"
+										:insert-page-pulldown="insertPagePulldown"
+										@file-change="handlePdfFileChange"
+										@clear-insert-file-row="clearInsertFileRow"
+										@remove-insert-file-row="removeInsertFileRow">
+									</insert-pdf-row>
+								</template>
+							</draggable>
+						</div>
+						<button type="button" :disabled="isProcessing" @click="requestInsertPdf">PDF差込み</button>
+						<button type="button" :disabled="isProcessing" @click="requestMergePdf">PDF結合</button>
 					</div>
-					<p class="markdown-panel__message" v-if="markdownMessage">{{ markdownMessage }}</p>
-					<api-message-list :messages="apiMessages"></api-message-list>
-					<textarea class="markdown-panel__editor" v-model="markdownContent"
-						placeholder="# 設計メモ"></textarea>
-					<div class="markdown-panel__columns">
-						<section class="markdown-panel__file-list" aria-label="保存済みMarkdown一覧">
-							<ul v-if="markdownFiles.length > 0">
-								<li v-for="fileInfo in markdownFiles" :key="fileInfo.fileName">
-									<button type="button" :disabled="isProcessing" @click="selectMarkdownFile(fileInfo.fileName)">
-										{{ fileInfo.fileName }}
-									</button>
-									<span>{{ formatMarkdownFileInfo(fileInfo) }}</span>
-								</li>
-							</ul>
-							<p v-if="isMarkdownFileListLoaded && markdownFiles.length === 0">保存済みMarkdownはありません。</p>
-						</section>
-						<section class="markdown-panel__preview" v-if="markdownPreviewHtml"
-							aria-label="Markdownプレビュー" v-html="markdownPreviewHtml"></section>
+				</details>
+			</section>
+
+			<section class="tab-panel" v-show="activeTab === 'convert'">
+				<images-to-pdf-form
+					:images-pdf-state="imagesPdf"
+					:is-processing="isProcessing"
+					@images-selected="handleImagesPdfSelected"
+					@request-pdf-from-images="requestPdfFromImages"
+					@clear-images="clearImagesPdf">
+				</images-to-pdf-form>
+				<office-form
+					:office-state="officeDocument"
+					:is-processing="isProcessing"
+					@office-selected="handleOfficeSelected"
+					@request-office-markdown="requestOfficeMarkdown"
+					@request-pdf-from-office="requestPdfFromOffice"
+					@clear-office="clearOffice">
+				</office-form>
+				<epub-to-pdf-form
+					:epub-state="epubDocument"
+					:is-processing="isProcessing"
+					@epub-selected="handleEpubSelected"
+					@request-pdf-from-epub="requestPdfFromEpub"
+					@clear-epub="clearEpub">
+				</epub-to-pdf-form>
+				<html-to-pdf-form
+					:html-pdf-state="htmlPdf"
+					:is-processing="isProcessing"
+					@html-selected="handleHtmlPdfSelected"
+					@request-pdf-from-html="requestPdfFromHtml"
+					@clear-html="clearHtmlPdf">
+				</html-to-pdf-form>
+			</section>
+
+			<section class="tab-panel" v-show="activeTab === 'ocr'">
+				<image-ocr-form
+					:image-state="imageDraft"
+					:is-processing="isProcessing"
+					@image-selected="handleImageSelected"
+					@request-image-draft="requestImageDraft"
+					@clear-image="clearImageDraft">
+				</image-ocr-form>
+			</section>
+
+			<section class="tab-panel" v-show="activeTab === 'memo'">
+				<article class="pdf-card markdown-panel">
+					<header>Markdownメモ</header>
+					<div class="pdf-card__body markdown-panel__body">
+						<div class="markdown-panel__toolbar">
+							<input type="text" v-model="markdownFileName" placeholder="design-note.md"
+								aria-label="Markdownファイル名">
+							<button type="button" :disabled="isProcessing" @click="requestSaveMarkdown">保存</button>
+							<button type="button" class="outline" :disabled="isProcessing" @click="requestListMarkdownFiles">一覧</button>
+							<button type="button" class="outline" :disabled="isProcessing" @click="requestLoadMarkdownFile">読込</button>
+							<button type="button" class="outline" :disabled="isProcessing" @click="requestPreviewMarkdownContent">プレビュー</button>
+							<button type="button" :disabled="isProcessing" @click="requestMarkdownPdf">PDF出力</button>
+							<button type="button" class="outline" :disabled="isProcessing" @click="copyMarkdownContent">コピー</button>
+							<button type="button" class="outline" :disabled="isProcessing" @click="requestUpdateMarkdownFile">更新</button>
+							<button type="button" class="outline btn-danger" :disabled="isProcessing" @click="requestDeleteMarkdownFile">削除</button>
+							<button type="button" class="outline" :disabled="isProcessing" @click="requestMarkdownFilesCsv">一覧CSV</button>
+						</div>
+						<p class="markdown-panel__message" v-if="markdownMessage">{{ markdownMessage }}</p>
+						<api-message-list :messages="apiMessages"></api-message-list>
+						<textarea class="markdown-panel__editor" v-model="markdownContent"
+							placeholder="# 設計メモ"></textarea>
+						<div class="markdown-panel__columns">
+							<section class="markdown-panel__file-list" aria-label="保存済みMarkdown一覧">
+								<ul v-if="markdownFiles.length > 0">
+									<li v-for="fileInfo in markdownFiles" :key="fileInfo.fileName">
+										<button type="button" class="outline" :disabled="isProcessing" @click="selectMarkdownFile(fileInfo.fileName)">
+											{{ fileInfo.fileName }}
+										</button>
+										<span>{{ formatMarkdownFileInfo(fileInfo) }}</span>
+									</li>
+								</ul>
+								<p v-if="isMarkdownFileListLoaded && markdownFiles.length === 0">保存済みMarkdownはありません。</p>
+							</section>
+							<section class="markdown-panel__preview" v-if="markdownPreviewHtml"
+								aria-label="Markdownプレビュー" v-html="markdownPreviewHtml"></section>
+						</div>
 					</div>
-				</div>
-			</article>
+				</article>
+			</section>
 		</main>
 		<the-footer></the-footer>
 	</div>
