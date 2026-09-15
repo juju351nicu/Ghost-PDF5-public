@@ -45,7 +45,7 @@ export default {
           </select>
           <button type="button" :disabled="isProcessing || imagesPdfState.files.length === 0"
             @click="requestPdfFromImages">PDFにする</button>
-          <button type="button" :disabled="isProcessing" @click="clearImages">クリア</button>
+          <button type="button" class="secondary" :disabled="isProcessing" @click="clearImages">クリア</button>
         </div>
       </div>
     </article>

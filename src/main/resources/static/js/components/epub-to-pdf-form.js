@@ -36,7 +36,7 @@ export default {
         <div class="epub-card__actions">
           <button type="button" :disabled="isProcessing || !epubState.fileObject"
             @click="requestPdfFromEpub">PDFにする</button>
-          <button type="button" :disabled="isProcessing" @click="clearEpub">クリア</button>
+          <button type="button" class="secondary" :disabled="isProcessing" @click="clearEpub">クリア</button>
         </div>
       </div>
     </article>

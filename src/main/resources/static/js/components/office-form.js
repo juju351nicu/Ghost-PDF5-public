@@ -45,7 +45,7 @@ export default {
             @click="requestOfficeMarkdown">Markdownにする</button>
           <button type="button" :disabled="isProcessing || !officeState.fileObject"
             @click="requestPdfFromOffice">PDFにする</button>
-          <button type="button" :disabled="isProcessing" @click="clearOffice">クリア</button>
+          <button type="button" class="secondary" :disabled="isProcessing" @click="clearOffice">クリア</button>
         </div>
       </div>
     </article>

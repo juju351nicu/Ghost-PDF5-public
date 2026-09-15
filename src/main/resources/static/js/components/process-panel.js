@@ -36,10 +36,10 @@ export default {
           <button type="button" @click="startOver">やり直す</button>
         </div>
         <div class="process-panel__actions" v-if="isDismissibleState">
-          <button type="button" @click="dismiss">閉じる</button>
+          <button type="button" class="secondary" @click="dismiss">閉じる</button>
         </div>
         <div class="process-panel__actions" v-if="isPasswordRequiredState">
-          <button type="button" @click="dismiss">別のファイルを選ぶ</button>
+          <button type="button" class="secondary" @click="dismiss">別のファイルを選ぶ</button>
         </div>
       </div>
     </article>

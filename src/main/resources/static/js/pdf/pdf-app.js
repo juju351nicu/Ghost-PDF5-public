@@ -56,6 +56,9 @@ const pdfApp = {
   },
   data() {
     return {
+      // 機能タブの選択状態。タブを切り替えても各カードのデータ（選択ファイルや入力内容）は
+      // このコンポーネントの状態としてそのまま残るため、切り替え時に読み直す必要はない。
+      activeTab: "edit",
       originalFile: PdfFormState.createOriginalFileState(),
       pdfMetadata: PdfFormState.createPdfMetadataState(),
       pdfThumbnails: PdfFormState.createThumbnailState(),

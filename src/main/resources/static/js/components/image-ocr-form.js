@@ -30,7 +30,7 @@ export default {
         <div class="image-ocr-card__actions">
           <button type="button" :disabled="isProcessing || !imageState.fileObject"
             @click="requestImageDraft">画像OCR</button>
-          <button type="button" :disabled="isProcessing" @click="clearImage">クリア</button>
+          <button type="button" class="secondary" :disabled="isProcessing" @click="clearImage">クリア</button>
         </div>
       </div>
     </article>
