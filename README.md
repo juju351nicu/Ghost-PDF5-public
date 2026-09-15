@@ -9,7 +9,7 @@ PDFの結合、分割、ページ操作、テキスト抽出、Markdown下書き
 
 - [コーディング規約](docs/coding-guidelines.md)
 - [AIエージェント向け作業指示](CLAUDE.md)
-- [パッケージリネーム計画](docs/package-rename-plan.md)
+- [パッケージリネーム計画（完了）](docs/completed/package-rename-plan.md)
 - [Service / Logic構成判断](docs/service-logic-structure.md)
 - [将来拡張メモ: Markdown / AI / CSV / Utils 利用方針](docs/future-document-ai-roadmap.md)
 - [ページ単位Markdown下書きAPI設計](docs/page-markdown-draft-api-design.md)
@@ -17,7 +17,7 @@ PDFの結合、分割、ページ操作、テキスト抽出、Markdown下書き
 - [MarkdownからのPDF出力API設計](docs/markdown-to-pdf-design.md)
 - [パスワード保護PDFの取り扱い設計](docs/pdf-password-design.md)
 - [画面の処理状態設計](docs/process-state-design.md)
-- [Spring Boot 4移行事前監査](docs/spring-boot-4-migration-readiness.md)
+- [Spring Boot 4移行事前監査（完了）](docs/completed/spring-boot-4-migration-readiness.md)
 - [Jackson 3段階移行設計](docs/jackson-3-migration-design.md)
 - [同梱サンプル素材の由来](docs/sample-assets.md)
 - [セキュリティ方針](SECURITY.md)
@@ -388,7 +388,7 @@ Jackson 3の `asString()` へ更新しました。annotation importは変更し�
 Java 25の全286テスト、依存ツリー、Boot 4.0.7での通常起動とトップ画面HTTP 200を確認しています。
 Commons IOは2021年版の2.11.0から2.22.0へ独立して更新し、ファイルコピー・削除・パス処理・
 Markdown保存を含むJava 25の全286テストが成功しています。
-詳細は [Spring Boot 4移行事前監査](docs/spring-boot-4-migration-readiness.md) と
+詳細は [Spring Boot 4移行事前監査](docs/completed/spring-boot-4-migration-readiness.md) と
 [Jackson 3段階移行設計](docs/jackson-3-migration-design.md) を参照してください。
 
 今回のJackson 3段階移行には含めない作業:

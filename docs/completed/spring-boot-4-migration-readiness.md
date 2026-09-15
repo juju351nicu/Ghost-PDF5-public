@@ -109,7 +109,7 @@ Boot公式の移行用 `spring-boot-jackson2` を明示的に追加する。こ�
 
 Jackson 3対応では、既存public methodを直ちに削除せず、互換API維持またはoverload追加を先に検討する。
 ソース・依存関係の詳細監査、互換方法、作業用コピーでの検証結果は
-[Jackson 3段階移行設計](jackson-3-migration-design.md) に記録した。
+[Jackson 3段階移行設計](../jackson-3-migration-design.md) に記録した。
 
 ## 7. Boot 4で見える非推奨API
 
