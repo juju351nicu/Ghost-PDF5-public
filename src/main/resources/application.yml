@@ -71,3 +71,23 @@ ghost:
       psm: 6
       preserve-interword-spaces: true
       timeout-seconds: 60
+  ai:
+    # Markdown本文のAI整形・要約（POST /markdownAiTransform）。既定は無効で、有効化した場合のみ
+    # 外部AIへMarkdown本文を送信する。APIキー用の環境変数は画像Markdown下書き（ghost.ocr.*）と共用できる。
+    provider: ${GHOST_AI_PROVIDER:anthropic}
+    markdown:
+      # 日本語混じりの文書を想定した安全側の初期値。実測結果はdocs/markdown-ai-transform-design.mdへ記録する。
+      max-input-characters: ${GHOST_AI_MARKDOWN_MAX_INPUT_CHARACTERS:60000}
+    anthropic:
+      enabled: ${GHOST_AI_ANTHROPIC_ENABLED:false}
+      model: ${GHOST_AI_ANTHROPIC_MODEL:claude-opus-5}
+      api-key-env: ${GHOST_AI_ANTHROPIC_API_KEY_ENV:ANTHROPIC_API_KEY}
+      timeout-seconds: 60
+      # 整形（REFINE）は要約より出力が長くなり得るため、画像文字起こし（8000）より高めにする。
+      max-output-tokens: 16000
+    openai:
+      enabled: ${GHOST_AI_OPENAI_ENABLED:false}
+      model: ${GHOST_AI_OPENAI_MODEL:gpt-4o}
+      api-key-env: ${GHOST_AI_OPENAI_API_KEY_ENV:OPENAI_API_KEY}
+      timeout-seconds: 60
+      max-output-tokens: 16000

@@ -1,4 +1,4 @@
-package com.clip.ghost.imagecontent.logic;
+package com.clip.ghost.common.utils;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 

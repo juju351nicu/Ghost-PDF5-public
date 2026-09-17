@@ -36,6 +36,7 @@ const REST_PATH = {
   MARKDOWN_FILES_CSV: "/markdownFilesCsv",
   MARKDOWN_FILE: "/markdownFile",
   MARKDOWN_PREVIEW: "/markdownPreview",
+  MARKDOWN_AI_TRANSFORM: "/markdownAiTransform",
 };
 
 /**

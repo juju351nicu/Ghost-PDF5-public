@@ -571,6 +571,26 @@ body > #app {
 	resize: vertical;
 }
 
+.markdown-panel__ai {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.markdown-panel__ai-result {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	border: 1px solid var(--ghost-color-border);
+	border-radius: 6px;
+	background: var(--ghost-color-surface);
+	padding: 12px;
+}
+
+.markdown-panel__ai-result p {
+	margin: 0;
+}
+
 .markdown-panel__columns {
 	display: grid;
 	grid-template-columns: minmax(220px, .8fr) minmax(0, 1.2fr);

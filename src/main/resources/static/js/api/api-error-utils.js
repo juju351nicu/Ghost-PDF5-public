@@ -33,6 +33,9 @@ const ERROR_CODE = {
   IMAGE_PROCESSING: "imageProcessingError",
   OCR_UNAVAILABLE: "ocrUnavailable",
   MARKDOWN_PDF: "markdownPdfError",
+  AI_INPUT: "aiInputError",
+  AI_PROCESSING: "aiProcessingError",
+  AI_UNAVAILABLE: "aiUnavailable",
 };
 
 /**
@@ -53,6 +56,8 @@ const RECOVERABLE_ERROR_CODES = [
   ERROR_CODE.OFFICE_INPUT,
   ERROR_CODE.IMAGE_INPUT,
   ERROR_CODE.OCR_UNAVAILABLE,
+  ERROR_CODE.AI_INPUT,
+  ERROR_CODE.AI_UNAVAILABLE,
 ];
 
 /**

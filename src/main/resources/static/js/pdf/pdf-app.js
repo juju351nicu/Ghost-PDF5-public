@@ -83,6 +83,7 @@ const pdfApp = {
       isMarkdownFileListLoaded: false,
       markdownPreviewHtml: "",
       markdownMessage: "",
+      aiTransformResult: null,
     };
   },
   mounted() {
@@ -1457,6 +1458,84 @@ const pdfApp = {
           this.markdownMessage = "入力中Markdownをプレビューしました。";
         }
       );
+    },
+    /**
+     * 入力中Markdown本文をAIで整形する。
+     *
+     * @returns {Promise<void>} AI整形処理の完了Promise
+     */
+    requestMarkdownAiRefine() {
+      return this.requestMarkdownAiTransform("REFINE");
+    },
+    /**
+     * 入力中Markdown本文をAIで要約する。
+     *
+     * @returns {Promise<void>} AI要約処理の完了Promise
+     */
+    requestMarkdownAiSummarize() {
+      return this.requestMarkdownAiTransform("SUMMARIZE");
+    },
+    /**
+     * Markdown本文AI整形・要約APIを実行する。
+     *
+     * 結果は既存のMarkdown編集欄を上書きせず、確認用の別領域へ表示する。原文の意味を変えていないかを
+     * 機械的に保証できないため、採用するかどうかは利用者が applyAiTransformResult で選ぶ。
+     *
+     * @param {string} task 変換タスク。SUMMARIZEまたはREFINE
+     * @returns {Promise<void>} 変換処理の完了Promise
+     */
+    requestMarkdownAiTransform(task) {
+      if (Util.isEmpty(this.markdownContent)) {
+        this.markdownMessage = "変換対象のMarkdown本文がありません。";
+        return Promise.resolve();
+      }
+      if (this.isProcessing) {
+        return Promise.resolve();
+      }
+      this.beginProcess(ProcessState.PROCESS_LABEL.AI_TRANSFORM);
+      this.errorMessages = [];
+      this.clearApiMessages();
+      this.markdownMessage = "";
+      this.aiTransformResult = null;
+      return MarkdownApiClient.transformMarkdownAi(this.markdownContent, task)
+        .then((result) => {
+          if (!Util.isEmpty(result.errorMessages)) {
+            this.failProcess(result.errorMessages, result.errorCodes);
+            return;
+          }
+          this.applyApiMessages(result.messages);
+          this.aiTransformResult = result.data;
+          this.markdownMessage =
+            "AI変換結果を確認欄へ表示しました。内容を確認してから採用してください。";
+        })
+        .catch((error) => {
+          this.failUnexpectedProcess(
+            MarkdownApiClient.buildUnexpectedErrorMessage(error)
+          );
+        })
+        .finally(() => {
+          this.endProcessIfBusy();
+        });
+    },
+    /**
+     * AI変換結果をMarkdown編集欄へ採用する。
+     *
+     * 自動反映はせず、利用者がこの操作を行った場合だけ既存の編集欄を上書きする。
+     */
+    applyAiTransformResult() {
+      if (Util.isEmpty(this.aiTransformResult)) {
+        return;
+      }
+      this.markdownContent = this.aiTransformResult.markdown || "";
+      this.clearMarkdownPreview();
+      this.markdownMessage = "AI変換結果をMarkdown編集欄へ反映しました。";
+      this.aiTransformResult = null;
+    },
+    /**
+     * AI変換結果の確認欄を破棄する。
+     */
+    clearAiTransformResult() {
+      this.aiTransformResult = null;
     },
     /**
      * 入力中Markdown本文からPDFを生成し、ダウンロードする。

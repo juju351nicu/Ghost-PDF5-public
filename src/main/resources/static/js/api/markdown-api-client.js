@@ -170,6 +170,25 @@ const previewMarkdownContent = (content) => {
 };
 
 /**
+ * 入力中Markdown本文をAIで整形・要約する。
+ *
+ * 結果は既存のMarkdown編集欄を上書きしない。呼び出し元が確認用の別領域へ表示し、
+ * 利用者が採用するかどうかを選べるようにする。
+ *
+ * @param {string} content 変換対象のMarkdown本文
+ * @param {string} task 変換タスク。SUMMARIZEまたはREFINE
+ * @returns {Promise<{data: Object|null, messages: Object[], errorMessages: string[], errorCodes: string[]}>} 変換結果
+ */
+const transformMarkdownAi = (content, task) => {
+  return requestJson(() =>
+    FetchClient.postRequest(CONST.REST_PATH.MARKDOWN_AI_TRANSFORM, {
+      content,
+      task,
+    })
+  );
+};
+
+/**
  * Markdown本文を新規保存する。
  *
  * @param {string} fileName 保存Markdownファイル名
@@ -222,6 +241,7 @@ export default {
   getMarkdownFile,
   previewMarkdownFile,
   previewMarkdownContent,
+  transformMarkdownAi,
   saveMarkdown,
   updateMarkdownFile,
   deleteMarkdownFile,

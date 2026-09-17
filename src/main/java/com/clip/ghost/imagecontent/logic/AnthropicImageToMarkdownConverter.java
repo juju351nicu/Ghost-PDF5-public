@@ -18,6 +18,7 @@ import com.anthropic.models.messages.Message;
 import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.TextBlock;
 import com.anthropic.models.messages.TextBlockParam;
+import com.clip.ghost.common.utils.MarkdownFenceUnwrapper;
 import com.clip.ghost.imagecontent.config.AnthropicProperties;
 import com.clip.ghost.imagecontent.exception.ImageProcessingException;
 

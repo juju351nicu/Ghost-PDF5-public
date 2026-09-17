@@ -334,7 +334,7 @@ export
 | B-2: ページ単位Markdown下書き | 完了（`mode=AUTO` / `mode=VISION` まで） |
 | C: Markdown保存 | 完了 |
 | D: Markdown編集 / Markdown to PDF | 完了（編集、Markdown to PDF） |
-| E: AI整形 / 要約 | 足場のみ（provider抽象とキー管理）。整形・要約の機能は未着手 |
+| E: AI整形 / 要約 | 実装完了（`POST /markdownAiTransform`）。実APIでの最終確認は未実施 |
 | F: Vector DB / RAG | 未着手 |
 | G: CSV / Excel / Word対応 | 完了（CSV出力、Office⇄PDF/Markdown、画像⇄PDF、HTML/EPUB⇄PDF、ページ回転） |
 
@@ -505,13 +505,27 @@ export
 
 ### Phase E: AI整形 / 要約
 
-状態: 足場のみ。整形・要約そのものは未着手。
+状態: 実装完了。`aicontent` packageを新設し、`POST /markdownAiTransform` でMarkdown本文の整形（REFINE）・
+要約（SUMMARIZE）を提供する。既定は無効（`ghost.ai.*.enabled=false`）で、APIキーなしでも全テストが通る。
+実APIでの最終確認（実際のAnthropic/OpenAI呼び出しによる品質・コスト確認）は未実施。詳細は
+`docs/markdown-ai-transform-design.md` を参照する。
 
-- 外部AIを呼ぶ足場は `imagecontent` に実装済み。`ImageToMarkdownConverter` interface、provider選択
-  （anthropic / openai / tesseract）、環境変数からのキー取得、503 / 500 の切り分け、外側フェンス除去まで。
-- ただし用途は「画像・PDFページの文字起こし」だけで、要約・整形・レビューのendpointは無い。
-- `ai` packageは作っていない。整形・要約を足す段階で、`imagecontent` から切り出すか新設するかを判断する。
-- AI結果を人が確認する導線（Markdown欄・プレビュー・保存）は先に揃っている。
+- `imagecontent` の provider抽象（`ImageToMarkdownConverter` / `ImageConverterResolver` / `AnthropicProperties` /
+  `OpenAiProperties`）と同じ構造を、テキスト入出力専用の `aicontent` package（`controller` / `service` /
+  `logic` / `dto` / `enums` / `exception` / `config`）へ独立して作った。画像専用の
+  `imageControllerServiceLogicDependenciesKeepDirection` は汚していない。
+- `MarkdownAiConverter` interface（`transform(String markdown, AiTaskType taskType)`）と
+  `AnthropicMarkdownAiConverter` / `OpenAiMarkdownAiConverter` / `MarkdownAiConverterResolver` を追加。
+- `AiTaskType`（`SUMMARIZE` / `REFINE`）は `pdfcontent.enums.CodeEnum` を実装し、`PdfMarkdownDraftMode` と同じ形。
+- プロンプト文言は `MarkdownAiPromptBuilder`（`aicontent.logic`）へ集約し、providerごとの実装差でプロンプトが
+  ずれないようにした。実AI呼び出しなしで固定入力によりテストしている。
+- 入力文字数の上限（`ghost.ai.markdown.max-input-characters`、既定60,000文字）を設定値化し、超過時は
+  変換器を1度も呼ばずに400を返すコストガードを入れた。
+- 共有ロジック `MarkdownFenceUnwrapper` は `imagecontent.logic` から `common.utils` へ移し、画像文字起こしと
+  Markdown本文AI変換の両方から使えるようにした（ArchUnitの横断利用許可を増やさずに済む形にした）。
+- 既存の `/markdownDraftImage` / `/markdownPreview` / `/saveMarkdown` 等の挙動・テストは変更していない。
+- 画面には既存Markdownメモカードへ「AI整形」「AI要約」ボタンを追加した。結果は編集欄を自動上書きせず、
+  確認用の別領域に表示し、利用者が「編集欄へ採用」を押した場合のみ反映する。
 
 目的:
 

@@ -27,6 +27,8 @@ import org.springdoc.core.configuration.SpringDocConfiguration;
 import org.springdoc.core.properties.SpringDocConfigProperties;
 import org.springdoc.webmvc.core.configuration.SpringDocWebMvcConfiguration;
 
+import com.clip.ghost.aicontent.controller.MarkdownAiController;
+import com.clip.ghost.aicontent.service.MarkdownAiService;
 import com.clip.ghost.common.security.AccessTokenValidator;
 import com.clip.ghost.markdowncontent.controller.MarkdownController;
 import com.clip.ghost.markdowncontent.controller.MarkdownPdfController;
@@ -50,8 +52,8 @@ import tools.jackson.databind.ObjectMapper;
 @Tag("context")
 @Tag("openapi")
 @WebMvcTest({ GhostPdfController.class, PdfMarkdownDraftController.class, PdfThumbnailController.class,
-		ImageMarkdownDraftController.class, MarkdownController.class, MarkdownPdfController.class, CsvController.class,
-		SampleController.class })
+		ImageMarkdownDraftController.class, MarkdownController.class, MarkdownPdfController.class,
+		MarkdownAiController.class, CsvController.class, SampleController.class })
 @ImportAutoConfiguration({ SpringDocConfiguration.class, SpringDocConfigProperties.class,
 		SpringDocWebMvcConfiguration.class })
 @TestPropertySource(properties = "springdoc.api-docs.enabled=true")
@@ -66,6 +68,7 @@ class OpenApiDocumentationTest {
 	private static final String PATH_MARKDOWN_FILES = "/markdownFiles";
 	private static final String PATH_MARKDOWN_FILE = "/markdownFile";
 	private static final String PATH_MARKDOWN_PREVIEW = "/markdownPreview";
+	private static final String PATH_MARKDOWN_AI_TRANSFORM = "/markdownAiTransform";
 	private static final String PATH_MARKDOWN_PDF = "/markdownPdf";
 	private static final String PATH_EXTRACT_PDF = "/extractPdf";
 	private static final String PATH_MERGE_PDF = "/mergePdf";
@@ -112,6 +115,8 @@ class OpenApiDocumentationTest {
 	private static final String SCHEMA_MARKDOWN_DOCUMENT_RESPONSE = "MarkdownDocumentResponse";
 	private static final String SCHEMA_MARKDOWN_PREVIEW_RESPONSE = "MarkdownPreviewResponse";
 	private static final String SCHEMA_MARKDOWN_PREVIEW_CONTENT_RESPONSE = "MarkdownPreviewContentResponse";
+	private static final String SCHEMA_MARKDOWN_AI_TRANSFORM_REQUEST = "MarkdownAiTransformRequest";
+	private static final String SCHEMA_MARKDOWN_AI_TRANSFORM_RESPONSE = "MarkdownAiTransformResponse";
 	private static final String SCHEMA_MARKDOWN_DELETE_RESPONSE = "MarkdownDeleteResponse";
 	private static final String SCHEMA_API_MESSAGE = "ApiMessage";
 	private static final String SCHEMA_API_RESULT_PREFIX = "ApiResult";
@@ -143,6 +148,9 @@ class OpenApiDocumentationTest {
 	private MarkdownPdfService markdownPdfService;
 
 	@MockitoBean
+	private MarkdownAiService markdownAiService;
+
+	@MockitoBean
 	private AccessTokenValidator accessTokenValidator;
 
 	/**
@@ -165,12 +173,14 @@ class OpenApiDocumentationTest {
 				() -> assertMarkdownEndpoint(openApi), () -> assertMarkdownFilesEndpoint(openApi),
 				() -> assertMarkdownFileEndpoint(openApi), () -> assertMarkdownFileUpdateEndpoint(openApi),
 				() -> assertMarkdownFileDeleteEndpoint(openApi), () -> assertMarkdownPreviewEndpoint(openApi),
-				() -> assertMarkdownPreviewContentEndpoint(openApi), () -> assertPdfEndpoint(openApi, PATH_EXTRACT_PDF),
+				() -> assertMarkdownPreviewContentEndpoint(openApi), () -> assertMarkdownAiTransformEndpoint(openApi),
+				() -> assertPdfEndpoint(openApi, PATH_EXTRACT_PDF),
 				() -> assertPdfEndpoint(openApi, PATH_MERGE_PDF), () -> assertZipEndpoint(openApi, PATH_SPLIT_PDF),
 				() -> assertPdfEndpoint(openApi, PATH_DELETE_PDF), () -> assertPdfEndpoint(openApi, PATH_INSERT_PDF),
 				() -> assertPdfRequestSchemas(openApi), () -> assertMetadataResponseSchema(openApi),
 				() -> assertTextResponseSchema(openApi), () -> assertMarkdownDraftSchemas(openApi),
 				() -> assertImageMarkdownDraftSchemas(openApi), () -> assertMarkdownSchemas(openApi),
+				() -> assertMarkdownAiTransformSchemas(openApi),
 				() -> assertMarkdownPdfEndpoint(openApi), () -> assertErrorResponseSchemas(openApi));
 	}
 
@@ -193,6 +203,8 @@ class OpenApiDocumentationTest {
 				() -> assertTrue(paths.has(PATH_MARKDOWN_FILES), PATH_MARKDOWN_FILES + " should be published."),
 				() -> assertTrue(paths.has(PATH_MARKDOWN_FILE), PATH_MARKDOWN_FILE + " should be published."),
 				() -> assertTrue(paths.has(PATH_MARKDOWN_PREVIEW), PATH_MARKDOWN_PREVIEW + " should be published."),
+				() -> assertTrue(paths.has(PATH_MARKDOWN_AI_TRANSFORM),
+						PATH_MARKDOWN_AI_TRANSFORM + " should be published."),
 				() -> assertTrue(paths.has(PATH_MARKDOWN_PDF), PATH_MARKDOWN_PDF + " should be published."),
 				() -> assertTrue(paths.has(PATH_EXTRACT_PDF), PATH_EXTRACT_PDF + " should be published."),
 				() -> assertTrue(paths.has(PATH_MERGE_PDF), PATH_MERGE_PDF + " should be published."),
@@ -494,6 +506,28 @@ class OpenApiDocumentationTest {
 				() -> assertTrue(operation.path("responses").has(HTTP_STATUS_FORBIDDEN),
 						PATH_MARKDOWN_PREVIEW + " should define 403 response."),
 				() -> assertJsonErrorResponse(operation, PATH_MARKDOWN_PREVIEW, HTTP_STATUS_INTERNAL_SERVER_ERROR));
+	}
+
+	/**
+	 * Markdown本文AI整形・要約APIのOpenAPI定義に、tokenヘッダー、JSON request、JSON/エラーレスポンスが含まれることを確認する。
+	 *
+	 * @param openApi OpenAPI JSON
+	 */
+	private void assertMarkdownAiTransformEndpoint(JsonNode openApi) {
+		JsonNode operation = openApi.path("paths").path(PATH_MARKDOWN_AI_TRANSFORM).path(HTTP_METHOD_POST);
+
+		assertAll(
+				() -> assertFalse(operation.isMissingNode(),
+						PATH_MARKDOWN_AI_TRANSFORM + " post operation should exist."),
+				() -> assertAccessTokenHeader(operation, PATH_MARKDOWN_AI_TRANSFORM),
+				() -> assertJsonRequestBody(operation, PATH_MARKDOWN_AI_TRANSFORM),
+				() -> assertApiResultOkResponse(openApi, operation, PATH_MARKDOWN_AI_TRANSFORM,
+						SCHEMA_MARKDOWN_AI_TRANSFORM_RESPONSE),
+				() -> assertJsonErrorResponse(operation, PATH_MARKDOWN_AI_TRANSFORM, HTTP_STATUS_BAD_REQUEST),
+				() -> assertTrue(operation.path("responses").has(HTTP_STATUS_FORBIDDEN),
+						PATH_MARKDOWN_AI_TRANSFORM + " should define 403 response."),
+				() -> assertJsonErrorResponse(operation, PATH_MARKDOWN_AI_TRANSFORM, HTTP_STATUS_INTERNAL_SERVER_ERROR),
+				() -> assertJsonErrorResponse(operation, PATH_MARKDOWN_AI_TRANSFORM, HTTP_STATUS_SERVICE_UNAVAILABLE));
 	}
 
 	/**
@@ -933,6 +967,27 @@ class OpenApiDocumentationTest {
 				() -> assertTrue(previewContentProperties.has("html")),
 				() -> assertTrue(schemas.has(SCHEMA_MARKDOWN_DELETE_RESPONSE)),
 				() -> assertTrue(deleteProperties.has("fileName")), () -> assertTrue(deleteProperties.has("deleted")));
+	}
+
+	/**
+	 * Markdown本文AI整形・要約APIのrequest/response schemaにAPI項目名が含まれることを確認する。
+	 *
+	 * @param openApi OpenAPI JSON
+	 */
+	private void assertMarkdownAiTransformSchemas(JsonNode openApi) {
+		JsonNode schemas = openApi.path("components").path("schemas");
+		JsonNode requestSchema = schemas.path(SCHEMA_MARKDOWN_AI_TRANSFORM_REQUEST);
+		JsonNode requestProperties = requestSchema.path("properties");
+		JsonNode responseProperties = schemas.path(SCHEMA_MARKDOWN_AI_TRANSFORM_RESPONSE).path("properties");
+
+		assertAll(() -> assertTrue(schemas.has(SCHEMA_MARKDOWN_AI_TRANSFORM_REQUEST)),
+				() -> assertTrue(requestProperties.has("content")), () -> assertTrue(requestProperties.has("task")),
+				() -> assertRequiredProperty(requestSchema, SCHEMA_MARKDOWN_AI_TRANSFORM_REQUEST, "content"),
+				() -> assertRequiredProperty(requestSchema, SCHEMA_MARKDOWN_AI_TRANSFORM_REQUEST, "task"),
+				() -> assertTrue(schemas.has(SCHEMA_MARKDOWN_AI_TRANSFORM_RESPONSE)),
+				() -> assertTrue(responseProperties.has("task")), () -> assertTrue(responseProperties.has("markdown")),
+				() -> assertTrue(responseProperties.has("inputCharacterCount")),
+				() -> assertTrue(responseProperties.has("outputCharacterCount")));
 	}
 
 	/**

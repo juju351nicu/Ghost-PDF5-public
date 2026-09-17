@@ -147,6 +147,25 @@
 						<api-message-list :messages="apiMessages"></api-message-list>
 						<textarea class="markdown-panel__editor" v-model="markdownContent"
 							placeholder="# 設計メモ"></textarea>
+						<div class="markdown-panel__ai">
+							<p class="markdown-draft-mode__notice">AI整形・AI要約は、入力中のMarkdown本文を外部AI（Anthropic / OpenAI）へ送信します。</p>
+							<div class="markdown-panel__toolbar">
+								<button type="button" class="outline" :disabled="isProcessing" @click="requestMarkdownAiRefine">AI整形</button>
+								<button type="button" class="outline" :disabled="isProcessing" @click="requestMarkdownAiSummarize">AI要約</button>
+							</div>
+							<section class="markdown-panel__ai-result" v-if="aiTransformResult" aria-label="AI変換結果">
+								<p>
+									変換タスク: {{ aiTransformResult.task }} /
+									入力 {{ aiTransformResult.inputCharacterCount }} 文字 →
+									出力 {{ aiTransformResult.outputCharacterCount }} 文字
+								</p>
+								<textarea class="markdown-panel__editor" :value="aiTransformResult.markdown" readonly></textarea>
+								<div class="markdown-panel__toolbar">
+									<button type="button" :disabled="isProcessing" @click="applyAiTransformResult">編集欄へ採用</button>
+									<button type="button" class="outline" :disabled="isProcessing" @click="clearAiTransformResult">破棄</button>
+								</div>
+							</section>
+						</div>
 						<div class="markdown-panel__columns">
 							<section class="markdown-panel__file-list" aria-label="保存済みMarkdown一覧">
 								<ul v-if="markdownFiles.length > 0">

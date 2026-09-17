@@ -533,6 +533,20 @@ class CodingConventionTest {
 	}
 
 	@Test
+	@DisplayName("Markdown AI変換の依存方向をController → Service → Logicに保つ")
+	void aiControllerServiceLogicDependenciesKeepDirection() {
+		// 共有ロジック(MarkdownFenceUnwrapper)はimagecontent.logicと同居させず、common.utilsへ出した。
+		// そのため画像処理と違い横断利用のoptionalLayerを持たず、pdfControllerServiceLogicDependenciesKeepDirection
+		// と同じ単純な3層のみで固定できる。
+		Architectures.layeredArchitecture().consideringAllDependencies().layer("Controller")
+				.definedBy("..aicontent.controller..").layer("Service").definedBy("..aicontent.service..")
+				.layer("Logic").definedBy("..aicontent.logic..").whereLayer("Controller").mayNotBeAccessedByAnyLayer()
+				.whereLayer("Service").mayOnlyBeAccessedByLayers("Controller").whereLayer("Logic")
+				.mayOnlyBeAccessedByLayers("Service")
+				.because("Markdown AI変換もController -> Service -> Logicの順に依存させます。").check(PRODUCTION_CLASSES);
+	}
+
+	@Test
 	@DisplayName("Markdown処理の依存方向を保ち、共有HTMLレンダラーだけ横断利用を許す")
 	void markdownControllerServiceLogicDependenciesKeepDirection() {
 		// Markdown -> HTML変換(markdowncontent.logic)は共有機能として、PDFからHTMLを起こす
