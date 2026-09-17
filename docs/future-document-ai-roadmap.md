@@ -337,7 +337,7 @@ export
 | E: AI整形 / 要約 | 実装完了（`POST /markdownAiTransform`）。OpenAIでの実API確認は完了、Anthropicは未確認 |
 | F: Vector DB / RAG | 未着手。着手判断は「今はやらない」（2026-09-17）。`../成果物/31_プロンプト_PhaseF_VectorDB-RAG.md`参照 |
 | G: CSV / Excel / Word対応 | 完了（CSV出力、Office⇄PDF/Markdown、画像⇄PDF、HTML/EPUB⇄PDF、ページ回転） |
-| H: 検索可能PDF（OCRサンドイッチ） | 実装完了（`POST /searchablePdf`）。実Tesseractでの日本語確認・ブラウザ確認まで完了。mainへは未マージ |
+| H: 検索可能PDF（OCRサンドイッチ） | 完了（`POST /searchablePdf`）。実Tesseractでの日本語確認・ブラウザ確認まで完了。PR #17でmainへマージ済み |
 
 ### Phase A: 現在のPDF編集安定化
 
@@ -639,7 +639,7 @@ EPUBの読み書きはJDK標準のImageIO・ZIPと導入済みのjsoupで足り�
 - 実Tesseract（日本語）での実データ確認、ピクセル単位の見た目比較（差分0px）、ブラウザでのUI・操作
   確認まで完了済み。詳細は`docs/searchable-pdf-design.md`と`../成果物/33_実Tesseract確認結果_検索可能PDF.md`
   を参照する。
-- ブランチ`feature/searchable-pdf-ocr-sandwich`で実装済み。mainへのマージは未実施（2026-09-17時点）。
+- PR #17（ブランチ`feature/searchable-pdf-ocr-sandwich`）でmainへマージ済み（2026-09-18）。
 
 目的:
 
