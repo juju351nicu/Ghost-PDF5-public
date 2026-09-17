@@ -334,7 +334,7 @@ export
 | B-2: ページ単位Markdown下書き | 完了（`mode=AUTO` / `mode=VISION` まで） |
 | C: Markdown保存 | 完了 |
 | D: Markdown編集 / Markdown to PDF | 完了（編集、Markdown to PDF） |
-| E: AI整形 / 要約 | 実装完了（`POST /markdownAiTransform`）。実APIでの最終確認は未実施 |
+| E: AI整形 / 要約 | 実装完了（`POST /markdownAiTransform`）。OpenAIでの実API確認は完了、Anthropicは未確認 |
 | F: Vector DB / RAG | 未着手 |
 | G: CSV / Excel / Word対応 | 完了（CSV出力、Office⇄PDF/Markdown、画像⇄PDF、HTML/EPUB⇄PDF、ページ回転） |
 
@@ -507,8 +507,10 @@ export
 
 状態: 実装完了。`aicontent` packageを新設し、`POST /markdownAiTransform` でMarkdown本文の整形（REFINE）・
 要約（SUMMARIZE）を提供する。既定は無効（`ghost.ai.*.enabled=false`）で、APIキーなしでも全テストが通る。
-実APIでの最終確認（実際のAnthropic/OpenAI呼び出しによる品質・コスト確認）は未実施。詳細は
-`docs/markdown-ai-transform-design.md` を参照する。
+実APIでの確認はOpenAI（`gpt-4o`）で2026-09-17に実施済み。REFINEは原文情報を完全に保持、SUMMARIZEは
+数値・結論・大半の固有名詞を保持したが、システム名など一部の固有名詞を省略する場合があることを確認した。
+Anthropicでの実API確認は未実施。詳細は `docs/markdown-ai-transform-design.md`（第12節）と
+`../成果物/30_実API確認結果_PhaseE_AI整形要約.md` を参照する。
 
 - `imagecontent` の provider抽象（`ImageToMarkdownConverter` / `ImageConverterResolver` / `AnthropicProperties` /
   `OpenAiProperties`）と同じ構造を、テキスト入出力専用の `aicontent` package（`controller` / `service` /

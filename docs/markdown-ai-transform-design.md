@@ -2,8 +2,9 @@
 
 作成日: 2026-09-17
 状態: 実装完了（2026-09-17）。`aicontent` package新設、Anthropic / OpenAI 2 provider、入力文字数のコストガード、
-プロンプト集約、最小UIまで実装済み。**実APIでの最終確認（品質・コストの実測）は未実施**。
-理由・手順は第12節を参照。
+プロンプト集約、最小UIまで実装済み。**実APIでの確認はOpenAI providerのみ2026-09-17に実施済み**（第12節）。
+REFINEは原文情報を完全に保持したが、SUMMARIZEはシステム名など一部の固有名詞を省略する場合があることを確認した。
+Anthropic providerでの実API確認は未実施。
 
 ## 1. 目的
 
@@ -190,24 +191,26 @@ import先を変更した。ロジック自体・テスト内容は変更して�
 - 実APIを叩く自動テストは、コスト事故防止のため設けない（converterはinterfaceをmock）。実API確認は手動運用（第12節）。
 - 既存の`/markdownDraftImage` / `/markdownPreview` / `/saveMarkdown`等のテストは変更しておらず、全て緑のまま。
 
-## 12. 実API確認（未実施）
+## 12. 実API確認
 
-**この節は未実施。** 実装・自動テスト・FE最小UIまでは完了しているが、実際にAnthropic/OpenAIのAPIキーを
-使ったSUMMARIZE/REFINEの動作確認、品質確認、コスト実測はこのセッションでは行っていない
-（実行環境にAPIキーが用意されていないため）。
+**OpenAI providerで2026-09-17に実施済み。** `gpt-4o`で日本語設計メモ（表・見出し・コードブロック・数値・
+固有名詞を含む751文字）に対しREFINE/SUMMARIZEを実行し、`POST /markdownAiTransform`のHTTP応答・変換結果・
+コスト（実測トークン数）を確認した。詳細・全文結果は `../成果物/30_実API確認結果_PhaseE_AI整形要約.md` を参照。
 
-実施する場合の手順:
+要点:
 
-1. `ghost.ai.anthropic.enabled=true`（または`openai`）とし、`ANTHROPIC_API_KEY`（または`OPENAI_API_KEY`）を
-   環境変数に設定してアプリを起動する。
-2. 表・見出し・コードブロックを含む日本語の設計書Markdownを用意する。
-3. `POST /markdownAiTransform` に `task=REFINE` で投げ、原文の情報が失われていないか（見出し構造・表・数値・
-   固有名詞が保持されているか）を確認する。
-4. 同じ本文に `task=SUMMARIZE` で投げ、数値・固有名詞・結論が保持されているかを確認する。
-5. 結果と、入力/出力トークン数・API利用料の増分を、`成果物/09_OCRエンジン評価結果.md` と同様の形で記録する
-   （新規ファイルでもよい）。
-6. 確認結果に応じて、第7節の`max-input-characters` / `max-output-tokens`の既定値を見直す。
-7. `docs/future-document-ai-roadmap.md` のPhase E状態を「実APIでの最終確認まで完了」に更新する。
+- REFINE: 見出し・箇条書き・表・コードブロック・数値・固有名詞・結論を含め、原文の情報を完全に保持した。
+- SUMMARIZE: 数値・結論・人名・製品名・承認者名は保持されたが、システム名（本文中1箇所だけの固有名詞）が
+  2回とも省略された。致命的ではないが「固有名詞を保持する」という指示だけでは完全ではないことが分かった。
+  自動保存しない設計（本文冒頭・第2節）の重要性を裏付ける結果。
+- コスト: REFINE 979トークン（約$0.0057）、SUMMARIZE 823トークン（約$0.0043）。gpt-4o料金
+  （$2.50/1M input、$10.00/1M output）で計算。第7節の`max-output-tokens=16000`はこの入力規模に対して
+  十分な余裕があることを確認した。`max-input-characters=60000`（上限付近）は未検証。
+
+**Anthropic providerでの実API確認は未実施。** このセッションではAnthropicのAPIキーが用意できなかったため。
+`ghost.ai.provider=anthropic`と`ANTHROPIC_API_KEY`を設定し、同じ手順（`成果物/30`参照）で確認できる。
+providerの切り替えだけで動く構造であることは`MarkdownAiConverterResolver`の単体テストで担保しているが、
+実際のAnthropicモデルでの品質・コストは別途確認が必要。
 
 ## 13. FE最小UI
 
