@@ -507,8 +507,9 @@ export
 
 状態: 実装完了。`aicontent` packageを新設し、`POST /markdownAiTransform` でMarkdown本文の整形（REFINE）・
 要約（SUMMARIZE）を提供する。既定は無効（`ghost.ai.*.enabled=false`）で、APIキーなしでも全テストが通る。
-実APIでの確認はOpenAI（`gpt-4o`）で2026-09-17に実施済み。REFINEは原文情報を完全に保持、SUMMARIZEは
-数値・結論・大半の固有名詞を保持したが、システム名など一部の固有名詞を省略する場合があることを確認した。
+実APIでの確認はOpenAI（`gpt-4o`）で2026-09-17に実施済み。REFINEは原文情報を完全に保持。SUMMARIZEは
+初回確認でシステム名を省略する事象が見つかったため、system prompt（固有名詞の種類を具体的に列挙し
+「1回しか登場しない場合でも省略しない」ことを明示）を調整し、再検証でシステム名の保持を確認した。
 Anthropicでの実API確認は未実施。詳細は `docs/markdown-ai-transform-design.md`（第12節）と
 `../成果物/30_実API確認結果_PhaseE_AI整形要約.md` を参照する。
 

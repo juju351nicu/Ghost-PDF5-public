@@ -24,11 +24,15 @@ class MarkdownAiPromptBuilderTest {
 	}
 
 	@Test
-	@DisplayName("SUMMARIZEのsystemプロンプトは数値・固有名詞・結論の保持を含む")
+	@DisplayName("SUMMARIZEのsystemプロンプトは固有名詞の種類を具体的に挙げ、1回しか登場しなくても保持する指示を含む")
 	void summarizeSystemPromptKeepsKeyFacts() {
+		// 「固有名詞、結論は保持」とだけ指示した初期版は、本文中に1回しか登場しないシステム名を
+		// 実APIで省略した（成果物/30_実API確認結果_PhaseE_AI整形要約.md）。固有名詞の種類を具体化し、
+		// 「1回しか登場しない場合でも省略しない」ことを明示する指示に調整した経緯をこのテストで固定する。
 		String systemPrompt = MarkdownAiPromptBuilder.buildSystemPrompt(AiTaskType.SUMMARIZE);
 
-		assertTrue(systemPrompt.contains("数値、固有名詞、結論は保持"));
+		assertTrue(systemPrompt.contains("人名・製品名・システム名やプロジェクト名・組織名"));
+		assertTrue(systemPrompt.contains("1回しか登場しない場合でも省略せず保持"));
 		assertTrue(systemPrompt.contains("結果のMarkdownだけを返して"));
 	}
 

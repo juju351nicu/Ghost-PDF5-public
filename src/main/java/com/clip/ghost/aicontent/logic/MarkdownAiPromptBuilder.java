@@ -14,7 +14,8 @@ public final class MarkdownAiPromptBuilder {
 	private static final String REFINE_SYSTEM_PROMPT = "あなたはMarkdown文書の整形者です。原文の意味を変えずに、誤字脱字、表記ゆれ、"
 			+ "Markdown構文の乱れ（見出しレベルの不整合、リストの混在等）を直してください。原文の情報を削らないでください。" + COMMON_CONSTRAINT;
 	private static final String SUMMARIZE_SYSTEM_PROMPT = "あなたはMarkdown文書の要約者です。原文の要点を落とさずに短くまとめてください。"
-			+ "数値、固有名詞、結論は保持してください。" + COMMON_CONSTRAINT;
+			+ "数値と結論に加え、人名・製品名・システム名やプロジェクト名・組織名などの固有名詞は、"
+			+ "本文中に1回しか登場しない場合でも省略せず保持してください。" + COMMON_CONSTRAINT;
 	private static final String USER_PROMPT_FORMAT = "次のMarkdown本文を%sしてください。%n%n%s";
 
 	private MarkdownAiPromptBuilder() {
