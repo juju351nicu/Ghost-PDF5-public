@@ -30,6 +30,7 @@
  * @property {CheckboxState} delPagesChecked 削除ページ指定チェック状態
  * @property {TextInputState} delPagesText 削除ページ入力状態
  * @property {string} markdownDraftMode Markdown下書きの変換モード。空文字は従来動作（文字レイヤーのみ）
+ * @property {string} searchablePdfMode 検索可能PDF生成の変換モード（AUTO / FORCE_OCR）
  * @property {number} rotation ページ回転角（90 / 180 / 270）
  * @property {string} imageFormat ページ画像化の出力形式（PNG / JPG / TIFF / BMP）
  * @property {string} imageDpi ページ画像化の解像度。空文字はサーバー設定の既定値を使う
@@ -81,6 +82,8 @@ const createOriginalFileState = () => ({
   splitRangesText: { text: "", message: "" },
   // 既定は従来動作。これまでFEはmodeを送っていなかったため、初期値を変えると既存の挙動が変わる。
   markdownDraftMode: "",
+  // 既定はAUTO。文字レイヤーが無いページだけをOCR対象にする、最も安全側の動作にする。
+  searchablePdfMode: "AUTO",
   // 縦向きの資料を横向きに直す用途が最も多いため、既定は時計回り90度にする。
   rotation: 90,
   // 文字と線画がにじまないPNGを既定にする。写真主体ならJPGへ切り替える。
@@ -207,6 +210,24 @@ const createMarkdownDraftModeItems = () => [
   {
     id: "VISION",
     name: "VISION（全ページAI変換・費用発生）",
+  },
+];
+
+/**
+ * 検索可能PDF生成の変換モードプルダウンの選択肢を生成する。
+ *
+ * idはBEの `SearchablePdfMode` のコード値と一致させる。
+ *
+ * @returns {{id: string, name: string}[]} 変換モードの選択肢
+ */
+const createSearchablePdfModeItems = () => [
+  {
+    id: "AUTO",
+    name: "AUTO（文字レイヤーが無いページだけOCR）",
+  },
+  {
+    id: "FORCE_OCR",
+    name: "FORCE_OCR（全ページをOCR）",
   },
 ];
 
@@ -382,6 +403,7 @@ export default {
   createInitialInsertFiles,
   createInsertOptionItems,
   createMarkdownDraftModeItems,
+  createSearchablePdfModeItems,
   createRotationItems,
   createImageFormatItems,
   calculateNextInsertFileNo,

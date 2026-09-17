@@ -664,6 +664,21 @@ const pdfApp = {
       this.requestPdfAndOpen(CONST.REST_PATH.ROTATE_PDF, payload);
     },
     /**
+     * 編集元PDFから検索可能PDF（OCRサンドイッチ）を生成し、結果PDFを別タブで開く。
+     */
+    requestSearchablePdf() {
+      const originalFileData = this.originalFile;
+      if (Util.isEmpty(originalFileData.fileObject)) {
+        this.originalFile.delPagesText.message = "ファイル選択されておりません。";
+        return;
+      }
+      const payload = PdfPayload.buildSearchablePdfPayload(
+        originalFileData.fileObject,
+        originalFileData.searchablePdfMode
+      );
+      this.requestPdfAndOpen(CONST.REST_PATH.SEARCHABLE_PDF, payload);
+    },
+    /**
      * 編集元PDFの基本情報を取得し、画面へ表示する。
      *
      * @returns {Promise<void>} PDFメタデータ取得処理の完了Promise

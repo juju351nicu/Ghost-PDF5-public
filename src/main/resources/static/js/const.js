@@ -31,6 +31,7 @@ const REST_PATH = {
   THUMBNAILS_PDF: "/thumbnailsPdf",
   DELETE_PDF: "/deletePdf",
   INSERT_PDF: "/insertPdf",
+  SEARCHABLE_PDF: "/searchablePdf",
   SAVE_MARKDOWN: "/saveMarkdown",
   MARKDOWN_FILES: "/markdownFiles",
   MARKDOWN_FILES_CSV: "/markdownFilesCsv",
