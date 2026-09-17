@@ -335,7 +335,7 @@ export
 | C: Markdown保存 | 完了 |
 | D: Markdown編集 / Markdown to PDF | 完了（編集、Markdown to PDF） |
 | E: AI整形 / 要約 | 実装完了（`POST /markdownAiTransform`）。OpenAIでの実API確認は完了、Anthropicは未確認 |
-| F: Vector DB / RAG | 未着手 |
+| F: Vector DB / RAG | 未着手。着手判断は「今はやらない」（2026-09-17）。`../成果物/31_プロンプト_PhaseF_VectorDB-RAG.md`参照 |
 | G: CSV / Excel / Word対応 | 完了（CSV出力、Office⇄PDF/Markdown、画像⇄PDF、HTML/EPUB⇄PDF、ページ回転） |
 
 ### Phase A: 現在のPDF編集安定化
@@ -549,6 +549,13 @@ Anthropicでの実API確認は未実施。詳細は `docs/markdown-ai-transform-
 ### Phase F: Vector DB / RAG
 
 状態: 未着手。Spring AIもVector DBも依存に入れていない。
+
+**着手判断（2026-09-17）: 本実装は今はやらない。** 保存済みMarkdownが0件（`ghost.markdown.storage-directory`実測）で、
+`../成果物/20_構想_プロダクト化の道筋.md`§10が明記する「保存済み文書が100件規模を超えて『探せない』と感じてから」
+という閾値に達していない。プロダクト化の方向（同§5のA/B/C）も未決定で、Vector DBの持ち方（ローカル1ファイルか
+マルチテナントDBか）に影響する。詳しい根拠・設計論点・実装プロンプトは`../成果物/31_プロンプト_PhaseF_VectorDB-RAG.md`
+に記録した。同文書はStage 0（着手条件なしで今すぐ実行できる評価スパイク）とStage 1（本実装。閾値達成後）の
+2段構成にしてある。
 
 目的:
 
