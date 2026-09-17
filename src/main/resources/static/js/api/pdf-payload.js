@@ -122,6 +122,20 @@ const buildRotatePayload = (fileObject, rotation, rotatePages) => {
 };
 
 /**
+ * 検索可能PDF生成API用のmultipart payloadを生成する。
+ *
+ * @param {File} fileObject OCR対象PDF
+ * @param {string} mode 変換モード（AUTO / FORCE_OCR）
+ * @returns {{key: string, value: unknown}[]} multipart payload
+ */
+const buildSearchablePdfPayload = (fileObject, mode) => {
+  return [
+    { key: "originalFile", value: fileObject },
+    { key: "mode", value: mode },
+  ];
+};
+
+/**
  * PDFページ画像化API用のmultipart payloadを生成する。
  *
  * 解像度と対象ページは空の場合にkeyを送らない。BE側は解像度未指定をサーバー設定の既定値、
@@ -328,6 +342,7 @@ export default {
   buildMergePayload,
   buildSplitPayload,
   buildRotatePayload,
+  buildSearchablePdfPayload,
   buildImagesPayload,
   buildPdfFromImagesPayload,
   buildHtmlPdfPayload,

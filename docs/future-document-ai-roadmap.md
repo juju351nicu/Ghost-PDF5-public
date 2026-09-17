@@ -337,6 +337,7 @@ export
 | E: AI整形 / 要約 | 実装完了（`POST /markdownAiTransform`）。OpenAIでの実API確認は完了、Anthropicは未確認 |
 | F: Vector DB / RAG | 未着手。着手判断は「今はやらない」（2026-09-17）。`../成果物/31_プロンプト_PhaseF_VectorDB-RAG.md`参照 |
 | G: CSV / Excel / Word対応 | 完了（CSV出力、Office⇄PDF/Markdown、画像⇄PDF、HTML/EPUB⇄PDF、ページ回転） |
+| H: 検索可能PDF（OCRサンドイッチ） | 実装完了（`POST /searchablePdf`）。実Tesseractでの日本語確認・ブラウザ確認まで完了。mainへは未マージ |
 
 ### Phase A: 現在のPDF編集安定化
 
@@ -619,6 +620,36 @@ EPUBの読み書きはJDK標準のImageIO・ZIPと導入済みのjsoupで足り�
   `@Hidden` でOpenAPIから外れており、新規のCSV出力は `exportcontent` 側に置いた。
 - AI処理結果のCSV出力は、Phase E（AI整形 / 要約）が動き出してから対象を決める。
 
+### Phase H: 検索可能PDF（OCRサンドイッチ）
+
+状態: 実装完了（2026-09-17）。`POST /searchablePdf` を追加した。スキャン画像や文字レイヤーの無いページを
+ローカルのTesseractでOCRし、認識した文字を元のPDFへ見た目を変えずに透明テキスト層として書き戻す。
+既存の画像Markdown下書き（`imagecontent`）とは別責務で、AIへの外部送信は一切行わない
+（Tesseract onlyで、Vision LLMは座標付き出力を持たないため不採用）。
+
+- 変換モードは `AUTO`（文字レイヤーが無いページだけOCR、既定）と `FORCE_OCR`（全ページOCR）の2つ
+  （`SearchablePdfMode`、`PdfMarkdownDraftMode`と同じ`CodeEnum<String>`パターン）。
+- Tesseractの`tsv`出力（単語単位の`left/top/width/height`）から座標を変換し、`PDPageContentStream`へ
+  `RenderingMode.NEITHER`（不可視）で書き込む。既存コンテンツは`AppendMode.APPEND`で追記し、変更しない。
+- フォントは既存のNoto Sans JPを`embedSubset=false`で読み込む。`embedSubset=true`（既定）だとこの
+  フォントに限りPDFBoxのサブセット化でグリフIDが2つずれ、書き込んだ文字が別の文字として抽出される
+  不具合を実測で発見し、`false`に固定した（詳細は`docs/searchable-pdf-design.md`第6節）。
+- 新しい最上位packageは作らず、既存の`pdfcontent`/`imagecontent`に配置。新しいArchUnitルールも不要
+  （既存の`pdfcontent.service`から`imagecontent.logic`への横断利用許可がそのまま使えるため）。
+- 実Tesseract（日本語）での実データ確認、ピクセル単位の見た目比較（差分0px）、ブラウザでのUI・操作
+  確認まで完了済み。詳細は`docs/searchable-pdf-design.md`と`../成果物/33_実Tesseract確認結果_検索可能PDF.md`
+  を参照する。
+- ブランチ`feature/searchable-pdf-ocr-sandwich`で実装済み。mainへのマージは未実施（2026-09-17時点）。
+
+目的:
+
+- 検索・コピペができないスキャンPDFを、見た目を変えずに検索可能にする。
+- 既存の外部AI送信を伴う機能（Phase E等）とは独立に、ローカル完結で完結する変換手段を持つ。
+
+注意:
+
+- CJK（日本語）は単語分かち書きの精度に既知の限界がある。矯正はスコープ外。
+- Tesseractのpsm・複雑なレイアウト（段組・表）への対応は未検証。
 
 ## 変換難易度メモ
 

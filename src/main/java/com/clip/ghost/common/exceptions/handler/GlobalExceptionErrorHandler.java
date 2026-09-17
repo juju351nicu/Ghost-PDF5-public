@@ -26,6 +26,7 @@ import com.clip.ghost.imagecontent.exception.OcrUnavailableException;
 import com.clip.ghost.markdowncontent.exception.MarkdownPdfException;
 import com.clip.ghost.pdfcontent.exception.PdfPageLimitExceededException;
 import com.clip.ghost.pdfcontent.exception.PdfPasswordProtectedException;
+import com.clip.ghost.pdfcontent.exception.SearchablePdfUnavailableException;
 import com.clip.ghost.officecontent.exception.OfficeInputException;
 import com.clip.ghost.officecontent.exception.OfficeProcessingException;
 import com.clip.ghost.pdfcontent.exception.PdfImageInputException;
@@ -77,6 +78,8 @@ public class GlobalExceptionErrorHandler extends ResponseEntityExceptionHandler 
 	private static final String AI_PROCESSING_ERROR_MESSAGE = "Markdown本文のAI整形・要約に失敗しました。";
 	private static final String AI_UNAVAILABLE_ERROR_CODE = "aiUnavailable";
 	private static final String AI_UNAVAILABLE_ERROR_MESSAGE = "Markdown本文のAI整形・要約機能は無効です。";
+	private static final String SEARCHABLE_PDF_UNAVAILABLE_ERROR_CODE = "searchablePdfUnavailable";
+	private static final String SEARCHABLE_PDF_UNAVAILABLE_ERROR_MESSAGE = "検索可能PDF生成機能は無効です。";
 
 	/**
 	 * MultipartExceptionがスローされた場合、レスポンスステータスを413にする。<br>
@@ -359,6 +362,20 @@ public class GlobalExceptionErrorHandler extends ResponseEntityExceptionHandler 
 	protected ResponseEntity<ErrorResponse> handleAiUnavailable(AiUnavailableException ex) {
 		LOGGER.warn("Markdown本文のAI整形・要約機能が無効です。message={}", ex.getMessage());
 		return createErrorResponse(AI_UNAVAILABLE_ERROR_CODE, AI_UNAVAILABLE_ERROR_MESSAGE,
+				HttpStatus.SERVICE_UNAVAILABLE);
+	}
+
+	/**
+	 * 検索可能PDF生成機能が無効な場合、レスポンスステータスを503にする。
+	 *
+	 * @param ex 機能無効例外
+	 * @return 機能無効エラーのレスポンス
+	 */
+	@ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)
+	@ExceptionHandler(SearchablePdfUnavailableException.class)
+	protected ResponseEntity<ErrorResponse> handleSearchablePdfUnavailable(SearchablePdfUnavailableException ex) {
+		LOGGER.warn("検索可能PDF生成機能が無効です。message={}", ex.getMessage());
+		return createErrorResponse(SEARCHABLE_PDF_UNAVAILABLE_ERROR_CODE, SEARCHABLE_PDF_UNAVAILABLE_ERROR_MESSAGE,
 				HttpStatus.SERVICE_UNAVAILABLE);
 	}
 

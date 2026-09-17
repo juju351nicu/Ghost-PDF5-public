@@ -36,6 +36,7 @@ const ERROR_CODE = {
   AI_INPUT: "aiInputError",
   AI_PROCESSING: "aiProcessingError",
   AI_UNAVAILABLE: "aiUnavailable",
+  SEARCHABLE_PDF_UNAVAILABLE: "searchablePdfUnavailable",
 };
 
 /**
@@ -58,6 +59,7 @@ const RECOVERABLE_ERROR_CODES = [
   ERROR_CODE.OCR_UNAVAILABLE,
   ERROR_CODE.AI_INPUT,
   ERROR_CODE.AI_UNAVAILABLE,
+  ERROR_CODE.SEARCHABLE_PDF_UNAVAILABLE,
 ];
 
 /**

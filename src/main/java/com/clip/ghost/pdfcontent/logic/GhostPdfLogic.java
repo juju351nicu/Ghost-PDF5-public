@@ -15,6 +15,7 @@ import com.clip.ghost.pdfcontent.enums.PdfMarkdownDraftMode;
 import com.clip.ghost.pdfcontent.enums.PdfImageFormat;
 import com.clip.ghost.pdfcontent.enums.PdfImagePageSize;
 import com.clip.ghost.pdfcontent.enums.PdfRotation;
+import com.clip.ghost.pdfcontent.enums.SearchablePdfMode;
 import com.clip.ghost.pdfcontent.exception.PdfImageInputException;
 import com.clip.ghost.pdfcontent.exception.PdfPageLimitExceededException;
 import com.clip.ghost.pdfcontent.exception.PdfPasswordProtectedException;
@@ -56,6 +57,9 @@ public class GhostPdfLogic {
 
 	/** 差し込み、置換、末尾挿入を担当する内部ロジック。 */
 	private final PdfInsertLogic insertLogic = new PdfInsertLogic();
+
+	/** 検索可能PDF（OCRサンドイッチPDF）の生成を担当する内部ロジック。 */
+	private final SearchablePdfLogic searchablePdfLogic = new SearchablePdfLogic();
 
 	/** PDF一時保存先ディレクトリ。 */
 	@Value("${spring.servlet.multipart.location}")
@@ -269,6 +273,32 @@ public class GhostPdfLogic {
 		Path outputPath = temporaryFileStorage().createTemporaryFilePath(inputPath.getFileName().toString());
 		try {
 			pageOperationLogic.rotatePdf(rotation, rotatePages, inputPath, outputPath);
+		} finally {
+			temporaryFileStorage().delete(inputPath);
+		}
+		return outputPath;
+	}
+
+	/**
+	 * 一時保存されたPDFから検索可能PDF（OCRサンドイッチPDF）を生成し、その一時保存先パスを返却する。
+	 * <p>
+	 * OCR対象ページ数の上限チェックは画像化・OCR呼び出しより前に行うため、超過時は{@code pageOcr}が
+	 * 1度も呼ばれない。成功・失敗にかかわらず入力一時ファイルを削除する。
+	 *
+	 * @param mode      OCR対象ページを決める変換モード
+	 * @param renderDpi OCR用に画像化する解像度（DPI）
+	 * @param maxPages  OCR対象ページ数の上限
+	 * @param inputPath 読み込むPDFのパス
+	 * @param pageOcr   画像化した1ページ分を単語ボックスへ変換する処理
+	 * @return 生成した検索可能PDFの一時保存先パス
+	 * @throws PdfPageLimitExceededException OCR対象ページ数が上限を超えた場合
+	 * @throws PdfProcessingException        PDFの読み込み、画像化、透明テキスト書き込み、または保存に失敗した場合
+	 */
+	public Path createSearchablePdf(SearchablePdfMode mode, int renderDpi, int maxPages, Path inputPath,
+			SearchablePdfPageOcr pageOcr) {
+		Path outputPath = temporaryFileStorage().createTemporaryFilePath(inputPath.getFileName().toString());
+		try {
+			searchablePdfLogic.createSearchablePdf(inputPath, outputPath, mode, renderDpi, maxPages, pageOcr);
 		} finally {
 			temporaryFileStorage().delete(inputPath);
 		}

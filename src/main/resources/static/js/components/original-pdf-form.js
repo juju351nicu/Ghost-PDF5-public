@@ -35,6 +35,7 @@ export default {
     "request-text-pdf",
     "request-split-pdf",
     "request-rotate-pdf",
+    "request-searchable-pdf",
     "request-images-pdf",
     "request-html-pdf",
     "request-office-from-pdf",
@@ -124,6 +125,20 @@ export default {
             </p>
           </div>
 
+          <h3 class="pdf-card__section-title">検索可能PDF（OCRサンドイッチ）</h3>
+          <div class="pdf-action-row">
+            <select class="searchable-pdf-mode-select" v-model="originalFile.searchablePdfMode"
+              aria-label="検索可能PDF生成の変換モード">
+              <option v-for="item in searchablePdfModeItems" :key="item.id" :value="item.id">
+                {{ item.name }}
+              </option>
+            </select>
+            <button type="button" :disabled="isProcessing" @click="requestSearchablePdf">検索可能PDFにする</button>
+            <p class="markdown-draft-mode__notice">
+              ローカルのTesseractでOCRし、見た目はそのままで検索・コピペ可能なPDFを作ります。外部送信は行いません。
+            </p>
+          </div>
+
           <button type="button" class="secondary" @click="clearAll">全クリア</button>
         </template>
         <pdf-thumbnail-list
@@ -157,6 +172,7 @@ export default {
   data() {
     return {
       markdownDraftModeItems: PdfFormState.createMarkdownDraftModeItems(),
+      searchablePdfModeItems: PdfFormState.createSearchablePdfModeItems(),
       rotationItems: PdfFormState.createRotationItems(),
       imageFormatItems: PdfFormState.createImageFormatItems(),
       officeFormatItems: PdfFormState.createOfficeFormatItems(),
@@ -272,6 +288,12 @@ export default {
      */
     requestRotatePdf() {
       this.$emit("request-rotate-pdf");
+    },
+    /**
+     * 検索可能PDF生成リクエストを親コンポーネントへ通知する。
+     */
+    requestSearchablePdf() {
+      this.$emit("request-searchable-pdf");
     },
     /**
      * 編集元PDFのページ画像化リクエストを親コンポーネントへ通知する。
