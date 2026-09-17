@@ -1,4 +1,4 @@
-package com.clip.ghost.imagecontent.logic;
+package com.clip.ghost.common.utils;
 
 import java.util.List;
 import java.util.regex.Matcher;
@@ -8,7 +8,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.Strings;
 
 /**
- * vision系の出力全体がコードフェンスで包まれている場合に、その外側フェンスだけを取り除くユーティリティ。
+ * LLM系の出力全体がコードフェンスで包まれている場合に、その外側フェンスだけを取り除くユーティリティ。
  * <p>
  * LLMは「Markdownで返す」という指示に対し、出力全体を ```markdown … ``` で包むことがある。そのままでは
  * プレビューでコードブロック扱いになり、表が表として描画されない。次の方針で外側フェンスだけを外す。
@@ -17,8 +17,11 @@ import org.apache.commons.lang3.Strings;
  * <li>言語指定なしの ``` は、内側に他のフェンスが無い場合だけ外す。</li>
  * <li>```java などプログラミング言語指定のフェンスは、画像内のソースコードの正当な表現として残す。</li>
  * </ul>
+ * <p>
+ * 画像文字起こし（{@code imagecontent}）とMarkdown本文のAI整形・要約（{@code aicontent}）の両方から使う
+ * 共有ロジックのため、どちらの用途にも属さない {@code common.utils} に置く。
  */
-final class MarkdownFenceUnwrapper {
+public final class MarkdownFenceUnwrapper {
 	private static final Pattern FENCE_OPEN = Pattern.compile("^```([A-Za-z0-9_+-]*)$");
 	private static final String FENCE_MARKER = "```";
 
@@ -31,7 +34,7 @@ final class MarkdownFenceUnwrapper {
 	 * @param markdown 変換結果のMarkdown
 	 * @return 外側フェンスを外したMarkdown、または変更しない入力
 	 */
-	static String unwrap(String markdown) {
+	public static String unwrap(String markdown) {
 		if (StringUtils.isBlank(markdown)) {
 			return markdown;
 		}

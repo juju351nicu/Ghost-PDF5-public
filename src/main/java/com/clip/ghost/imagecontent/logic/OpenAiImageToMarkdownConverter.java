@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import com.clip.ghost.common.utils.MarkdownFenceUnwrapper;
 import com.clip.ghost.imagecontent.config.OpenAiProperties;
 import com.clip.ghost.imagecontent.exception.ImageProcessingException;
 import com.openai.client.OpenAIClient;

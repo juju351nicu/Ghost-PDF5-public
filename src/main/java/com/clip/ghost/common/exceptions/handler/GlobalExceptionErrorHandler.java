@@ -15,6 +15,9 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
+import com.clip.ghost.aicontent.exception.AiInputException;
+import com.clip.ghost.aicontent.exception.AiProcessingException;
+import com.clip.ghost.aicontent.exception.AiUnavailableException;
 import com.clip.ghost.common.exceptions.CustomFieldError;
 import com.clip.ghost.common.exceptions.ErrorResponse;
 import com.clip.ghost.imagecontent.exception.ImageInputException;
@@ -68,6 +71,12 @@ public class GlobalExceptionErrorHandler extends ResponseEntityExceptionHandler 
 	private static final String OFFICE_PROCESSING_ERROR_MESSAGE = "Office文書の処理に失敗しました。";
 	private static final String MARKDOWN_PDF_ERROR_CODE = "markdownPdfError";
 	private static final String MARKDOWN_PDF_ERROR_MESSAGE = "MarkdownからのPDF出力に失敗しました。";
+	private static final String AI_INPUT_ERROR_CODE = "aiInputError";
+	private static final String AI_INPUT_ERROR_MESSAGE = "入力文字数が上限を超えています。入力 %d 文字 / 上限 %d 文字";
+	private static final String AI_PROCESSING_ERROR_CODE = "aiProcessingError";
+	private static final String AI_PROCESSING_ERROR_MESSAGE = "Markdown本文のAI整形・要約に失敗しました。";
+	private static final String AI_UNAVAILABLE_ERROR_CODE = "aiUnavailable";
+	private static final String AI_UNAVAILABLE_ERROR_MESSAGE = "Markdown本文のAI整形・要約機能は無効です。";
 
 	/**
 	 * MultipartExceptionがスローされた場合、レスポンスステータスを413にする。<br>
@@ -302,6 +311,55 @@ public class GlobalExceptionErrorHandler extends ResponseEntityExceptionHandler 
 		LOGGER.debug("Markdown PDF出力例外の詳細です。", ex);
 		return createErrorResponse(MARKDOWN_PDF_ERROR_CODE, MARKDOWN_PDF_ERROR_MESSAGE,
 				HttpStatus.INTERNAL_SERVER_ERROR);
+	}
+
+	/**
+	 * Markdown本文AI変換の入力文字数が上限を超えた場合、レスポンスステータスを400にする。
+	 * <p>
+	 * 外部AIの課金が発生する前に止めるコストガードで、利用者が自分で対処できるエラーのため、入力文字数と上限を
+	 * メッセージへ含める。文字数は文書の内容ではないため、レスポンス・ログへ出しても情報漏洩にならない。
+	 *
+	 * @param ex 入力文字数上限超過例外
+	 * @return 入力文字数上限超過エラーのレスポンス
+	 */
+	@ResponseStatus(HttpStatus.BAD_REQUEST)
+	@ExceptionHandler(AiInputException.class)
+	protected ResponseEntity<ErrorResponse> handleAiInput(AiInputException ex) {
+		LOGGER.warn("Markdown本文AI変換の入力文字数が上限を超えました。characterCount={}, maxCharacters={}", ex.getCharacterCount(),
+				ex.getMaxCharacters());
+		return createErrorResponse(AI_INPUT_ERROR_CODE,
+				AI_INPUT_ERROR_MESSAGE.formatted(ex.getCharacterCount(), ex.getMaxCharacters()), HttpStatus.BAD_REQUEST);
+	}
+
+	/**
+	 * Markdown本文のAI整形・要約に失敗した場合、レスポンスステータスを500にする。
+	 * <p>
+	 * フロントエンドが既存のエラー表示で扱えるよう、fieldErrors形式で返却する。APIキーやMarkdown本文はメッセージへ含めない。
+	 *
+	 * @param ex AI処理例外
+	 * @return AI処理エラーのレスポンス
+	 */
+	@ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+	@ExceptionHandler(AiProcessingException.class)
+	protected ResponseEntity<ErrorResponse> handleAiProcessing(AiProcessingException ex) {
+		LOGGER.error("Markdown本文のAI整形・要約に失敗しました。message={}", ex.getMessage());
+		LOGGER.debug("AI処理例外の詳細です。", ex);
+		return createErrorResponse(AI_PROCESSING_ERROR_CODE, AI_PROCESSING_ERROR_MESSAGE,
+				HttpStatus.INTERNAL_SERVER_ERROR);
+	}
+
+	/**
+	 * Markdown本文のAI整形・要約機能が無効な場合、レスポンスステータスを503にする。
+	 *
+	 * @param ex 機能無効例外
+	 * @return 機能無効エラーのレスポンス
+	 */
+	@ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)
+	@ExceptionHandler(AiUnavailableException.class)
+	protected ResponseEntity<ErrorResponse> handleAiUnavailable(AiUnavailableException ex) {
+		LOGGER.warn("Markdown本文のAI整形・要約機能が無効です。message={}", ex.getMessage());
+		return createErrorResponse(AI_UNAVAILABLE_ERROR_CODE, AI_UNAVAILABLE_ERROR_MESSAGE,
+				HttpStatus.SERVICE_UNAVAILABLE);
 	}
 
 	/**
