@@ -4,6 +4,7 @@ import Modal from "../components/modal.js";
 import ApiMessageList from "../components/api-message-list.js";
 import TheHeader from "../components/theheader.js";
 import TheFooter from "../components/thefooter.js";
+import HomePanel from "../components/home-panel.js";
 import OriginalPdfForm from "../components/original-pdf-form.js";
 import InsertPdfRow from "../components/insert-pdf-row.js";
 import ImageOcrForm from "../components/image-ocr-form.js";
@@ -20,6 +21,7 @@ import PdfPayload from "../api/pdf-payload.js";
 import ImagePayload from "../api/image-payload.js";
 import PdfFormState from "../models/pdf-form-state.js";
 import ProcessState from "../models/process-state.js";
+import UiPreferenceState from "../models/ui-preference-state.js";
 import PageNumberValidator from "../validation/page-number-validator.js";
 import FileSizeValidator from "../validation/file-size-validator.js";
 import FileTypeValidator from "../validation/file-type-validator.js";
@@ -31,6 +33,39 @@ const IMAGES_PDF_FILE_NAME = "images.zip";
 const HTML_PDF_FILE_NAME = "document.html";
 const EPUB_PDF_FILE_NAME = "document.epub";
 const MARKDOWN_FILES_CSV_FILE_NAME = "markdown-files.csv";
+// 入力の都度ブラウザ内保存へ書き込むとI/Oが増えるため、入力が止まってからまとめて書き込む。
+const MARKDOWN_DRAFT_SAVE_DELAY_MS = 3000;
+
+/**
+ * 編集元PDFの初期状態に、前回選んだ変換モード・出力形式などを適用して生成する。
+ *
+ * 初めて開いた利用者はPdfFormState側の既定値のまま、前回の記憶があれば上書きする。
+ * 全クリア時も同じ状態を作り直すため、生成そのものをここへまとめる。
+ *
+ * @returns {Object} 前回設定を反映した編集元PDFの画面状態
+ */
+const buildOriginalFileState = () => {
+  const settings = UiPreferenceState.loadOperationSettings();
+  const originalFileState = PdfFormState.createOriginalFileState();
+  originalFileState.markdownDraftMode = settings.markdownDraftMode;
+  originalFileState.searchablePdfMode = settings.searchablePdfMode;
+  originalFileState.imageFormat = settings.imageFormat;
+  originalFileState.imageDpi = settings.imageDpi;
+  originalFileState.officeFormat = settings.officeFormat;
+  return originalFileState;
+};
+
+/**
+ * 画像からPDFを作るカードの初期状態に、前回選んだ用紙サイズを適用して生成する。
+ *
+ * @returns {Object} 前回設定を反映した画像PDFカードの画面状態
+ */
+const buildImagesPdfState = () => {
+  const settings = UiPreferenceState.loadOperationSettings();
+  const imagesPdfState = PdfFormState.createImagesPdfState();
+  imagesPdfState.pageSize = settings.imagesPageSize;
+  return imagesPdfState;
+};
 
 /**
  * PDF編集画面のVue app定義。
@@ -44,6 +79,7 @@ const pdfApp = {
     modal: Modal,
     "the-header": TheHeader,
     "the-footer": TheFooter,
+    "home-panel": HomePanel,
     "original-pdf-form": OriginalPdfForm,
     "insert-pdf-row": InsertPdfRow,
     "image-ocr-form": ImageOcrForm,
@@ -58,11 +94,15 @@ const pdfApp = {
     return {
       // 機能タブの選択状態。タブを切り替えても各カードのデータ（選択ファイルや入力内容）は
       // このコンポーネントの状態としてそのまま残るため、切り替え時に読み直す必要はない。
-      activeTab: "edit",
-      originalFile: PdfFormState.createOriginalFileState(),
+      // 前回開いていたタブを復元し、毎回「OCR・Markdown化」タブを探す手間を省く。
+      activeTab: UiPreferenceState.loadActiveTab(),
+      originalFile: buildOriginalFileState(),
       pdfMetadata: PdfFormState.createPdfMetadataState(),
       pdfThumbnails: PdfFormState.createThumbnailState(),
       insertFiles: PdfFormState.createInitialInsertFiles(),
+      // ホームの「PDFを結合」からPDF編集タブへ移動したとき、折りたたみパネルを開いた状態にするための状態。
+      // ネイティブ<details>の開閉と2-way bindingするため、@toggleでも書き戻す。
+      insertMergePanelOpen: false,
       newNo: 3,
       insertPagePulldown: PdfFormState.createInsertOptionItems(),
       isShowModal: false,
@@ -73,31 +113,42 @@ const pdfApp = {
       pdfPassword: "",
       pendingPasswordRetry: null,
       imageDraft: PdfFormState.createImageDraftState(),
-      imagesPdf: PdfFormState.createImagesPdfState(),
+      imagesPdf: buildImagesPdfState(),
       htmlPdf: PdfFormState.createHtmlPdfState(),
       officeDocument: PdfFormState.createOfficeState(),
       epubDocument: PdfFormState.createEpubState(),
-      markdownFileName: "design-note.md",
+      markdownFileName: UiPreferenceState.loadOperationSettings().markdownFileName,
       markdownContent: "",
       markdownFiles: [],
       isMarkdownFileListLoaded: false,
       markdownPreviewHtml: "",
       markdownMessage: "",
       aiTransformResult: null,
+      markdownDraftSaveTimerId: null,
     };
   },
   mounted() {
     Util.detectBrowserName();
     Util.canUseLocalStorage();
+    this.restoreMarkdownDraftFromLocalStorage();
+    // watch(activeTab)は値の変化にしか反応しないため、開いた状態で起動した場合はここで読みに行く。
+    if (this.activeTab === "home") {
+      this.requestListMarkdownFiles();
+    }
     // ドロップ領域の外へ落としたPDFは、既定動作のままだとブラウザがそのファイルを開いて
     // 画面を離れてしまい、入力中の内容が失われる。window側で既定動作だけを止める。
     window.addEventListener("dragover", this.preventWindowFileDrop);
     window.addEventListener("drop", this.preventWindowFileDrop);
+    window.addEventListener("keydown", this.handleMarkdownShortcut);
   },
   beforeUnmount() {
     window.removeEventListener("dragover", this.preventWindowFileDrop);
     window.removeEventListener("drop", this.preventWindowFileDrop);
+    window.removeEventListener("keydown", this.handleMarkdownShortcut);
     this.stopElapsedTimer();
+    if (this.markdownDraftSaveTimerId !== null) {
+      window.clearTimeout(this.markdownDraftSaveTimerId);
+    }
   },
   computed: {
     /**
@@ -111,6 +162,24 @@ const pdfApp = {
     isProcessing() {
       return ProcessState.isBusyState(this.processPanel.state);
     },
+    /**
+     * ホームタブへ出す、最近保存したMarkdownの上位5件。
+     *
+     * Markdownメモタブの一覧は既存仕様どおりファイル名順のまま保ち、ホーム向けにここだけ
+     * 更新日時の新しい順へ並べ替える。更新日時が空の項目は最後に回す。
+     *
+     * @returns {Object[]} 更新日時の新しい順に並べたMarkdownファイル情報。最大5件
+     */
+    recentMarkdownFiles() {
+      return this.markdownFiles
+        .slice()
+        .sort((leftFile, rightFile) =>
+          (rightFile.lastModifiedTime || "").localeCompare(
+            leftFile.lastModifiedTime || ""
+          )
+        )
+        .slice(0, 5);
+    },
   },
   watch: {
     originalFile: {
@@ -121,8 +190,39 @@ const pdfApp = {
       },
       deep: true,
     },
+    activeTab(newValue) {
+      UiPreferenceState.saveActiveTab(newValue);
+      // ホームの「最近保存したMarkdown」は、一覧を取得済みでなければ開いたときに1度だけ読みに行く。
+      if (newValue === "home" && !this.isMarkdownFileListLoaded) {
+        this.requestListMarkdownFiles();
+      }
+    },
     markdownContent(_newValue, _oldValue) {
       this.clearMarkdownPreview();
+      this.scheduleMarkdownDraftSave();
+    },
+    markdownFileName(newValue) {
+      this.scheduleMarkdownDraftSave();
+      UiPreferenceState.saveOperationSetting("markdownFileName", newValue);
+    },
+    // 変換モード・出力形式などは、次にPDFを選び直しても毎回選ばせないよう選択のたびに覚える。
+    "originalFile.markdownDraftMode"(newValue) {
+      UiPreferenceState.saveOperationSetting("markdownDraftMode", newValue);
+    },
+    "originalFile.searchablePdfMode"(newValue) {
+      UiPreferenceState.saveOperationSetting("searchablePdfMode", newValue);
+    },
+    "originalFile.imageFormat"(newValue) {
+      UiPreferenceState.saveOperationSetting("imageFormat", newValue);
+    },
+    "originalFile.imageDpi"(newValue) {
+      UiPreferenceState.saveOperationSetting("imageDpi", newValue);
+    },
+    "originalFile.officeFormat"(newValue) {
+      UiPreferenceState.saveOperationSetting("officeFormat", newValue);
+    },
+    "imagesPdf.pageSize"(newValue) {
+      UiPreferenceState.saveOperationSetting("imagesPageSize", newValue);
     },
   },
   methods: {
@@ -448,7 +548,7 @@ const pdfApp = {
       // 画面状態を作り直す前に、プレビュー用Object URLを解放する。
       this.clearOriginalPdfPreview();
       this.clearPdfPassword();
-      this.originalFile = PdfFormState.createOriginalFileState();
+      this.originalFile = buildOriginalFileState();
       this.pdfMetadata = PdfFormState.createPdfMetadataState();
       this.pdfThumbnails = PdfFormState.createThumbnailState();
       // 既存仕様に合わせ、全クリア後は削除ページ入力欄をdisabled扱いに戻す。
@@ -996,6 +1096,7 @@ const pdfApp = {
           this.clearMarkdownPreview();
           this.markdownMessage =
             officeResponse.fileName + " をMarkdown欄へ反映しました。";
+          this.goToMarkdownMemo();
         })
         .catch((error) => {
           this.failUnexpectedProcess(
@@ -1064,7 +1165,7 @@ const pdfApp = {
      * 画像PDFカードの選択状態を初期化する。
      */
     clearImagesPdf() {
-      this.imagesPdf = PdfFormState.createImagesPdfState();
+      this.imagesPdf = buildImagesPdfState();
     },
     /**
      * 選択した画像を1つのPDFへまとめ、結果を別タブで開く。
@@ -1127,6 +1228,7 @@ const pdfApp = {
           this.clearMarkdownPreview();
           this.markdownMessage =
             draftResponse.fileName + " の文字起こしをMarkdown欄へ反映しました。";
+          this.goToMarkdownMemo();
         })
         .catch((error) => {
           this.failUnexpectedProcess(
@@ -1339,6 +1441,100 @@ const pdfApp = {
      */
     clearMarkdownPreview() {
       this.markdownPreviewHtml = "";
+    },
+    /**
+     * ホームの「よく使う操作」から、目的の機能タブへ移動する。
+     *
+     * "merge"はPDF編集タブ内の折りたたみ済みPDF差し込み・結合パネルを開いた状態で移動する特別値。
+     * 実際のファイル選択・実行は移動先のタブに残す。
+     *
+     * @param {string} tabName 移動先タブ名、または"merge"
+     */
+    handleHomeNavigate(tabName) {
+      if (tabName === "merge") {
+        this.activeTab = "edit";
+        this.insertMergePanelOpen = true;
+        return;
+      }
+      this.activeTab = tabName;
+    },
+    /**
+     * ホームの「最近保存したMarkdown」から選んだファイルを開き、Markdownメモタブへ移動する。
+     *
+     * @param {string} fileName 開くMarkdownファイル名
+     * @returns {Promise<void>} 本文取得処理の完了Promise
+     */
+    openRecentMarkdownFile(fileName) {
+      this.activeTab = "memo";
+      return this.selectMarkdownFile(fileName);
+    },
+    /**
+     * Markdownメモタブへ切り替える。
+     *
+     * PDF/画像/Office文書からのMarkdown生成は、生成した時点でmarkdownContentへ反映済み。
+     * 結果をその場で確認・保存できるよう、生成直後はメモタブへ自動で移動する。
+     */
+    goToMarkdownMemo() {
+      this.activeTab = "memo";
+    },
+    /**
+     * Markdown編集欄の下書きをブラウザ内保存へ書き込むタイマーを積み直す。
+     *
+     * 入力の都度書き込むと編集のたびにストレージI/Oが走るため、入力が3秒止まってから書き込む。
+     */
+    scheduleMarkdownDraftSave() {
+      if (this.markdownDraftSaveTimerId !== null) {
+        window.clearTimeout(this.markdownDraftSaveTimerId);
+      }
+      this.markdownDraftSaveTimerId = window.setTimeout(() => {
+        UiPreferenceState.saveMarkdownDraft(
+          this.markdownFileName,
+          this.markdownContent
+        );
+        this.markdownDraftSaveTimerId = null;
+      }, MARKDOWN_DRAFT_SAVE_DELAY_MS);
+    },
+    /**
+     * ブラウザ内に退避していた未保存Markdownの下書きを復元する。
+     *
+     * 画面を開いた直後、編集欄が空の場合だけ復元する。既存の入力内容を上書きしないようにするため。
+     */
+    restoreMarkdownDraftFromLocalStorage() {
+      if (!Util.isEmpty(this.markdownContent)) {
+        return;
+      }
+      const draft = UiPreferenceState.loadMarkdownDraft();
+      if (Util.isEmpty(draft)) {
+        return;
+      }
+      this.markdownFileName = draft.fileName || this.markdownFileName;
+      this.markdownContent = draft.content;
+      this.markdownMessage = "前回の未保存Markdownを復元しました。";
+    },
+    /**
+     * Markdownメモタブでのキーボードショートカットを処理する。
+     *
+     * Ctrl+S（Macはcmd+S）は保存、Ctrl+Enterはプレビューを実行する。
+     * ブラウザ既定の保存ダイアログは、Markdownメモを保存する操作として代わりに奪う。
+     *
+     * @param {KeyboardEvent} event キーボードイベント
+     */
+    handleMarkdownShortcut(event) {
+      if (this.activeTab !== "memo") {
+        return;
+      }
+      if (!event.ctrlKey && !event.metaKey) {
+        return;
+      }
+      if (event.key === "s" || event.key === "S") {
+        event.preventDefault();
+        this.requestSaveMarkdown();
+        return;
+      }
+      if (event.key === "Enter") {
+        event.preventDefault();
+        this.requestPreviewMarkdownContent();
+      }
     },
     /**
      * Markdown編集欄の内容をクリップボードにコピーする。
@@ -1843,6 +2039,7 @@ const pdfApp = {
           this.markdownMessage =
             textResponse.fileName +
             " の抽出テキストをMarkdown欄へ反映しました。";
+          this.goToMarkdownMemo();
         })
         .catch((error) => {
           this.failUnexpectedProcess(
@@ -1938,6 +2135,7 @@ const pdfApp = {
           this.markdownMessage =
             draftResponse.fileName +
             " のページ単位Markdown下書きを反映しました。";
+          this.goToMarkdownMemo();
         })
         .catch((error) => {
           this.failUnexpectedProcess(

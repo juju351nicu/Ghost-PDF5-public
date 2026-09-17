@@ -893,3 +893,45 @@ body > #app {
 		width: 100%;
 	}
 }
+
+.home-panel__body {
+	gap: 20px;
+}
+
+.home-panel__actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+	margin-top: 8px;
+}
+
+.home-panel__actions button {
+	width: auto;
+	margin-bottom: 0;
+	white-space: nowrap;
+}
+
+.home-panel__recent-list {
+	margin: 8px 0 0;
+	padding: 0;
+	list-style: none;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.home-panel__recent-list button {
+	width: auto;
+	margin-bottom: 0;
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+	.home-panel__actions button,
+	.home-panel__recent-list button {
+		width: 100%;
+	}
+}

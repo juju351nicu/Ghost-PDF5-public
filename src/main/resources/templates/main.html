@@ -25,6 +25,8 @@
 				@dismiss="resetProcess">
 			</process-panel>
 			<nav class="tab-nav" aria-label="機能タブ">
+				<button type="button" class="tab-nav__item" :class="{ 'tab-nav__item--active': activeTab === 'home' }"
+					@click="activeTab = 'home'">ホーム</button>
 				<button type="button" class="tab-nav__item" :class="{ 'tab-nav__item--active': activeTab === 'edit' }"
 					@click="activeTab = 'edit'">PDF編集</button>
 				<button type="button" class="tab-nav__item" :class="{ 'tab-nav__item--active': activeTab === 'convert' }"
@@ -34,6 +36,15 @@
 				<button type="button" class="tab-nav__item" :class="{ 'tab-nav__item--active': activeTab === 'memo' }"
 					@click="activeTab = 'memo'">Markdownメモ</button>
 			</nav>
+
+			<section class="tab-panel" v-show="activeTab === 'home'">
+				<home-panel
+					:recent-markdown-files="recentMarkdownFiles"
+					:is-processing="isProcessing"
+					@navigate-tab="handleHomeNavigate"
+					@open-recent-markdown="openRecentMarkdownFile">
+				</home-panel>
+			</section>
 
 			<section class="tab-panel" v-show="activeTab === 'edit'">
 				<original-pdf-form
@@ -61,7 +72,8 @@
 					@request-epub-pdf="requestEpubPdf"
 					@clear-all="clearAll">
 				</original-pdf-form>
-				<details class="insert-merge-panel">
+				<details class="insert-merge-panel" :open="insertMergePanelOpen"
+					@toggle="insertMergePanelOpen = $event.target.open">
 					<summary>PDF差し込み・結合</summary>
 					<div class="insert-merge-panel__body">
 						<span>差し替え、結合ファイル(PDFのみ)</span>
