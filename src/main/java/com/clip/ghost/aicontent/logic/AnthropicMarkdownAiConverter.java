@@ -1,5 +1,6 @@
 package com.clip.ghost.aicontent.logic;
 
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.StringUtils;
@@ -11,6 +12,7 @@ import com.anthropic.client.AnthropicClient;
 import com.anthropic.client.okhttp.AnthropicOkHttpClient;
 import com.anthropic.models.messages.Message;
 import com.anthropic.models.messages.MessageCreateParams;
+import com.anthropic.models.messages.StopReason;
 import com.anthropic.models.messages.TextBlock;
 import com.clip.ghost.aicontent.config.AnthropicAiProperties;
 import com.clip.ghost.aicontent.enums.AiTaskType;
@@ -82,6 +84,9 @@ public class AnthropicMarkdownAiConverter implements MarkdownAiConverter {
 			AnthropicClient client = AnthropicOkHttpClient.builder().apiKey(apiKey).build();
 			MessageCreateParams params = buildParams(markdown, taskType);
 			Message response = client.messages().create(params);
+			if (isTruncated(response.stopReason())) {
+				throw new AiProcessingException("Anthropicの応答が出力上限で途中終了しました。");
+			}
 			String result = MarkdownFenceUnwrapper.unwrap(response.content().stream()
 					.flatMap(block -> block.text().stream()).map(TextBlock::text).collect(Collectors.joining()));
 			if (StringUtils.isBlank(result)) {
@@ -108,6 +113,20 @@ public class AnthropicMarkdownAiConverter implements MarkdownAiConverter {
 				.maxTokens((long) properties.getMaxOutputTokens())
 				.system(MarkdownAiPromptBuilder.buildSystemPrompt(taskType))
 				.addUserMessage(MarkdownAiPromptBuilder.buildUserPrompt(markdown, taskType)).build();
+	}
+
+	/**
+	 * 応答が出力トークン上限で打ち切られたかを判定する。
+	 * <p>
+	 * 打ち切られた場合、Anthropicはエラーを返さず途中までの内容で正常終了する。REFINEは出力が入力とほぼ
+	 * 同じ長さになり得るため、気づかずに採用すると原文の後半が消えたMarkdownを正しい結果として扱ってしまう。
+	 * 途中終了を検出し、正常応答として返さないようにする。
+	 *
+	 * @param stopReason 応答の終了理由
+	 * @return 出力上限による打ち切りの場合はtrue
+	 */
+	boolean isTruncated(Optional<StopReason> stopReason) {
+		return stopReason.filter(StopReason.MAX_TOKENS::equals).isPresent();
 	}
 
 	/**

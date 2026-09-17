@@ -522,8 +522,12 @@ Anthropicでの実API確認は未実施。詳細は `docs/markdown-ai-transform-
 - `AiTaskType`（`SUMMARIZE` / `REFINE`）は `pdfcontent.enums.CodeEnum` を実装し、`PdfMarkdownDraftMode` と同じ形。
 - プロンプト文言は `MarkdownAiPromptBuilder`（`aicontent.logic`）へ集約し、providerごとの実装差でプロンプトが
   ずれないようにした。実AI呼び出しなしで固定入力によりテストしている。
-- 入力文字数の上限（`ghost.ai.markdown.max-input-characters`、既定60,000文字）を設定値化し、超過時は
-  変換器を1度も呼ばずに400を返すコストガードを入れた。
+- 入力文字数の上限（`ghost.ai.markdown.max-input-characters`、既定24,000文字）を設定値化し、超過時は
+  変換器を1度も呼ばずに400を返すコストガードを入れた。REFINEは出力が入力とほぼ同じ長さになり得るため、
+  `max-output-tokens`から独立に決めず、出力トークン上限に収まるよう逆算した値にしている。
+- Anthropic/OpenAIとも出力トークン上限に達するとエラーにならず正常終了するため、両converterが終了理由
+  （`stopReason=MAX_TOKENS` / `finishReason=LENGTH`）を見て打ち切りを検出し、途中で切れたMarkdownを
+  正常応答として返さないようにした。
 - 共有ロジック `MarkdownFenceUnwrapper` は `imagecontent.logic` から `common.utils` へ移し、画像文字起こしと
   Markdown本文AI変換の両方から使えるようにした（ArchUnitの横断利用許可を増やさずに済む形にした）。
 - 既存の `/markdownDraftImage` / `/markdownPreview` / `/saveMarkdown` 等の挙動・テストは変更していない。

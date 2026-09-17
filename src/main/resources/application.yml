@@ -76,8 +76,9 @@ ghost:
     # 外部AIへMarkdown本文を送信する。APIキー用の環境変数は画像Markdown下書き（ghost.ocr.*）と共用できる。
     provider: ${GHOST_AI_PROVIDER:anthropic}
     markdown:
-      # 日本語混じりの文書を想定した安全側の初期値。実測結果はdocs/markdown-ai-transform-design.mdへ記録する。
-      max-input-characters: ${GHOST_AI_MARKDOWN_MAX_INPUT_CHARACTERS:60000}
+      # max-output-tokens(既定16000)から独立に決めない。REFINEは出力が入力とほぼ同じ長さになり得るため、
+      # 入力上限を通った本文が出力トークン上限に収まる値にする(実測はdocs/markdown-ai-transform-design.md)。
+      max-input-characters: ${GHOST_AI_MARKDOWN_MAX_INPUT_CHARACTERS:24000}
     anthropic:
       enabled: ${GHOST_AI_ANTHROPIC_ENABLED:false}
       model: ${GHOST_AI_ANTHROPIC_MODEL:claude-opus-5}

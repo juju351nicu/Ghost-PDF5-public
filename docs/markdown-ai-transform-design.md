@@ -86,6 +86,14 @@ DTO `MarkdownAiTransformResponse { AiTaskType task; String markdown; Integer inp
   - 両方とも「説明や前置きを書かず結果のMarkdownだけを返す」「出力全体をコードフェンスで囲まない」制約を持つ
     （`AnthropicImageToMarkdownConverter` と同じ制約）。
 - `MarkdownFenceUnwrapper` による外側フェンス除去は画像文字起こしと共有する（第9節）。
+- **出力の途中切断（truncation）の検出。** Anthropic/OpenAIとも、応答が`max-output-tokens`に達した場合、
+  エラーにはならず途中までの内容で正常終了する（Anthropic: `stopReason=MAX_TOKENS`、OpenAI:
+  `finishReason=LENGTH`）。REFINEは出力が入力とほぼ同じ長さになり得るうえ、結果は編集欄を自動上書きせず
+  確認用の別領域に出す設計（第13節）のため、気づかずに採用すると原文の後半が消えたMarkdownを正しい結果として
+  扱ってしまう。両converterはこの終了理由を見て打ち切りを検出し、`AiProcessingException`（500）として扱う
+  （`AnthropicMarkdownAiConverter#isTruncated` / `OpenAiMarkdownAiConverter#isTruncated`、
+  それぞれ固定入力で単体テスト済み）。文字数表示（第5節）だけでは長文の末尾欠落は拾えないため、この検出は
+  文字数チェックを補う形で必須にした。
 
 ## 7. 設定
 
@@ -95,7 +103,7 @@ DTO `MarkdownAiTransformResponse { AiTaskType task; String markdown; Integer inp
 | キー | 既定 | 用途 |
 | --- | --- | --- |
 | `ghost.ai.provider` | `anthropic` | 使用するprovider（`anthropic` / `openai`） |
-| `ghost.ai.markdown.max-input-characters` | `60000` | 入力文字数上限。超過は変換器を呼ばず400 |
+| `ghost.ai.markdown.max-input-characters` | `24000` | 入力文字数上限。超過は変換器を呼ばず400 |
 | `ghost.ai.anthropic.enabled` | `false` | falseの間はAPIが503 |
 | `ghost.ai.anthropic.model` | `claude-opus-5` | 使用モデル |
 | `ghost.ai.anthropic.api-key-env` | `ANTHROPIC_API_KEY` | キーを読む環境変数名 |
@@ -110,17 +118,24 @@ DTO `MarkdownAiTransformResponse { AiTaskType task; String markdown; Integer inp
 APIキーはコード・`application.yml`・ログに出さない。SDKは環境変数から読む。選択したproviderが無効、
 またはキー未設定なら503。
 
-### 既定値の根拠（実測前の初期値）
+### 既定値の根拠
 
-- `max-input-characters`（60,000文字）: 日本語混じりの設計書Markdownを想定した安全側の初期値。
-  Claude Opus 5 / GPT-4oはいずれも数十万トークン級のコンテキストを持つが、日本語は1トークンあたりの文字数が
-  英語より少なく、system prompt・user prompt・出力トークンの取り分も必要なため、実測せずに上限いっぱいを
-  使う設計にはしていない。60,000文字はおよそ4〜6万トークン相当と見積もり、`max-output-tokens`（16,000）と
-  合わせて1リクエストの入出力が両モデルの実用的なコンテキスト内に収まる範囲を狙った値。
 - `max-output-tokens`（16,000、両provider共通）: REFINEは原文の情報を削らない指示のため、出力が入力とほぼ
   同じ長さになり得る（SUMMARIZEより長くなり得る）。画像文字起こし（`ghost.ocr.*.max-output-tokens=8000`）より
-  高めにした。GPT-4oの完了トークン上限（16,384）に収まる値として16,000を選んだ。
-- これらは実測前の初期値であり、実APIでの確認（第12節）の結果に応じて見直す。見直した場合はこの節を更新する。
+  高めにした。OpenAI（`gpt-4o`）の完了トークン上限は実質16,384のため、そこに収まる値として16,000を選んだ。
+- `max-input-characters`（24,000文字）: **`max-output-tokens`から独立に決めていない。** REFINEは出力が
+  入力とほぼ同じ長さになり得るため、2つの値を別々に決めると、入力上限を通った本文の出力が出力トークン上限を
+  超え、**気づかれないまま途中で切れたMarkdownを正常応答として返してしまう事故**が構造的に起きる
+  （実際にAnthropic/OpenAIとも、出力上限に達してもエラーにはならず正常終了する）。
+  第12節の実測で、751文字の日本語Markdown（表・コードブロック含む）に対するREFINE出力は約0.43トークン/文字
+  だった。実運用の文書は表・コードブロックの比率や英数字の混在度で変動するため、この実測値そのままではなく
+  安全側に倍程度の余裕（約0.67トークン/文字を仮定）を見て、`16,000 ÷ 0.67 ≈ 24,000`文字を既定にした。
+  この見積もりが外れて実際に出力が打ち切られた場合に備え、`AnthropicMarkdownAiConverter` /
+  `OpenAiMarkdownAiConverter`はAPIの終了理由（Anthropic: `stopReason=MAX_TOKENS`、OpenAI: `finishReason=LENGTH`）
+  を見て打ち切りを検出し、`AiProcessingException`（500）として扱う。途中で切れたMarkdownを200として
+  返すことはない（第6節・第9節）。
+- 実運用でのより正確な比率は、多様な文書（コード比率の高いもの・英語比率の高いものを含む）での追加実測に
+  応じて見直す。見直した場合はこの節を更新する。
 
 ## 8. 例外とHTTP status
 
@@ -182,7 +197,9 @@ import先を変更した。ロジック自体・テスト内容は変更して�
 - `MarkdownAiPromptBuilderTest`: 実AI呼び出しなしで固定入力によりsystem/userプロンプトの内容を検証。
 - `MarkdownAiConverterResolverTest`: 設定providerに応じたconverter選択、大文字小文字無視、未対応providerで503相当の例外。
 - `AnthropicMarkdownAiConverterTest` / `OpenAiMarkdownAiConverterTest`: 無効時の`isEnabled`、`describe`のモデル名、`provider`
-  （実APIは呼ばない。画像文字起こしの`AnthropicImageToMarkdownConverterTest`と同じ方針）。
+  （実APIは呼ばない。画像文字起こしの`AnthropicImageToMarkdownConverterTest`と同じ方針）。加えて
+  `isTruncated`（打ち切り検出）を、SDKの終了理由の定数（`StopReason.MAX_TOKENS` / `FinishReason.LENGTH`）
+  だけを使い、ネットワーク呼び出しなしで検証する。
 - `MarkdownAiServiceTest`（converterをmock）: REFINE / SUMMARIZE それぞれの正常系、入力文字数超過時に
   converterが1度も呼ばれず400、無効時503、変換失敗の伝播（本文・APIキーを含まない）、空応答時の失敗伝播。
 - `MarkdownAiControllerTest`（standalone MockMvc、Mockito）: token一致/不一致(403)、`content`/`task`未指定(400)、無効時(503)、
@@ -211,7 +228,11 @@ import先を変更した。ロジック自体・テスト内容は変更して�
   自動保存しない設計（本文冒頭・第2節）で人間確認を前提にしていることの重要性を裏付ける結果になった。
 - コスト: REFINE 979トークン（約$0.0057）、SUMMARIZE 823トークン（約$0.0043、調整前プロンプトでの実測）。
   gpt-4o料金（$2.50/1M input、$10.00/1M output）で計算。第7節の`max-output-tokens=16000`はこの入力規模に対して
-  十分な余裕があることを確認した。`max-input-characters=60000`（上限付近）は未検証。
+  十分な余裕があることを確認した。
+- **出力トークン上限に対して独立に決めていた`max-input-characters`（当初60,000文字）を24,000文字へ見直した**
+  （第7節）。今回の実測（751文字→出力428トークン、約0.43トークン/文字）を基に、安全側の余裕を見て
+  `max-output-tokens`から逆算した値。上限付近（24,000文字規模）での実測はまだ行っておらず、
+  この見積もりが妥当かは今後の追加実測課題として残る。
 
 **Anthropic providerでの実API確認は未実施。** このセッションではAnthropicのAPIキーが用意できなかったため。
 `ghost.ai.provider=anthropic`と`ANTHROPIC_API_KEY`を設定し、同じ手順（`成果物/30`参照）で確認できる。

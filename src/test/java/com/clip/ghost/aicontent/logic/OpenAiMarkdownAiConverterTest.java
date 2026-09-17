@@ -8,6 +8,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import com.clip.ghost.aicontent.config.OpenAiAiProperties;
+import com.openai.models.chat.completions.ChatCompletion;
 
 /**
  * {@link OpenAiMarkdownAiConverter} の外部呼び出しを伴わない挙動を検証するテスト。
@@ -45,5 +46,24 @@ class OpenAiMarkdownAiConverterTest {
 		OpenAiMarkdownAiConverter converter = new OpenAiMarkdownAiConverter(new OpenAiAiProperties());
 
 		assertEquals("openai", converter.provider());
+	}
+
+	@Test
+	@DisplayName("finishReasonがLENGTHの場合は出力上限による打ち切りと判定する")
+	void isTruncatedDetectsLength() {
+		// OpenAIは出力上限に達してもエラーを返さず正常応答として終了する（finish_reason=length）。
+		// REFINEは出力が入力とほぼ同じ長さになり得るため、この検出漏れは原文の後半が消えたMarkdownを
+		// 正しい結果として扱ってしまう事故につながる。
+		OpenAiMarkdownAiConverter converter = new OpenAiMarkdownAiConverter(new OpenAiAiProperties());
+
+		assertTrue(converter.isTruncated(ChatCompletion.Choice.FinishReason.LENGTH));
+	}
+
+	@Test
+	@DisplayName("finishReasonが正常終了（stop）の場合は打ち切りと判定しない")
+	void isTruncatedIgnoresNormalCompletion() {
+		OpenAiMarkdownAiConverter converter = new OpenAiMarkdownAiConverter(new OpenAiAiProperties());
+
+		assertFalse(converter.isTruncated(ChatCompletion.Choice.FinishReason.STOP));
 	}
 }

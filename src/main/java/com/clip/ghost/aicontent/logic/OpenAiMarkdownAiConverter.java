@@ -78,8 +78,12 @@ public class OpenAiMarkdownAiConverter implements MarkdownAiConverter {
 		try {
 			OpenAIClient client = OpenAIOkHttpClient.builder().apiKey(apiKey).build();
 			ChatCompletion completion = client.chat().completions().create(buildParams(markdown, taskType));
-			String result = MarkdownFenceUnwrapper.unwrap(completion.choices().stream().findFirst()
-					.flatMap(choice -> choice.message().content()).orElse(""));
+			ChatCompletion.Choice choice = completion.choices().stream().findFirst()
+					.orElseThrow(() -> new AiProcessingException("OpenAIから空の応答が返りました。"));
+			if (isTruncated(choice.finishReason())) {
+				throw new AiProcessingException("OpenAIの応答が出力上限で途中終了しました。");
+			}
+			String result = MarkdownFenceUnwrapper.unwrap(choice.message().content().orElse(""));
 			if (StringUtils.isBlank(result)) {
 				throw new AiProcessingException("OpenAIから空の応答が返りました。");
 			}
@@ -104,6 +108,20 @@ public class OpenAiMarkdownAiConverter implements MarkdownAiConverter {
 				.maxCompletionTokens((long) properties.getMaxOutputTokens())
 				.addSystemMessage(MarkdownAiPromptBuilder.buildSystemPrompt(taskType))
 				.addUserMessage(MarkdownAiPromptBuilder.buildUserPrompt(markdown, taskType)).build();
+	}
+
+	/**
+	 * 応答が出力トークン上限で打ち切られたかを判定する。
+	 * <p>
+	 * 打ち切られた場合、OpenAIはエラーを返さず途中までの内容で正常終了する。REFINEは出力が入力とほぼ
+	 * 同じ長さになり得るため、気づかずに採用すると原文の後半が消えたMarkdownを正しい結果として扱ってしまう。
+	 * 途中終了を検出し、正常応答として返さないようにする。
+	 *
+	 * @param finishReason 応答の終了理由
+	 * @return 出力上限による打ち切りの場合はtrue
+	 */
+	boolean isTruncated(ChatCompletion.Choice.FinishReason finishReason) {
+		return ChatCompletion.Choice.FinishReason.LENGTH.equals(finishReason);
 	}
 
 	/**

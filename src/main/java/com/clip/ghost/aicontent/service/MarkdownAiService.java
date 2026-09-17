@@ -55,6 +55,11 @@ public class MarkdownAiService {
 	 * 入力文字数が設定上限を超えていないか検証する。
 	 * <p>
 	 * 上限超過時は変換器を一度も呼ばずに例外を投げる。外部AIの課金が発生する前に止めるコストガードのため。
+	 * <p>
+	 * 上限値は設定（{@code ghost.ai.markdown.max-input-characters}）による実行時の値のため、
+	 * {@code @Size} のようなコンパイル時定数のvalidationアノテーションでは表現できない。この検証を
+	 * Service層に置くのはそのためで、結果として他の入力validationとは異なりBean Validationの
+	 * {@code fieldErrors}経路には乗らない（{@link AiInputException} → {@code GlobalExceptionErrorHandler}）。
 	 *
 	 * @param content 変換対象のMarkdown本文
 	 * @throws AiInputException 入力文字数が上限を超えた場合
