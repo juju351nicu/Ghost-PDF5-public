@@ -143,7 +143,13 @@ temporaryDirectory から Paths.get(temporaryDirectory) で生成する。
 - タブ移動だけのボタンは `btn-secondary` にする。塗りつぶしの青は、実際に変換・保存を走らせるボタンに取っておく。
 - 実行できない条件（ファイル未選択、本文が空、処理中）は `:disabled` で先に示す。押させてからエラー文で伝えない。
   - 判定は `pdf-app.js` のcomputed（`hasMarkdownContent` / `canMergePdf` など）に置き、templateへ式を書き散らさない。
-- ヘッダーだけを濃い青にし、フッターは白＋上罫線に留める。画面下に濃い帯があると、作業中に視線がそちらへ引かれる。
+- 配色は「濃い青の外枠 / 生成りの作業面 / 青のアクセント」の3層で置く。
+  - 外枠（`--ghost-color-page-bg`）はヘッダー・フッターと地続きにする。ヘッダーへ別の帯を置くと青が上下に割れて額に見えない。
+  - タブとカードは生成りの作業面（`--ghost-color-canvas`、`.main`）へまとめて載せる。カードを個別に青地へ置くと、カードの間に青の帯が何本も走る。
+  - 青は外枠と実行系ボタンにだけ使い、面の中では線と文字にしか出さない。塗りを増やすと目が休まらない。
+  - 罫線は生成りになじむ暖色寄り（`--ghost-color-border`）にする。青みの強い線を引くと面から線だけが浮く。
+  - 入力欄だけは白（`--pico-form-element-background-color`）にして、書き込める場所を面と区別する。
+- 生成りの面は白地より明度が低いため、文字色は白地の感覚で決めない。本文・補足とも背景比4.5:1以上を実測で確認する。
 - 角丸・影・面の色は `main.css` の `:root` にあるトークンだけで表現する。要素ごとに `border-radius: 6px` のような数値を書かない。
   - 角丸は `--ghost-radius-sm / -md / -lg`、影は `--ghost-shadow-card / -raised`、focusリングは `--ghost-focus-ring`。
   - 面は3段で足りる。`--ghost-color-page-bg`（地）→ `--ghost-color-surface`（カード）→ `--ghost-color-surface-sunken`（カード内の読み取り専用・入力の枠）。

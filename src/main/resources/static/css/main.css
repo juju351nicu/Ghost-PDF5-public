@@ -1,44 +1,52 @@
 @charset "UTF-8";
 
 :root {
-	/* 実行系ボタンとヘッダーの基準色。作業画面として落ち着かせるため、以前の明るい青(#1B85FB)より暗いトーンにする。
-	   Pico既定のリンク色などもこの色へそろえたいので、--pico-*へも同じ値を渡す。 */
-	--ghost-color-primary: #015d9a;
-	--ghost-color-primary-hover: #0b4875;
+	/*
+	 * 配色は「濃い青の外枠 / 生成りの作業面 / 青のアクセント」の3層で置く。
+	 * 青は外枠と実行系ボタンだけに使い、面の中では線と文字にしか出さない。塗りを増やすと
+	 * 作業ツールとして目が休まらなくなる。
+	 */
+	--ghost-color-primary: #15558c;
+	--ghost-color-primary-hover: #0e3f6b;
 	--pico-primary: var(--ghost-color-primary);
 	--pico-primary-hover: var(--ghost-color-primary-hover);
-	--pico-primary-focus: rgba(1, 93, 154, .25);
-	/* 面は「紙」ではなく作業台として置く。白いカードを浮かせるため、地は白より少しだけ冷たく暗くする。 */
-	--ghost-color-page-bg: #eef1f6;
-	--ghost-color-surface: #ffffff;
-	/* 面から一段引っ込む面。カードの中に置く入力欄・プレビュー枠に使う。 */
-	--ghost-color-surface-sunken: #f7f9fc;
-	--ghost-color-text: #1c2430;
+	--pico-primary-focus: rgba(21, 85, 140, .25);
+	/* 外枠。ヘッダー・フッターと地続きの濃い青にして、生成りの作業面を額のように囲む。 */
+	--ghost-color-page-bg: #114a7d;
+	/* 作業面。タブとカードを載せる生成り。 */
+	--ghost-color-canvas: #faf6e3;
+	/* カード。作業面よりわずかに明るい暖色寄りの白。 */
+	--ghost-color-surface: #fffdf6;
+	/* 面から一段引っ込む面。カードの中に置くドロップ領域・プレビュー枠・読み取り専用の一覧に使う。 */
+	--ghost-color-surface-sunken: #f4efdb;
+	--ghost-color-text: #22303d;
 	/* 本文より一段弱い文字色。補足説明やファイル情報など、読み飛ばしてよい情報に使う。 */
-	--ghost-color-muted: #62708a;
-	--ghost-color-border: #e1e6ee;
+	--ghost-color-muted: #596977;
+	/* 罫線は生成りになじむ暖色寄りにする。青みの強い線を引くと、面から線だけが浮く。 */
+	--ghost-color-border: #e4ddc4;
 	/* 入力欄など、境界を本文と同じ強さで見せたい箇所。--ghost-color-borderより一段濃い。 */
-	--ghost-color-border-strong: #ccd4e0;
-	--ghost-color-error: #b42318;
-	--ghost-color-warning-text: #7a4b00;
-	--ghost-color-warning-bg: #fef7e6;
-	--ghost-color-warning-border: #f0c977;
+	--ghost-color-border-strong: #c8c0a3;
+	--ghost-color-error: #b94a48;
+	--ghost-color-warning-text: #75491a;
+	--ghost-color-warning-bg: #fdf0c4;
+	--ghost-color-warning-border: #ddbc5c;
 	/* 淡い青の面。補助ボタンのhover、選択中サムネイル、完了表示で共有する。 */
-	--ghost-color-section-bg: #e7f1f9;
+	--ghost-color-section-bg: #e3edf6;
 	/* クリア・取り消しなど、何も生み出さない操作のボタン色。 */
-	--ghost-color-neutral: #56647a;
-	--ghost-color-neutral-hover: #445064;
+	--ghost-color-neutral: #6b7683;
+	--ghost-color-neutral-hover: #586370;
 	/* 押せないボタンの色。青系のまま彩度を落とし、押せる青との違いが一目で分かるようにする。 */
-	--ghost-color-disabled: #a9c4d6;
+	--ghost-color-disabled: #a9bccd;
 	--ghost-content-width: 1120px;
 	--ghost-control-width: 22rem;
 	/* 角丸と影は3段だけ用意し、要素ごとに数値を書かない。面の重なりが場所ごとにばらつくのを防ぐ。 */
 	--ghost-radius-sm: 6px;
 	--ghost-radius-md: 10px;
 	--ghost-radius-lg: 14px;
-	--ghost-shadow-card: 0 1px 2px rgba(16, 24, 40, .04), 0 4px 16px rgba(16, 24, 40, .06);
-	--ghost-shadow-raised: 0 1px 2px rgba(16, 24, 40, .06);
-	--ghost-focus-ring: 0 0 0 3px rgba(1, 93, 154, .22);
+	--ghost-shadow-card: 0 1px 2px rgba(17, 74, 125, .05), 0 3px 12px rgba(17, 74, 125, .07);
+	--ghost-shadow-raised: 0 1px 2px rgba(17, 74, 125, .08);
+	--ghost-shadow-canvas: 0 18px 48px rgba(6, 38, 66, .28);
+	--ghost-focus-ring: 0 0 0 3px rgba(21, 85, 140, .28);
 
 	/*
 	 * Pico側の既定値。Pico 2は画面幅に応じてroot font-sizeを125%まで上げるため、広い画面ほど
@@ -58,6 +66,7 @@
 	--pico-card-background-color: var(--ghost-color-surface);
 	--pico-card-sectioning-background-color: var(--ghost-color-surface);
 	--pico-card-box-shadow: none;
+	--pico-form-element-background-color: #ffffff;
 	--pico-font-family: var(--ghost-font-family);
 	--pico-font-family-sans-serif: var(--ghost-font-family);
 	/* OS標準のUIフォントを先に置く。Windows 11ならSegoe UI Variable、macOSならSF Proが当たり、
@@ -96,9 +105,15 @@ body > #app {
 	flex-direction: column;
 }
 
+/* 生成りの作業面。濃い青の地に対して、ここから内側が「紙の上」であることを1枚の面で示す。
+   カードを個別に青地へ置くと、カードの間に青の帯が何本も走って落ち着かない。 */
 .main {
-	width: min(var(--ghost-content-width), calc(100% - 64px));
-	margin: 32px auto 48px;
+	width: min(var(--ghost-content-width), calc(100% - 48px));
+	margin: 28px auto 40px;
+	padding: 24px 28px 28px;
+	border-radius: var(--ghost-radius-lg);
+	background-color: var(--ghost-color-canvas);
+	box-shadow: var(--ghost-shadow-canvas);
 	font-size: 16px;
 	flex: 1;
 }
@@ -111,8 +126,8 @@ body > #app {
 	   押す位置が幅ごとに変わるため、左詰めへ戻す。 */
 	justify-content: flex-start;
 	gap: 2px;
-	margin-bottom: 24px;
-	border-bottom: 1px solid var(--ghost-color-border);
+	margin-bottom: 22px;
+	border-bottom: 1px solid rgba(21, 85, 140, .22);
 }
 
 .tab-nav__item {
@@ -131,7 +146,7 @@ body > #app {
 }
 
 .tab-nav__item:hover {
-	background-color: rgba(1, 93, 154, .06);
+	background-color: rgba(21, 85, 140, .07);
 	color: var(--ghost-color-primary);
 }
 
@@ -888,9 +903,9 @@ input[type="checkbox"] {
 	text-align: center;
 }
 
+/* ヘッダーは外枠の青と地続きにする。帯として区切ると、青の面が上下2つに割れて額に見えない。 */
 .header {
-	background-color: var(--ghost-color-primary);
-	box-shadow: 0 1px 3px rgba(16, 24, 40, .12);
+	background-color: transparent;
 }
 
 .header-inner {
@@ -905,22 +920,20 @@ input[type="checkbox"] {
 }
 
 .header-logo {
-	color: #fff;
+	color: var(--ghost-color-canvas);
 	font-size: 1.0625rem;
 	font-weight: 700;
-	letter-spacing: .04em;
+	letter-spacing: .08em;
 }
 
-/* フッターは操作対象ではないため、ヘッダーと同じ青では置かない。面は白のまま、上の罫線だけで本文と区切る。
-   画面下に濃い色の帯があると、作業中に視線がそちらへ引かれる。 */
+/* フッターも外枠の青の上に直接置く。帯を足さないことで、画面下に視線を引く要素を増やさない。 */
 .footer {
 	display: flex;
 	align-items: center;
 	flex-direction: column;
-	background-color: var(--ghost-color-surface);
-	border-top: 1px solid var(--ghost-color-border);
-	padding: 1.25rem .75rem;
-	font-size: .875rem;
+	background-color: transparent;
+	padding: .5rem .75rem 1.5rem;
+	font-size: .8125rem;
 }
 
 .footer__list {
@@ -938,14 +951,19 @@ input[type="checkbox"] {
 }
 
 .footer__link {
-	color: var(--ghost-color-primary);
+	color: rgba(250, 246, 227, .92);
 	font-weight: 400;
 	text-decoration: none;
 }
 
+.footer__link:hover {
+	color: #fff;
+	text-decoration: underline;
+}
+
 .footer__copyright {
 	margin: 0;
-	color: var(--ghost-color-muted);
+	color: rgba(250, 246, 227, .72);
 	font-weight: 400;
 	font-size: .8em;
 }
@@ -1033,6 +1051,13 @@ input[type="checkbox"] {
 @media print {
 	body * {
 		visibility: hidden;
+	}
+
+	body,
+	.main {
+		background: none;
+		box-shadow: none;
+		padding: 0;
 	}
 
 	.markdown-panel__preview,
