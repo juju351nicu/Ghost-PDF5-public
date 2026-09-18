@@ -26,6 +26,7 @@ class FrontendThumbnailContractTest {
 	private static final Path RESOURCE_ROOT = Paths.get("src/main/resources");
 	private static final Path PDFJS_VENDOR_ROOT = RESOURCE_ROOT.resolve("static/vendor/pdfjs");
 	private static final Path JAVA_SOURCE_ROOT = Paths.get("src/main/java");
+	private static final Path PDFJS_TYPE_REFERENCE_ROOT = Paths.get("docs/reference");
 	private static final Pattern RENDERER_VERSION = Pattern.compile("const PDFJS_VERSION = \"([^\"]+)\";");
 	private static final Pattern VENDOR_README_VERSION = Pattern.compile("\\| バージョン \\| ([^|]+?) \\|");
 
@@ -153,27 +154,57 @@ class FrontendThumbnailContractTest {
 	}
 
 	/**
-	 * 同梱したpdf.jsのバージョン表記が、vendorのREADMEと実装で一致していることを確認する。
+	 * 同梱したpdf.jsのバージョン表記が、vendorのREADME・実装・型定義の置き場所で一致していることを確認する。
 	 * <p>
 	 * 本体とworkerのバージョンがずれるとpdf.jsは起動しない。差し替え時に片方だけ直す事故を防ぐため、
 	 * 「どのバージョンを置いたか」の記録と実装の定数を突き合わせる。
+	 * <p>
+	 * 参照用の型定義（{@code docs/reference/pdfjs-<バージョン>}）も同じ値で突き合わせる。古い型定義は
+	 * 「型定義が無い」よりたちが悪い。置いてあるものは正しいと見なして読まれるため、本体だけ更新すると
+	 * 誤ったAPIが確信をもって使われる。
 	 *
 	 * @throws IOException resourceを読み込めない場合
 	 */
 	@Test
-	@DisplayName("同梱したpdf.jsのバージョンがREADMEと実装で一致する")
+	@DisplayName("同梱したpdf.jsのバージョンがREADME・実装・型定義の置き場所で一致する")
 	void pdfjsVersionIsRecordedConsistently() throws IOException {
 		String renderer = read("static/js/pdf/pdf-thumbnail-renderer.js");
 		String vendorReadme = Files.readString(PDFJS_VENDOR_ROOT.resolve("README.md"), StandardCharsets.UTF_8);
 
 		Matcher rendererMatcher = RENDERER_VERSION.matcher(renderer);
 		Matcher readmeMatcher = VENDOR_README_VERSION.matcher(vendorReadme);
+		String rendererVersion = rendererMatcher.find() ? rendererMatcher.group(1) : "";
+		Path typeReference = PDFJS_TYPE_REFERENCE_ROOT.resolve("pdfjs-" + rendererVersion);
 
 		assertAll(
-				() -> assertTrue(rendererMatcher.find(), "pdf-thumbnail-renderer.jsへ PDFJS_VERSION を定義してください。"),
+				() -> assertTrue(rendererMatcher.reset().find(),
+						"pdf-thumbnail-renderer.jsへ PDFJS_VERSION を定義してください。"),
 				() -> assertTrue(readmeMatcher.find(), "vendorのREADMEへバージョンを記録してください。"),
-				() -> assertEquals(readmeMatcher.group(1).trim(), rendererMatcher.group(1),
-						"pdf.jsのバージョン表記をREADMEと実装でそろえてください。"));
+				() -> assertEquals(readmeMatcher.group(1).trim(), rendererVersion,
+						"pdf.jsのバージョン表記をREADMEと実装でそろえてください。"),
+				() -> assertTrue(Files.exists(typeReference.resolve("api.d.ts")),
+						typeReference + "/api.d.ts を置いてください。本体を上げたら型定義も入れ替えます。"),
+				() -> assertTrue(Files.exists(typeReference.resolve("pdf.d.ts")),
+						typeReference + "/pdf.d.ts を置いてください。本体を上げたら型定義も入れ替えます。"),
+				// 旧バージョンの型定義が残っていると、どちらが現物か分からなくなる。
+				() -> assertEquals(1, countTypeReferenceDirectories(),
+						"参照用の型定義は現在のバージョン1つだけにしてください。"));
+	}
+
+	/**
+	 * 参照用の型定義ディレクトリ（{@code docs/reference/pdfjs-*}）の数を数える。
+	 *
+	 * @return ディレクトリ数
+	 * @throws IOException ディレクトリを読めない場合
+	 */
+	private long countTypeReferenceDirectories() throws IOException {
+		if (!Files.isDirectory(PDFJS_TYPE_REFERENCE_ROOT)) {
+			return 0;
+		}
+		try (var entries = Files.list(PDFJS_TYPE_REFERENCE_ROOT)) {
+			return entries.filter(Files::isDirectory)
+					.filter(path -> path.getFileName().toString().startsWith("pdfjs-")).count();
+		}
 	}
 
 	/**
