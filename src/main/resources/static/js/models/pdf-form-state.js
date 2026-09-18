@@ -98,7 +98,7 @@ const createOriginalFileState = () => ({
 /**
  * ページ選択用サムネイルの初期画面状態を生成する。
  *
- * pagesはBEから受け取ったサムネイル、selectedPageNumbersは利用者が選択した1始まりページ番号。
+ * pagesはpdf.jsがブラウザ内で描画したサムネイル、selectedPageNumbersは利用者が選択した1始まりページ番号。
  *
  * @returns {{pages: Object[], selectedPageNumbers: number[], message: string}} サムネイルの画面状態
  */

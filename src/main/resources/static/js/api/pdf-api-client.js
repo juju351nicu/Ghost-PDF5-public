@@ -160,31 +160,6 @@ const requestOfficeMarkdown = async (url, payload) => {
 };
 
 /**
- * ページ選択用サムネイルAPIへmultipart requestを送り、成功時はJSONレスポンスを返す。
- *
- * @param {string} url サムネイルAPIのURL
- * @param {{key: string, value: unknown}[]} payload multipart formとして送信する値
- * @returns {Promise<{thumbnailResponse: Object|null, messages: Object[], errorMessages: string[], errorCodes: string[]}>} サムネイル取得結果
- */
-const requestPdfThumbnails = async (url, payload) => {
-  const response = await FetchClient.multipartRequest(url, payload);
-  if (!response.ok) {
-    return {
-      thumbnailResponse: null,
-      messages: [],
-      ...(await toErrorResult(response)),
-    };
-  }
-  const apiResult = await ApiResultUtils.readApiResult(response);
-  return {
-    thumbnailResponse: apiResult.data,
-    messages: apiResult.messages,
-    errorMessages: [],
-    errorCodes: [],
-  };
-};
-
-/**
  * エラーレスポンスを、画面が扱う共通のエラー内容へ変換する。
  *
  * メッセージとエラーコードを別々に取り出そうとするとレスポンスボディを2度読むことになるため、
@@ -210,7 +185,6 @@ export default {
   requestPdfMetadata,
   requestPdfText,
   requestPdfMarkdownDraft,
-  requestPdfThumbnails,
   requestOfficeMarkdown,
   buildUnexpectedErrorMessage(error) {
     return ApiErrorUtils.buildUnexpectedErrorMessage(

@@ -21,13 +21,8 @@ springdoc:
     enabled: false
 ghost:
   pdf:
-    thumbnail:
-      # ページ選択用サムネイルは1リクエストで全ページ分を返すため、解像度とページ数の上限を設定で絞れるようにする。
-      # 40dpiはA4で約331x468px。PNG 1ページ20〜40 KB程度、base64化で約1.33倍のため100ページで概ね3〜5 MB。
-      dpi: ${GHOST_PDF_THUMBNAIL_DPI:40}
-      max-pages: ${GHOST_PDF_THUMBNAIL_MAX_PAGES:100}
     image:
-      # ページ画像化（POST /imagesPdf）はサムネイルと違い利用者がダウンロードして使うため、設定を分ける。
+      # ページ画像化（POST /imagesPdf）は利用者がダウンロードして使う画像のため、解像度を高めに取る。
       # 描画に必要なメモリは解像度の2乗で増えるので、上限を設定で絞れるようにする。
       default-dpi: ${GHOST_PDF_IMAGE_DEFAULT_DPI:150}
       max-dpi: ${GHOST_PDF_IMAGE_MAX_DPI:600}

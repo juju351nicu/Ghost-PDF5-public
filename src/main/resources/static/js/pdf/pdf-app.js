@@ -28,6 +28,7 @@ import PageNumberValidator from "../validation/page-number-validator.js";
 import FileSizeValidator from "../validation/file-size-validator.js";
 import FileTypeValidator from "../validation/file-type-validator.js";
 import ApiErrorUtils from "../api/api-error-utils.js";
+import PdfThumbnailRenderer from "./pdf-thumbnail-renderer.js";
 
 const draggable = window["vuedraggable"];
 const SPLIT_PDF_FILE_NAME = "split.zip";
@@ -711,6 +712,10 @@ const pdfApp = {
       this.originalFile.fileName = fileObject.name;
       this.pdfMetadata = PdfFormState.createPdfMetadataState();
       this.updateOriginalPdfPreview(fileObject);
+      // 前のPDFのサムネイルと選択が残ると、表示とこれから操作する対象が食い違う。
+      this.pdfThumbnails = PdfFormState.createThumbnailState();
+      // ローカル描画なので選び直しのたびに走らせても通信は発生しない。結果を待たずに選択処理を終える。
+      this.renderPdfThumbnails({ promptPassword: false });
       return true;
     },
     /**
@@ -2428,14 +2433,18 @@ const pdfApp = {
         });
     },
     /**
-     * ページ選択用サムネイルAPIを実行し、成功時はサムネイル一覧へ反映する。
+     * 選択中のPDFをブラウザ内で描画し、ページ選択用サムネイルへ反映する。
      *
-     * サムネイル取得はPDF全体のアップロードを伴うため、利用者がボタンを押したときだけ実行する。
-     * 1リクエストで全ページ分を受け取り、ページごとには呼ばない。
+     * 以前はサーバーへPDF全体をアップロードして画像化していたため、利用者がボタンを押したときだけ
+     * 実行していた。pdf.jsでローカル描画に変えてアップロードが不要になったので、ファイル選択直後にも
+     * 自動で実行する。PDFの中身はブラウザの外へ出ない。
      *
-     * @returns {Promise<void>} サムネイル取得処理の完了Promise
+     * @param {{promptPassword: boolean}} [options] パスワード保護PDFの扱い。
+     *     promptPasswordがfalseの場合はパスワード入力欄を出さず、サムネイル欄へ案内だけ出す
+     * @returns {Promise<void>} サムネイル描画の完了Promise
      */
-    requestPdfThumbnails() {
+    renderPdfThumbnails(options) {
+      const promptPassword = options?.promptPassword !== false;
       const originalFileData = this.originalFile;
       if (Util.isEmpty(originalFileData.fileObject)) {
         this.pdfThumbnails.message = "ファイル選択されておりません。";
@@ -2444,39 +2453,55 @@ const pdfApp = {
       if (this.isProcessing) {
         return Promise.resolve();
       }
-      this.pendingPasswordRetry = () => this.requestPdfThumbnails();
+      this.pendingPasswordRetry = () => this.renderPdfThumbnails();
       this.beginProcess(ProcessState.PROCESS_LABEL.THUMBNAILS);
       this.errorMessages = [];
       this.clearApiMessages();
       this.pdfThumbnails.message = "";
-      return PdfApiClient.requestPdfThumbnails(
-        CONST.REST_PATH.THUMBNAILS_PDF,
-        PdfPayload.withPassword(
-          PdfPayload.buildThumbnailPayload(originalFileData.fileObject),
-          this.pdfPassword
-        )
+      return PdfThumbnailRenderer.renderThumbnails(
+        originalFileData.fileObject,
+        this.pdfPassword
       )
         .then((result) => {
-          if (!Util.isEmpty(result.errorMessages)) {
-            this.failProcess(result.errorMessages, result.errorCodes);
-            return;
-          }
-          this.applyApiMessages(result.messages);
-          const thumbnailResponse = result.thumbnailResponse;
-          this.pdfThumbnails.pages = thumbnailResponse.pages || [];
+          this.pdfThumbnails.pages = result.pages;
           this.pdfThumbnails.selectedPageNumbers = [];
           this.pdfThumbnails.message =
-            thumbnailResponse.pageCount +
+            result.pageCount +
             "ページのサムネイルを表示しています。ページを選ぶとページ指定へ反映します。";
         })
         .catch((error) => {
-          this.failUnexpectedProcess(
-            PdfApiClient.buildUnexpectedErrorMessage(error)
-          );
+          this.failThumbnailRendering(error, promptPassword);
         })
         .finally(() => {
           this.endProcessIfBusy();
         });
+    },
+    /**
+     * サムネイル描画の失敗を、既存のエラー振り分けへ渡す。
+     *
+     * ファイル選択をきっかけにした自動描画では、パスワード入力欄を割り込ませない。利用者はPDFを
+     * 選んだだけで、まだ何をするか決めていない。代わりにサムネイル欄へ案内を出し、
+     * 「サムネイル表示」を押したときに入力欄を出す。
+     *
+     * @param {Error} error 描画で発生したエラー
+     * @param {boolean} promptPassword パスワード入力欄を出してよい場合はtrue
+     */
+    failThumbnailRendering(error, promptPassword) {
+      const errorCode = error?.errorCode;
+      if (Util.isEmpty(errorCode)) {
+        // pdf.js本体を読み込めなかった場合など、利用者側で打つ手が無い失敗。
+        this.failUnexpectedProcess(
+          ApiErrorUtils.buildUnexpectedErrorMessage(error)
+        );
+        return;
+      }
+      if (!promptPassword && ApiErrorUtils.isPasswordError([errorCode])) {
+        this.resetProcess();
+        this.pdfThumbnails.message =
+          "パスワードで保護されたPDFです。「サムネイル表示」を押すとパスワードを入力できます。";
+        return;
+      }
+      this.failProcess([error.message], [errorCode]);
     },
     /**
      * ページ単位Markdown下書きAPIを実行し、成功時は既存Markdown編集欄へ反映する。

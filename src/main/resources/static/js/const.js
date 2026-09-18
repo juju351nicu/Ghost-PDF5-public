@@ -30,7 +30,6 @@ const REST_PATH = {
   OFFICE_FROM_PDF: "/officeFromPdf",
   EPUB_PDF: "/epubPdf",
   PDF_FROM_EPUB: "/pdfFromEpub",
-  THUMBNAILS_PDF: "/thumbnailsPdf",
   DELETE_PDF: "/deletePdf",
   INSERT_PDF: "/insertPdf",
   SEARCHABLE_PDF: "/searchablePdf",

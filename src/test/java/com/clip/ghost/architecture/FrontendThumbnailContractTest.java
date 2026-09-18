@@ -10,76 +10,99 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * サムネイル一覧からのページ選択で、画面とAPIの接続を固定するテスト。
+ * サムネイル一覧からのページ選択で、画面とpdf.jsの接続を固定するテスト。
  * <p>
- * サムネイルはコンポーネント・payload・API client・app stateをまたぐため、
+ * サムネイルはコンポーネント・app state・pdf.jsのラッパーをまたぐため、
  * JavaScriptのテストランナーを持たない構成でも接続欠落をMavenテストで検知する。
  */
 class FrontendThumbnailContractTest {
 	private static final Path RESOURCE_ROOT = Paths.get("src/main/resources");
+	private static final Path PDFJS_VENDOR_ROOT = RESOURCE_ROOT.resolve("static/vendor/pdfjs");
+	private static final Path JAVA_SOURCE_ROOT = Paths.get("src/main/java");
+	private static final Pattern RENDERER_VERSION = Pattern.compile("const PDFJS_VERSION = \"([^\"]+)\";");
+	private static final Pattern VENDOR_README_VERSION = Pattern.compile("\\| バージョン \\| ([^|]+?) \\|");
 
 	/**
-	 * サムネイル取得が既存の責務別JavaScript境界を通ってAPIへ接続されることを確認する。
+	 * サムネイル操作が既存の責務別JavaScript境界を通ってpdf.jsの描画へ接続されることを確認する。
 	 *
 	 * @throws IOException フロントエンドresourceを読み込めない場合
 	 */
 	@Test
-	@DisplayName("サムネイル操作が責務別JavaScript境界を通ってAPIへ接続される")
+	@DisplayName("サムネイル操作が責務別JavaScript境界を通ってpdf.jsの描画へ接続される")
 	void thumbnailUiUsesExistingFrontendBoundaries() throws IOException {
 		String mainTemplate = read("templates/main.html");
 		String originalPdfForm = read("static/js/components/original-pdf-form.js");
 		String thumbnailList = read("static/js/components/pdf-thumbnail-list.js");
-		String constants = read("static/js/const.js");
-		String payload = read("static/js/api/pdf-payload.js");
-		String apiClient = read("static/js/api/pdf-api-client.js");
 		String pdfApp = read("static/js/pdf/pdf-app.js");
+		String renderer = read("static/js/pdf/pdf-thumbnail-renderer.js");
 
 		assertAll(
-				() -> assertTrue(mainTemplate.contains("@request-thumbnails-pdf=\"requestPdfThumbnails\""),
-						"サムネイル取得のイベントをpdf-app.jsへつないでください。"),
+				() -> assertTrue(mainTemplate.contains("@render-thumbnails-pdf=\"renderPdfThumbnails\""),
+						"サムネイル描画のイベントをpdf-app.jsへつないでください。"),
 				() -> assertTrue(originalPdfForm.contains("<pdf-thumbnail-list"),
 						"サムネイル一覧は編集元PDFカードへ置いてください。"),
-				() -> assertTrue(thumbnailList.contains("this.$emit(\"request-thumbnails\")"),
-						"サムネイル取得はコンポーネントからイベントで通知してください。"),
-				() -> assertTrue(constants.contains("THUMBNAILS_PDF: \"/thumbnailsPdf\""),
-						"サムネイルAPIのURLはconst.jsで持ってください。"),
-				() -> assertTrue(payload.contains("const buildThumbnailPayload"),
-						"サムネイルpayloadの生成はpdf-payload.jsへ置いてください。"),
-				() -> assertTrue(apiClient.contains("const requestPdfThumbnails"),
-						"サムネイルAPI呼び出しはpdf-api-client.jsへ置いてください。"),
-				() -> assertTrue(apiClient.contains("thumbnailResponse: apiResult.data"),
-						"成功レスポンスは共通ラッパー越しに読んでください。"),
-				() -> assertTrue(pdfApp.contains("PdfApiClient.requestPdfThumbnails("),
-						"サムネイル取得はapi client経由にしてください。"));
+				() -> assertTrue(thumbnailList.contains("this.$emit(\"render-thumbnails\")"),
+						"サムネイルの描画し直しはコンポーネントからイベントで通知してください。"),
+				() -> assertTrue(pdfApp.contains("PdfThumbnailRenderer.renderThumbnails("),
+						"サムネイル描画はpdf-thumbnail-renderer.js経由にしてください。"),
+				// pdf.jsの呼び出しをラッパー1箇所へ閉じ、componentやapp stateへ散らさない。
+				() -> assertTrue(renderer.contains("import(PDFJS_MODULE_PATH)"),
+						"pdf.jsの読み込みはpdf-thumbnail-renderer.jsへ置いてください。"),
+				() -> assertEquals(1, countOccurrences(pdfApp, "PdfThumbnailRenderer.renderThumbnails("),
+						"サムネイル描画の呼び出し箇所は1つにしてください。"));
 	}
 
 	/**
-	 * サムネイルの取得が利用者操作のときだけ、1リクエストで行われることを確認する。
+	 * サムネイル生成のためにPDFをサーバーへ送らないことを確認する。
+	 *
+	 * @throws IOException resourceを読み込めない場合
+	 */
+	@Test
+	@DisplayName("サムネイル生成でPDFをサーバーへ送らない")
+	void thumbnailsAreNeverUploadedToServer() throws IOException {
+		String constants = read("static/js/const.js");
+		String payload = read("static/js/api/pdf-payload.js");
+		String apiClient = read("static/js/api/pdf-api-client.js");
+		String renderer = read("static/js/pdf/pdf-thumbnail-renderer.js");
+
+		assertAll(
+				// サーバー側のサムネイルAPIは削除済み。復活させると同じ描画が2系統になる。
+				() -> assertFalse(constants.contains("thumbnailsPdf"), "サムネイルAPIのURLを復活させないでください。"),
+				() -> assertFalse(payload.contains("Thumbnail"), "サムネイルをmultipartで送らないでください。"),
+				() -> assertFalse(apiClient.contains("Thumbnail"), "サムネイルをAPI経由で取得しないでください。"),
+				() -> assertFalse(renderer.contains("FetchClient"), "サムネイル描画で通信しないでください。"),
+				() -> assertFalse(Files.exists(JAVA_SOURCE_ROOT
+						.resolve("com/clip/ghost/pdfcontent/controller/PdfThumbnailController.java")),
+						"サムネイル生成をサーバー側へ戻さないでください。"));
+	}
+
+	/**
+	 * サムネイルがファイル選択と同時に描かれ、やり直しの導線も残っていることを確認する。
 	 *
 	 * @throws IOException フロントエンドresourceを読み込めない場合
 	 */
 	@Test
-	@DisplayName("サムネイル取得は利用者操作ごとに1回だけ行う")
-	void thumbnailsAreFetchedOncePerUserAction() throws IOException {
-		String thumbnailList = read("static/js/components/pdf-thumbnail-list.js");
+	@DisplayName("サムネイルはファイル選択と同時に描き、やり直しの導線も残す")
+	void thumbnailsAreRenderedOnFileSelection() throws IOException {
 		String pdfApp = read("static/js/pdf/pdf-app.js");
-		String payload = read("static/js/api/pdf-payload.js");
+		String thumbnailList = read("static/js/components/pdf-thumbnail-list.js");
 
 		assertAll(
-				// サーバー側に文書セッションが無く、取得のたびにPDF全体をアップロードするため、
-				// mountedやwatchでの自動取得を禁止する。
-				() -> assertFalse(thumbnailList.contains("mounted"), "サムネイルを自動取得しないでください。"),
-				() -> assertFalse(thumbnailList.contains("watch:"), "サムネイルを自動取得しないでください。"),
-				() -> assertEquals(1, countOccurrences(pdfApp, "PdfApiClient.requestPdfThumbnails("),
-						"サムネイル取得の呼び出し箇所は1つにしてください。"),
-				// ページ番号を送らないことで、ページごとに取得する形にならないよう固定する。
-				() -> assertFalse(payload.contains("key: \"pageNumber\""),
-						"サムネイルはページごとに取得しないでください。"));
+				// アップロードを伴わなくなったため、利用者にボタンを押させる理由が無い。
+				() -> assertTrue(pdfApp.contains("this.renderPdfThumbnails({ promptPassword: false });"),
+						"ファイル選択時にサムネイルを描いてください。"),
+				// 自動描画でパスワード入力欄を割り込ませない代わりに、押せばやり直せる導線を残す。
+				() -> assertTrue(thumbnailList.contains("renderThumbnails()"),
+						"サムネイルを描き直すボタンを残してください。"),
+				() -> assertTrue(pdfApp.contains("ApiErrorUtils.isPasswordError([errorCode])"),
+						"パスワード保護の判定は共通のapi-error-utils.jsを使ってください。"));
 	}
 
 	/**
@@ -107,27 +130,66 @@ class FrontendThumbnailContractTest {
 	}
 
 	/**
-	 * 選択したページが既存の「ページ指定」入力欄へ反映されることを確認する。
+	 * pdf.jsをCDNではなくvendor配置で持ち、日本語PDFに必要な資産まで同梱していることを確認する。
 	 *
-	 * @throws IOException フロントエンドresourceを読み込めない場合
+	 * @throws IOException resourceを読み込めない場合
 	 */
 	@Test
-	@DisplayName("選択したページを既存のページ指定入力へ反映する")
-	void selectedPagesAreAppliedToExistingPageInput() throws IOException {
-		String validator = read("static/js/validation/page-number-validator.js");
-		String pdfApp = read("static/js/pdf/pdf-app.js");
-		String originalPdfForm = read("static/js/components/original-pdf-form.js");
+	@DisplayName("pdf.jsはCDNではなくvendor配置で、CMapと代替フォントまで同梱する")
+	void pdfjsIsVendoredWithCmapsAndStandardFonts() throws IOException {
+		String renderer = read("static/js/pdf/pdf-thumbnail-renderer.js");
 
 		assertAll(
-				() -> assertTrue(validator.contains("const buildPagesText"),
-						"ページ番号からページ指定表記への変換はpage-number-validator.jsへ置いてください。"),
-				() -> assertTrue(pdfApp.contains("PageNumberValidator.buildPagesText("),
-						"選択ページの表記変換はpage-number-validator.js経由にしてください。"),
-				() -> assertTrue(pdfApp.contains("this.originalFile.delPagesText.text = pagesText;"),
-						"選択ページを既存のページ指定入力欄へ反映してください。"),
-				// 手入力の導線を消さない。既存操作を壊さないため入力欄は残す。
-				() -> assertTrue(originalPdfForm.contains("v-model=\"originalFile.delPagesText.text\""),
-						"ページ指定の手入力欄は残してください。"));
+				() -> assertTrue(Files.exists(PDFJS_VENDOR_ROOT.resolve("build/pdf.min.mjs")), "pdf.js本体を同梱してください。"),
+				() -> assertTrue(Files.exists(PDFJS_VENDOR_ROOT.resolve("build/pdf.worker.min.mjs")),
+						"pdf.jsのworkerを同梱してください。"),
+				// build配下だけ置くと、日本語PDFで文字が欠けたまま描画される。
+				() -> assertTrue(containsFile(PDFJS_VENDOR_ROOT.resolve("cmaps")), "cmapsを同梱してください。"),
+				() -> assertTrue(containsFile(PDFJS_VENDOR_ROOT.resolve("standard_fonts")),
+						"standard_fontsを同梱してください。"),
+				() -> assertTrue(renderer.contains("cMapUrl:"), "CMapの配信元をpdf.jsへ渡してください。"),
+				() -> assertTrue(renderer.contains("standardFontDataUrl:"), "代替フォントの配信元をpdf.jsへ渡してください。"),
+				() -> assertFalse(renderer.contains("https://"), "pdf.jsをCDNから読まないでください。"));
+	}
+
+	/**
+	 * 同梱したpdf.jsのバージョン表記が、vendorのREADMEと実装で一致していることを確認する。
+	 * <p>
+	 * 本体とworkerのバージョンがずれるとpdf.jsは起動しない。差し替え時に片方だけ直す事故を防ぐため、
+	 * 「どのバージョンを置いたか」の記録と実装の定数を突き合わせる。
+	 *
+	 * @throws IOException resourceを読み込めない場合
+	 */
+	@Test
+	@DisplayName("同梱したpdf.jsのバージョンがREADMEと実装で一致する")
+	void pdfjsVersionIsRecordedConsistently() throws IOException {
+		String renderer = read("static/js/pdf/pdf-thumbnail-renderer.js");
+		String vendorReadme = Files.readString(PDFJS_VENDOR_ROOT.resolve("README.md"), StandardCharsets.UTF_8);
+
+		Matcher rendererMatcher = RENDERER_VERSION.matcher(renderer);
+		Matcher readmeMatcher = VENDOR_README_VERSION.matcher(vendorReadme);
+
+		assertAll(
+				() -> assertTrue(rendererMatcher.find(), "pdf-thumbnail-renderer.jsへ PDFJS_VERSION を定義してください。"),
+				() -> assertTrue(readmeMatcher.find(), "vendorのREADMEへバージョンを記録してください。"),
+				() -> assertEquals(readmeMatcher.group(1).trim(), rendererMatcher.group(1),
+						"pdf.jsのバージョン表記をREADMEと実装でそろえてください。"));
+	}
+
+	/**
+	 * 指定ディレクトリが1つ以上のファイルを持つか判定する。
+	 *
+	 * @param directory 判定するディレクトリ
+	 * @return ファイルを持つ場合はtrue
+	 * @throws IOException ディレクトリを読めない場合
+	 */
+	private boolean containsFile(Path directory) throws IOException {
+		if (!Files.isDirectory(directory)) {
+			return false;
+		}
+		try (var entries = Files.list(directory)) {
+			return entries.anyMatch(Files::isRegularFile);
+		}
 	}
 
 	/**
