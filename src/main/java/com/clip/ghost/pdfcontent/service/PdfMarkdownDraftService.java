@@ -14,6 +14,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.clip.ghost.common.response.ApiMessage;
 import com.clip.ghost.common.response.ApiResult;
+import com.clip.ghost.common.utils.MarkdownTextNormalizer;
 import com.clip.ghost.imagecontent.exception.OcrUnavailableException;
 import com.clip.ghost.imagecontent.logic.ImageConverterResolver;
 import com.clip.ghost.imagecontent.logic.ImageToMarkdownConverter;
@@ -107,8 +108,8 @@ public class PdfMarkdownDraftService {
 		List<String> pageTexts = pdfLogic.extractPdfPageTexts(inputPath);
 		List<PdfMarkdownDraftPageResponse> pages = new ArrayList<>(pageTexts.size());
 		for (int index = 0; index < pageTexts.size(); index++) {
-			pages.add(buildPageResponse(index + PdfConstants.START_PAGE, normalizePageText(pageTexts.get(index)),
-					SOURCE_TEXT));
+			pages.add(buildPageResponse(index + PdfConstants.START_PAGE,
+					MarkdownTextNormalizer.normalize(pageTexts.get(index)), SOURCE_TEXT));
 		}
 		return pages;
 	}
@@ -193,9 +194,10 @@ public class PdfMarkdownDraftService {
 			return buildPageResponse(content.pageNumber(), "", SOURCE_FAILED);
 		}
 		if (content.convertedText() != null) {
-			return buildPageResponse(content.pageNumber(), normalizePageText(content.convertedText()), SOURCE_OCR);
+			return buildPageResponse(content.pageNumber(), MarkdownTextNormalizer.normalize(content.convertedText()),
+					SOURCE_OCR);
 		}
-		return buildPageResponse(content.pageNumber(), normalizePageText(content.text()), SOURCE_TEXT);
+		return buildPageResponse(content.pageNumber(), MarkdownTextNormalizer.normalize(content.text()), SOURCE_TEXT);
 	}
 
 	/**
@@ -212,18 +214,6 @@ public class PdfMarkdownDraftService {
 		page.setText(text);
 		page.setSource(source);
 		return page;
-	}
-
-	/**
-	 * PDFBoxの抽出テキストをAPI契約に合わせて正規化する。
-	 * <p>
-	 * CRLFとCRをLFへ統一し、本文途中の空白は維持したまま末尾の空白文字だけを除去する。
-	 *
-	 * @param pageText PDFBoxから抽出した1ページ分のテキスト
-	 * @return 正規化済みページ本文
-	 */
-	private String normalizePageText(String pageText) {
-		return pageText.replace("\r\n", "\n").replace('\r', '\n').stripTrailing();
 	}
 
 	/**

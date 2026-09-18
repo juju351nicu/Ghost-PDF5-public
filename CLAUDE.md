@@ -47,6 +47,19 @@ commons-lang3 3.19 で `StringUtils` の比較・検索・置換系は非推奨�
 - null と空文字を区別する仕様の判定。`PdfMarkdownDraftService` の `content.convertedText() != null` は
   「画像変換を実行したか」の判定で、`StringUtils.isNotEmpty` にすると取得元が `OCR` から `TEXT` へ変わる。
 
+### 共通処理は入口を1つにする
+
+同じ判定・整形を機能ごとに書き写さない。次はすでに共通クラスがあるので、そちらを呼ぶ。
+
+- アップロードサイズの上限判定は `UploadFileSizeValidator.validate` / `validateAll`。
+  Controllerで `if (file.getSize() >= 上限) throw new MultipartException(...)` を書かない。
+  共通の上限値は `UploadConstants.MAX_UPLOAD_FILE_SIZE_BYTES`（PDF・Office・HTMLで共通）。
+- 改行の正規化（CRLF/CR→LF、末尾空白除去）は `MarkdownTextNormalizer.normalize`。
+- ダウンロード・inline表示のHTTPヘッダー組み立ては `ResponseUtils`。
+- Markdownの表組み立てとブロック連結は `MarkdownTableBuilder` / `MarkdownBlockJoiner`。
+- 画像文字起こしのプロンプト文言は `ImageMarkdownPromptBuilder`、Markdown本文AI変換は `MarkdownAiPromptBuilder`。
+  provider実装（Anthropic / OpenAI）へ文言を書き写さない。
+
 ## 自動検出
 
 上のルールは `CodingConventionTest`（ArchUnit + ファイルスキャン）で機械的に落とす。
@@ -55,6 +68,8 @@ commons-lang3 3.19 で `StringUtils` の比較・検索・置換系は非推奨�
 - `productionCodeUsesStringUtilsForStringEmptyChecks`
 - `productionCodeUsesCollectionUtilsForCollectionEmptyChecks`
 - `codeDoesNotCallDeprecatedCommonsLang3Apis`（本番・テスト両方が対象）
+- `productionCodeUsesUploadFileSizeValidatorForUploadSizeChecks`
+- `productionCodeUsesMarkdownTextNormalizerForLineEndings`
 
 `CodingConventionTest` には他にも `@Autowired` field injection禁止、`System.out` / `printStackTrace` 禁止、
 public宣言へのJavadoc必須などの規約が入っている。新しい規約を足す場合もここへ追加し、ドキュメントだけで終わらせない。

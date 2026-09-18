@@ -1,6 +1,5 @@
 package com.clip.ghost.pdfcontent.controller;
 
-import org.apache.commons.collections4.CollectionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.io.Resource;
@@ -12,12 +11,11 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.ResponseBody;
-import org.springframework.web.multipart.MultipartException;
-import org.springframework.web.multipart.MultipartFile;
 
+import com.clip.ghost.common.constant.UploadConstants;
 import com.clip.ghost.common.exceptions.ErrorResponse;
 import com.clip.ghost.common.security.AccessTokenValidator;
-import com.clip.ghost.pdfcontent.constant.PdfConstants;
+import com.clip.ghost.common.utils.UploadFileSizeValidator;
 import com.clip.ghost.pdfcontent.dto.PdfFromImagesRequest;
 import com.clip.ghost.pdfcontent.dto.PdfImagesRequest;
 import com.clip.ghost.pdfcontent.service.PdfImageService;
@@ -74,7 +72,7 @@ public class PdfImageController {
 			@Valid @ModelAttribute PdfImagesRequest form, HttpSession session) {
 		LOGGER.info("PDFのページを画像化します。");
 		accessTokenValidator.validate(accessToken, session);
-		validateOriginalPdfFileSize(form.getOriginalFile());
+		UploadFileSizeValidator.validate(form.getOriginalFile(), UploadConstants.MAX_UPLOAD_FILE_SIZE_BYTES);
 		return imageService.exportPdfImages(form);
 	}
 
@@ -100,21 +98,7 @@ public class PdfImageController {
 			@Valid @ModelAttribute PdfFromImagesRequest form, HttpSession session) {
 		LOGGER.info("画像からPDFを作成します。");
 		accessTokenValidator.validate(accessToken, session);
-		CollectionUtils.emptyIfNull(form.getImageFiles()).forEach(this::validateOriginalPdfFileSize);
+		UploadFileSizeValidator.validateAll(form.getImageFiles(), UploadConstants.MAX_UPLOAD_FILE_SIZE_BYTES);
 		return imageService.createPdfFromImages(form);
-	}
-
-	/**
-	 * アップロードファイルのサイズを既存PDF APIと同じ境界で検証する。
-	 * <p>
-	 * 画像にもPDFと同じ上限を使う。上限を2種類に分けると、どちらが適用されたのか利用者が判断できなくなるため。
-	 *
-	 * @param originalFile アップロードされたファイル
-	 * @throws MultipartException 許容サイズ以上の場合
-	 */
-	private void validateOriginalPdfFileSize(MultipartFile originalFile) {
-		if (originalFile.getSize() >= PdfConstants.MAX_PDF_FILE_SIZE_BYTES) {
-			throw new MultipartException("サイズの超過");
-		}
 	}
 }

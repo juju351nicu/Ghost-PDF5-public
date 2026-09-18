@@ -11,12 +11,11 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.ResponseBody;
-import org.springframework.web.multipart.MultipartException;
-import org.springframework.web.multipart.MultipartFile;
 
+import com.clip.ghost.common.constant.UploadConstants;
 import com.clip.ghost.common.exceptions.ErrorResponse;
 import com.clip.ghost.common.security.AccessTokenValidator;
-import com.clip.ghost.pdfcontent.constant.PdfConstants;
+import com.clip.ghost.common.utils.UploadFileSizeValidator;
 import com.clip.ghost.pdfcontent.dto.OfficeFromPdfRequest;
 import com.clip.ghost.pdfcontent.service.PdfOfficeService;
 
@@ -71,19 +70,7 @@ public class PdfOfficeController {
 			@Valid @ModelAttribute OfficeFromPdfRequest form, HttpSession session) {
 		LOGGER.info("PDFからOffice文書を生成します。");
 		accessTokenValidator.validate(accessToken, session);
-		validateOriginalPdfFileSize(form.getOriginalFile());
+		UploadFileSizeValidator.validate(form.getOriginalFile(), UploadConstants.MAX_UPLOAD_FILE_SIZE_BYTES);
 		return officeService.generateOffice(form);
-	}
-
-	/**
-	 * アップロードされたPDFファイルサイズを既存PDF APIと同じ境界で検証する。
-	 *
-	 * @param originalFile アップロードされたPDF
-	 * @throws MultipartException 許容サイズ以上の場合
-	 */
-	private void validateOriginalPdfFileSize(MultipartFile originalFile) {
-		if (originalFile.getSize() >= PdfConstants.MAX_PDF_FILE_SIZE_BYTES) {
-			throw new MultipartException("サイズの超過");
-		}
 	}
 }

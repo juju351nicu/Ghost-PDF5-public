@@ -11,13 +11,12 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.ResponseBody;
-import org.springframework.web.multipart.MultipartException;
-import org.springframework.web.multipart.MultipartFile;
 
+import com.clip.ghost.common.constant.UploadConstants;
 import com.clip.ghost.common.exceptions.ErrorResponse;
 import com.clip.ghost.common.response.ApiResult;
 import com.clip.ghost.common.security.AccessTokenValidator;
-import com.clip.ghost.pdfcontent.constant.PdfConstants;
+import com.clip.ghost.common.utils.UploadFileSizeValidator;
 import com.clip.ghost.webcontent.dto.WebMarkdownDraftRequest;
 import com.clip.ghost.webcontent.dto.WebMarkdownDraftResponse;
 import com.clip.ghost.webcontent.dto.WebUrlMarkdownDraftRequest;
@@ -80,7 +79,7 @@ public class WebMarkdownController {
 			@Valid @ModelAttribute WebMarkdownDraftRequest form, HttpSession session) {
 		LOGGER.info("HTMLファイルからMarkdown下書きを起こします。");
 		accessTokenValidator.validate(accessToken, session);
-		validateHtmlFileSize(form.getHtmlFile());
+		UploadFileSizeValidator.validate(form.getHtmlFile(), UploadConstants.MAX_UPLOAD_FILE_SIZE_BYTES);
 		return webMarkdownService.generateMarkdownFromHtml(form);
 	}
 
@@ -113,19 +112,5 @@ public class WebMarkdownController {
 		LOGGER.info("URLからMarkdown下書きを起こします。");
 		accessTokenValidator.validate(accessToken, session);
 		return webMarkdownService.generateMarkdownFromUrl(request);
-	}
-
-	/**
-	 * アップロードファイルのサイズを既存PDF APIと同じ境界で検証する。
-	 * <p>
-	 * 種類ごとに上限を分けると、どの上限が適用されたのか利用者が判断できなくなるため、PDFと同じ値を使う。
-	 *
-	 * @param htmlFile アップロードされたHTMLファイル
-	 * @throws MultipartException 許容サイズ以上の場合
-	 */
-	private void validateHtmlFileSize(MultipartFile htmlFile) {
-		if (htmlFile.getSize() >= PdfConstants.MAX_PDF_FILE_SIZE_BYTES) {
-			throw new MultipartException("サイズの超過");
-		}
 	}
 }

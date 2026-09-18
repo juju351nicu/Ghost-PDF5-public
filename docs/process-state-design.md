@@ -116,7 +116,7 @@ JavaScriptのテストランナーを持たない構成のため、規約テス�
 - **アップロード上限（1ファイル20MB）の見直し。** 超過時のメッセージは
   「ページを分割してから指定してください」だったが、この画面の分割も同じ上限を通るため
   実行できない指示だった。文言は実行できる行動へ直したが、上限値自体は変えていない。
-  変えるなら `PdfConstants.MAX_PDF_FILE_SIZE_BYTES` / `const.js` / `application.yml` の
+  変えるなら `UploadConstants.MAX_UPLOAD_FILE_SIZE_BYTES` / `const.js` / `application.yml` の
   `max-file-size` と `max-swallow-size` を揃えて動かし、`/splitPdf` のメモリ実測とセットで判断する。
   値だけ上げると、上限超過時にアプリの413が返らずTomcatが接続を切る側へ倒れる。
 - **1画面1目的への分割（タブ / ルーティング）。** `main.html` に全機能が縦積みのままで、

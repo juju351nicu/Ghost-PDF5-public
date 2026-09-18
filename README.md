@@ -459,7 +459,7 @@ Markdown保存を含むJava 25の全286テストが成功しています。
   - ページ単位の進捗（「20ページ中7ページ目」）はSSEかポーリングが要るため、アップロードPDFのサーバー保持（`documentId`）が入ってから。
 - アップロード上限（1ファイル20MB）の見直しは保留中。
   - 超過時の案内文言は「この画面では小さくできない」ことを明示する形へ直したが、上限値は変えていない。
-  - 変えるなら `PdfConstants.MAX_PDF_FILE_SIZE_BYTES` / `const.js` / `application.yml` の `max-file-size` と `max-swallow-size` を揃えて動かし、`/splitPdf` のメモリ実測とセットで判断する。
+  - 変えるなら `UploadConstants.MAX_UPLOAD_FILE_SIZE_BYTES` / `const.js` / `application.yml` の `max-file-size` と `max-swallow-size` を揃えて動かし、`/splitPdf` のメモリ実測とセットで判断する。
   - 値だけ上げると、上限超過時にアプリの413が返らずTomcatが接続を切る側へ倒れる。
 - 差し込みPDF行のドラッグ&ドロップは未対応。`file-drop-zone` に `multiple` propsを用意してあり、編集元PDFで使い勝手を確かめてから広げる。
 - 1画面1目的への分割（機能カテゴリのタブ化）は未着手。

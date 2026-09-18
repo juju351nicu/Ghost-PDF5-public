@@ -9,7 +9,6 @@ import java.nio.file.Paths;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
-import java.util.regex.Pattern;
 
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -31,9 +30,9 @@ import com.clip.ghost.markdowncontent.dto.MarkdownFileResponse;
 import com.clip.ghost.markdowncontent.dto.MarkdownPreviewContentResponse;
 import com.clip.ghost.markdowncontent.dto.MarkdownPreviewRequest;
 import com.clip.ghost.markdowncontent.dto.MarkdownPreviewResponse;
-import com.clip.ghost.markdowncontent.logic.MarkdownHtmlRenderer;
 import com.clip.ghost.markdowncontent.dto.MarkdownSaveRequest;
 import com.clip.ghost.markdowncontent.dto.MarkdownUpdateRequest;
+import com.clip.ghost.markdowncontent.logic.MarkdownHtmlRenderer;
 
 /**
  * Markdown文書の保存と保存後メタデータ取得を扱うサービス。
@@ -42,7 +41,6 @@ import com.clip.ghost.markdowncontent.dto.MarkdownUpdateRequest;
  */
 @Service
 public class MarkdownDocumentService {
-	private static final Pattern UNSAFE_FILE_NAME_CHARS = Pattern.compile("[\\\\/:*?\"<>|\\p{Cntrl}]+");
 	private static final String DEFAULT_MARKDOWN_FILE_BASE_NAME = "document";
 	private static final String MARKDOWN_FILE_EXTENSION = "md";
 	private static final String MARKDOWN_FILE_SUFFIX = "." + MARKDOWN_FILE_EXTENSION;
@@ -87,7 +85,7 @@ public class MarkdownDocumentService {
 		}
 		boolean overwritten = Files.exists(outputPath);
 		FileOperationUtils.writeString(outputPath, request.getContent());
-		MarkdownFileResponse response = buildResponse(fileName, outputPath);
+		MarkdownFileResponse response = buildFileResponse(fileName, outputPath);
 		if (overwritten) {
 			List<ApiMessage> messageList = List.of(new ApiMessage(OVERWRITTEN_MESSAGE_CODE, OVERWRITTEN_MESSAGE));
 			return ResponseEntity.ok(ApiResult.warning(response, messageList));
@@ -105,7 +103,7 @@ public class MarkdownDocumentService {
 				.filter(path -> !Files.isSymbolicLink(path))
 				.filter(path -> PathUtils.isMarkdownFileName(path.getFileName().toString()))
 				.sorted(Comparator.comparing(path -> path.getFileName().toString(), String.CASE_INSENSITIVE_ORDER))
-				.map(path -> buildResponse(path.getFileName().toString(), path)).toList();
+				.map(path -> buildFileResponse(path.getFileName().toString(), path)).toList();
 		return ResponseEntity.ok(ApiResult.of(files));
 	}
 
@@ -131,7 +129,7 @@ public class MarkdownDocumentService {
 	public ResponseEntity<ApiResult<MarkdownPreviewResponse>> previewMarkdownFile(String fileName) {
 		Path filePath = resolveReadableMarkdownPath(fileName);
 		MarkdownPreviewResponse response = buildPreviewResponse(filePath.getFileName().toString(), filePath,
-				renderMarkdownPreview(readMarkdownContent(filePath)));
+				htmlRenderer.render(readMarkdownContent(filePath)));
 		return ResponseEntity.ok(ApiResult.of(response));
 	}
 
@@ -144,7 +142,7 @@ public class MarkdownDocumentService {
 	public ResponseEntity<ApiResult<MarkdownPreviewContentResponse>> previewMarkdownContent(
 			MarkdownPreviewRequest request) {
 		Objects.requireNonNull(request, "request must not be null.");
-		return ResponseEntity.ok(ApiResult.of(buildPreviewContentResponse(renderMarkdownPreview(request.getContent()))));
+		return ResponseEntity.ok(ApiResult.of(buildPreviewContentResponse(htmlRenderer.render(request.getContent()))));
 	}
 
 	/**
@@ -159,7 +157,7 @@ public class MarkdownDocumentService {
 		Objects.requireNonNull(request, "request must not be null.");
 		Path filePath = resolveReadableMarkdownPath(fileName);
 		FileOperationUtils.writeString(filePath, request.getContent());
-		return ResponseEntity.ok(ApiResult.of(buildResponse(filePath.getFileName().toString(), filePath)));
+		return ResponseEntity.ok(ApiResult.of(buildFileResponse(filePath.getFileName().toString(), filePath)));
 	}
 
 	/**
@@ -185,7 +183,7 @@ public class MarkdownDocumentService {
 		String requestedFileName = StringUtils.trimToNull(fileName);
 		String baseFileName = FilenameUtils
 				.getName(StringUtils.defaultIfBlank(requestedFileName, DEFAULT_MARKDOWN_FILE_BASE_NAME));
-		String safeFileName = UNSAFE_FILE_NAME_CHARS.matcher(baseFileName).replaceAll("_");
+		String safeFileName = PathUtils.sanitizeFileName(baseFileName);
 		safeFileName = StringUtils.defaultIfBlank(safeFileName, DEFAULT_MARKDOWN_FILE_BASE_NAME);
 		if (PathUtils.isMarkdownFileName(safeFileName)) {
 			return safeFileName;
@@ -227,16 +225,6 @@ public class MarkdownDocumentService {
 		} catch (IOException e) {
 			throw new UncheckedIOException(e);
 		}
-	}
-
-	/**
-	 * Markdown本文をHTMLへ変換し、画面表示用にsanitizeする。
-	 *
-	 * @param markdown Markdown本文
-	 * @return sanitize済みHTML
-	 */
-	private String renderMarkdownPreview(String markdown) {
-		return htmlRenderer.render(markdown);
 	}
 
 	/**
@@ -307,7 +295,7 @@ public class MarkdownDocumentService {
 	 * @param outputPath 保存先パス
 	 * @return Markdown保存レスポンス
 	 */
-	private MarkdownFileResponse buildResponse(String fileName, Path outputPath) {
+	private MarkdownFileResponse buildFileResponse(String fileName, Path outputPath) {
 		MarkdownFileResponse response = new MarkdownFileResponse();
 		response.setFileName(fileName);
 		response.setByteSize(FileInfoUtils.getFileByteSize(outputPath));

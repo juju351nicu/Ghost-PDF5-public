@@ -15,6 +15,7 @@ import com.clip.ghost.aicontent.exception.AiUnavailableException;
 import com.clip.ghost.aicontent.logic.MarkdownAiConverter;
 import com.clip.ghost.aicontent.logic.MarkdownAiConverterResolver;
 import com.clip.ghost.common.response.ApiResult;
+import com.clip.ghost.common.utils.MarkdownTextNormalizer;
 
 import lombok.RequiredArgsConstructor;
 
@@ -47,7 +48,7 @@ public class MarkdownAiService {
 		}
 		String content = request.getContent();
 		validateInputLength(content);
-		String markdown = normalizeMarkdown(converter.transform(content, request.getTask()));
+		String markdown = MarkdownTextNormalizer.normalize(converter.transform(content, request.getTask()));
 		return ResponseEntity.ok(ApiResult.of(buildResponse(request.getTask(), content, markdown)));
 	}
 
@@ -73,21 +74,11 @@ public class MarkdownAiService {
 	}
 
 	/**
-	 * 変換結果の改行を正規化する。CRLFとCRをLFへ統一し、末尾の空白文字を除去する。
-	 *
-	 * @param markdown 変換結果のMarkdown
-	 * @return 正規化済みMarkdown
-	 */
-	private String normalizeMarkdown(String markdown) {
-		return markdown.replace("\r\n", "\n").replace('\r', '\n').stripTrailing();
-	}
-
-	/**
 	 * タスク、入力本文、変換結果からレスポンスDTOを生成する。
 	 *
-	 * @param task      実行した変換タスク
-	 * @param content   入力Markdown本文
-	 * @param markdown  正規化済みの変換結果Markdown
+	 * @param task     実行した変換タスク
+	 * @param content  入力Markdown本文
+	 * @param markdown 正規化済みの変換結果Markdown
 	 * @return レスポンスDTO
 	 */
 	private MarkdownAiTransformResponse buildResponse(AiTaskType task, String content, String markdown) {

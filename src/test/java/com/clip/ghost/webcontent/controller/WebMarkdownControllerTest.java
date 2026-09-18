@@ -38,11 +38,11 @@ import org.springframework.test.web.servlet.request.MockMultipartHttpServletRequ
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import com.clip.ghost.common.config.CodeEnumWebMvcConfig;
+import com.clip.ghost.common.constant.UploadConstants;
 import com.clip.ghost.common.exceptions.handler.ControllerValidationErrorHandler;
 import com.clip.ghost.common.exceptions.handler.GlobalExceptionErrorHandler;
 import com.clip.ghost.common.response.ApiResult;
 import com.clip.ghost.common.security.AccessTokenValidator;
-import com.clip.ghost.pdfcontent.constant.PdfConstants;
 import com.clip.ghost.webcontent.dto.WebMarkdownDraftRequest;
 import com.clip.ghost.webcontent.dto.WebMarkdownDraftResponse;
 import com.clip.ghost.webcontent.dto.WebUrlMarkdownDraftRequest;
@@ -134,7 +134,7 @@ class WebMarkdownControllerTest {
 	@DisplayName("アップロードサイズが上限以上の場合は413を返し、Serviceを呼ばない")
 	void generateMarkdownFromHtmlReturnsPayloadTooLargeWhenFileIsTooLarge() throws Exception {
 		MvcResult result = performRequest(ACCESS_TOKEN, HTML_FILE_NAME, true,
-				(int) PdfConstants.MAX_PDF_FILE_SIZE_BYTES);
+				(int) UploadConstants.MAX_UPLOAD_FILE_SIZE_BYTES);
 
 		verify(webMarkdownService, never()).generateMarkdownFromHtml(any());
 		assertEquals(HttpStatus.CONTENT_TOO_LARGE.value(), result.getResponse().getStatus());

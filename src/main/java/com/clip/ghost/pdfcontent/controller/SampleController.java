@@ -13,6 +13,8 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.clip.ghost.pdfcontent.constant.PdfConstants;
+
 import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
@@ -32,8 +34,6 @@ public class SampleController {
 	private static final int SAMPLE_COOKIE_MAX_AGE_SECONDS = 265 * 24 * 60 * 60;
 	private static final String SAMPLE_PNG_RESOURCE_PATH = "static/img/sample.png";
 	private static final String SAMPLE_PDF_RESOURCE_PATH = "static/img/sample.pdf";
-	private static final String BASE64_PNG_PREFIX = "data:image/png;base64,";
-	private static final String BASE64_PDF_PREFIX = "data:application/pdf;base64,";
 
 	/**
 	 * サンプルのPNGとPDFをbase64に変換して画面に表示する。
@@ -45,8 +45,8 @@ public class SampleController {
 	@GetMapping("/getSample")
 	public String showSamplePage(Model model, HttpServletResponse response) {
 		addSampleCookie(response);
-		model.addAttribute("base64Png", readBase64Resource(SAMPLE_PNG_RESOURCE_PATH, BASE64_PNG_PREFIX));
-		model.addAttribute("base64Pdf", readBase64Resource(SAMPLE_PDF_RESOURCE_PATH, BASE64_PDF_PREFIX));
+		model.addAttribute("base64Png", readBase64Resource(SAMPLE_PNG_RESOURCE_PATH, PdfConstants.BASE64_PNG));
+		model.addAttribute("base64Pdf", readBase64Resource(SAMPLE_PDF_RESOURCE_PATH, PdfConstants.BASE64_PDF));
 		return SAMPLE_VIEW_NAME;
 	}
 

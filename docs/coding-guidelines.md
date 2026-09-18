@@ -326,6 +326,20 @@ Ghost-PDF5では `JsonUtils` に失敗時null返却のpublicメソッドを増�
 - ファイル/ディレクトリの作成、コピー、移動、削除は `FileOperationUtils` を使う。
 - ファイル一覧、件数、サイズ、行数、内容検索は `FileInfoUtils` を使う。
 - 旧Facadeの `StorageUtils` は削除済み。新規コードでは責務別Utilsを使用する。
+- アップロードサイズの上限判定は `UploadFileSizeValidator` を使う。Controllerごとに
+  `if (file.getSize() >= 上限) throw new MultipartException(...)` を書き写さない。書き写すと、
+  「上限以上」と「上限超過」のような境界のずれが取り込み口ごとに入り込む
+  （`CodingConventionTest.productionCodeUsesUploadFileSizeValidatorForUploadSizeChecks`）。
+- PDF / Office文書 / HTMLに共通のアップロード上限は `UploadConstants.MAX_UPLOAD_FILE_SIZE_BYTES` を参照する。
+  形式ごとに上限を分けると、413を受け取った利用者がどの上限に当たったのか判断できなくなる。
+  画像Markdown下書きだけは、vision APIが受け取れるサイズから逆算した別の上限を持つ。
+- 改行の正規化（CRLFとCRをLFへ、末尾の空白除去）は `MarkdownTextNormalizer` を使う。取り込み元ごとに
+  `replace("
+", "
+")` を書き写すと、同じ本文でも経路によって末尾の空行や改行コードが変わる
+  （`CodingConventionTest.productionCodeUsesMarkdownTextNormalizerForLineEndings`）。
+- ダウンロード / inline表示のHTTPヘッダー組み立ては `ResponseUtils` を使う。形式ごとのメソッドは
+  Content-Typeだけが違うため、ヘッダー生成そのものは `ResponseUtils` 内の1箇所に閉じる。
 - ディレクトリ作成は `Files.createDirectories` を使い、親ディレクトリもまとめて作る。
 - `Files.lines` や `Files.walk` は try-with-resources で閉じる。
 - 削除処理は対象パスを明確にし、広すぎるパスを削除しない。

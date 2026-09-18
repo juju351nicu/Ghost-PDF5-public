@@ -16,15 +16,15 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.multipart.MultipartException;
-import org.springframework.web.multipart.MultipartFile;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.clip.ghost.common.constant.UploadConstants;
 import com.clip.ghost.common.exceptions.ErrorResponse;
 import com.clip.ghost.common.response.ApiResult;
 import com.clip.ghost.common.security.AccessTokenValidator;
-import com.clip.ghost.pdfcontent.constant.PdfConstants;
+import com.clip.ghost.common.utils.UploadFileSizeValidator;
 import com.clip.ghost.pdfcontent.dto.ExtractPdfRequest;
 import com.clip.ghost.pdfcontent.dto.InsertPdfRequest;
 import com.clip.ghost.pdfcontent.dto.MergePdfRequest;
@@ -114,7 +114,7 @@ public class GhostPdfController {
 			@Valid @ModelAttribute OriginalPdfRequest form, HttpSession session) {
 		LOGGER.info("プレビュー用PDFを表示します。");
 		accessTokenValidator.validate(accessToken, session);
-		validateOriginalPdfFileSize(form);
+		UploadFileSizeValidator.validate(form.getOriginalFile(), UploadConstants.MAX_UPLOAD_FILE_SIZE_BYTES);
 		return pdfService.showPdf(form);
 	}
 
@@ -140,7 +140,7 @@ public class GhostPdfController {
 			@Valid @ModelAttribute OriginalPdfRequest form, HttpSession session) {
 		LOGGER.info("PDFメタデータを取得します。");
 		accessTokenValidator.validate(accessToken, session);
-		validateOriginalPdfFileSize(form);
+		UploadFileSizeValidator.validate(form.getOriginalFile(), UploadConstants.MAX_UPLOAD_FILE_SIZE_BYTES);
 		return pdfService.getPdfMetadata(form);
 	}
 
@@ -166,7 +166,7 @@ public class GhostPdfController {
 			@Valid @ModelAttribute OriginalPdfRequest form, HttpSession session) {
 		LOGGER.info("PDFテキストを抽出します。");
 		accessTokenValidator.validate(accessToken, session);
-		validateOriginalPdfFileSize(form);
+		UploadFileSizeValidator.validate(form.getOriginalFile(), UploadConstants.MAX_UPLOAD_FILE_SIZE_BYTES);
 		return pdfService.extractPdfText(form);
 	}
 
@@ -192,7 +192,7 @@ public class GhostPdfController {
 			@Valid @ModelAttribute ExtractPdfRequest form, HttpSession session) {
 		LOGGER.info("指定ページを抽出したPDFを作成します。");
 		accessTokenValidator.validate(accessToken, session);
-		validateOriginalPdfFileSize(form);
+		UploadFileSizeValidator.validate(form.getOriginalFile(), UploadConstants.MAX_UPLOAD_FILE_SIZE_BYTES);
 		return pdfService.extractPdfByPages(form);
 	}
 
@@ -218,7 +218,7 @@ public class GhostPdfController {
 			@Valid @ModelAttribute RotatePdfRequest form, HttpSession session) {
 		LOGGER.info("指定ページを回転したPDFを作成します。");
 		accessTokenValidator.validate(accessToken, session);
-		validateOriginalPdfFileSize(form);
+		UploadFileSizeValidator.validate(form.getOriginalFile(), UploadConstants.MAX_UPLOAD_FILE_SIZE_BYTES);
 		return pdfService.rotatePdfPages(form);
 	}
 
@@ -244,7 +244,7 @@ public class GhostPdfController {
 			@Valid @ModelAttribute MergePdfRequest form, HttpSession session) {
 		LOGGER.info("複数PDFを結合します。");
 		accessTokenValidator.validate(accessToken, session);
-		validateMergePdfFileSize(form);
+		UploadFileSizeValidator.validateAll(form.getMergeFiles(), UploadConstants.MAX_UPLOAD_FILE_SIZE_BYTES);
 		return pdfService.mergePdfs(form);
 	}
 
@@ -270,7 +270,7 @@ public class GhostPdfController {
 			@Valid @ModelAttribute SplitPdfRequest form, HttpSession session) {
 		LOGGER.info("PDFを分割します。");
 		accessTokenValidator.validate(accessToken, session);
-		validateOriginalPdfFileSize(form);
+		UploadFileSizeValidator.validate(form.getOriginalFile(), UploadConstants.MAX_UPLOAD_FILE_SIZE_BYTES);
 		return pdfService.splitPdf(form);
 	}
 
@@ -296,7 +296,7 @@ public class GhostPdfController {
 			@Valid @ModelAttribute OriginalPdfRequest form, HttpSession session) {
 		LOGGER.info("指定ページを削除したPDFを作成します。");
 		accessTokenValidator.validate(accessToken, session);
-		validateOriginalPdfFileSize(form);
+		UploadFileSizeValidator.validate(form.getOriginalFile(), UploadConstants.MAX_UPLOAD_FILE_SIZE_BYTES);
 		return pdfService.deletePdfByPages(form);
 	}
 
@@ -351,78 +351,18 @@ public class GhostPdfController {
 	}
 
 	/**
-	 * アップロードされた編集元PDFのファイルサイズを検証する。
-	 *
-	 * @param form 編集元PDFを含むフォーム
-	 * @throws MultipartException 許容サイズ以上の場合
-	 */
-	private void validateOriginalPdfFileSize(OriginalPdfRequest form) {
-		validateOriginalPdfFileSize(form.getOriginalFile());
-	}
-
-	/**
-	 * アップロードされた抽出元PDFのファイルサイズを検証する。
-	 *
-	 * @param form 抽出元PDFを含むフォーム
-	 * @throws MultipartException 許容サイズ以上の場合
-	 */
-	private void validateOriginalPdfFileSize(ExtractPdfRequest form) {
-		validateOriginalPdfFileSize(form.getOriginalFile());
-	}
-
-	/**
-	 * アップロードされた分割対象PDFのファイルサイズを検証する。
-	 *
-	 * @param form 分割対象PDFを含むフォーム
-	 * @throws MultipartException 許容サイズ以上の場合
-	 */
-	private void validateOriginalPdfFileSize(SplitPdfRequest form) {
-		validateOriginalPdfFileSize(form.getOriginalFile());
-	}
-
-	/**
-	 * 回転対象PDFのファイルサイズを検証する。
-	 *
-	 * @param form 回転元PDFを含むフォーム
-	 * @throws MultipartException 許容サイズ以上の場合
-	 */
-	private void validateOriginalPdfFileSize(RotatePdfRequest form) {
-		validateOriginalPdfFileSize(form.getOriginalFile());
-	}
-
-	/**
-	 * アップロードされた結合対象PDFのファイルサイズを検証する。
-	 *
-	 * @param form 結合対象PDFを含むフォーム
-	 * @throws MultipartException 許容サイズ以上の場合
-	 */
-	private void validateMergePdfFileSize(MergePdfRequest form) {
-		form.getMergeFiles().forEach(this::validateOriginalPdfFileSize);
-	}
-
-	/**
 	 * アップロードされた編集元PDFと差し込みPDFのファイルサイズを検証する。
+	 * <p>
+	 * 差し込みフォームはファイル未選択の行が残ることがあるため、nullを除いてから検証する。
 	 *
 	 * @param form 編集元PDFと差し込みPDFを含むフォーム
 	 * @throws MultipartException 許容サイズ以上の場合
 	 */
 	private void validateInsertPdfFileSize(OriginalPdfRequest form) {
-		validateOriginalPdfFileSize(form);
-		CollectionUtils.emptyIfNull(form.getInsertPdfForm()).stream().filter(Objects::nonNull)
-				.map(InsertPdfRequest::getInsertFile).filter(Objects::nonNull)
-				.forEach(this::validateOriginalPdfFileSize);
-	}
-
-	/**
-	 * アップロードされたPDFファイルサイズを検証する。
-	 *
-	 * @param originalFile アップロードされたPDF
-	 * @throws MultipartException 許容サイズ以上の場合
-	 */
-	private void validateOriginalPdfFileSize(MultipartFile originalFile) {
-		if (originalFile.getSize() >= PdfConstants.MAX_PDF_FILE_SIZE_BYTES) {
-			throw new MultipartException("サイズの超過");
-		}
+		UploadFileSizeValidator.validate(form.getOriginalFile(), UploadConstants.MAX_UPLOAD_FILE_SIZE_BYTES);
+		UploadFileSizeValidator.validateAll(CollectionUtils.emptyIfNull(form.getInsertPdfForm()).stream()
+				.filter(Objects::nonNull).map(InsertPdfRequest::getInsertFile).filter(Objects::nonNull).toList(),
+				UploadConstants.MAX_UPLOAD_FILE_SIZE_BYTES);
 	}
 
 	/**

@@ -45,7 +45,7 @@ const REST_PATH = {
 /**
  * アップロードファイルサイズの上限。
  *
- * MAX_PDF_BYTESはBE側の `PdfConstants.MAX_PDF_FILE_SIZE_BYTES` と同じ値を保つ。
+ * MAX_PDF_BYTESはBE側の `UploadConstants.MAX_UPLOAD_FILE_SIZE_BYTES` と同じ値を保つ。
  * 値がずれるとFEを通り抜けたリクエストがサーバー側で拒否されるため、
  * `FrontendUploadSizeContractTest` が一致を検証する。
  */
