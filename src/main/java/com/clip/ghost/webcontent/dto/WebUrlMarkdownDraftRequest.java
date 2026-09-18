@@ -1,5 +1,6 @@
 package com.clip.ghost.webcontent.dto;
 
+import com.clip.ghost.webcontent.enums.WebMarkdownDraftMode;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -32,4 +33,9 @@ public class WebUrlMarkdownDraftRequest {
 	@JsonProperty("selector")
 	@Size(max = 200, message = "セレクタは200文字以内で入力してください。")
 	private String selector;
+
+	/** 出力モード。未指定なら本文だけ（{@code ARTICLE}）。 */
+	@Schema(description = "出力モード。ARTICLE（本文のみ・既定）／STRUCTURE（構造レポートのみ）／BOTH（両方）。", example = "ARTICLE")
+	@JsonProperty("mode")
+	private WebMarkdownDraftMode mode;
 }

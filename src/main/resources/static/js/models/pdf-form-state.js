@@ -363,14 +363,28 @@ const createHtmlPdfState = () => ({
  *
  * selectorは本文の絞り込みに使う任意のCSSセレクタで、空なら指定なしとして送らない。
  *
- * @returns {{fileObject: File|null, fileName: string, selector: string, url: string}} Web取り込みカードの画面状態
+ * @returns {{fileObject: File|null, fileName: string, selector: string, url: string, mode: string}} Web取り込みカードの画面状態
  */
 const createWebMarkdownState = () => ({
   fileObject: null,
   fileName: "",
   selector: "",
   url: "",
+  mode: "ARTICLE",
 });
+
+/**
+ * Webページ取り込みの出力モードの選択肢を生成する。
+ *
+ * idはBEの `WebMarkdownDraftMode` のコード値と一致させる。
+ *
+ * @returns {{id: string, name: string}[]} 出力モードの選択肢
+ */
+const createWebMarkdownModeItems = () => [
+  { id: "ARTICLE", name: "本文" },
+  { id: "STRUCTURE", name: "構造レポート" },
+  { id: "BOTH", name: "本文＋構造レポート" },
+];
 
 /**
  * 画像からPDFを作るカードの初期画面状態を生成する。
@@ -406,6 +420,7 @@ export default {
   createImagesPdfState,
   createHtmlPdfState,
   createWebMarkdownState,
+  createWebMarkdownModeItems,
   createOfficeState,
   createEpubState,
   createOfficeFormatItems,

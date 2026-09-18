@@ -19,7 +19,7 @@ providerとプロンプトの分岐を2箇所に増やすことになるため�
 | --- | --- | --- | --- |
 | Stage 1 | HTMLファイルをアップロード → 本文Markdown下書き（`POST /markdownDraftHtml`） | 不要 | **実装済み** |
 | Stage 2 | URL入力 → サーバーが取得 → Stage 1 の変換へ流す（`POST /markdownDraftUrl`） | 必要（既定無効） | **実装済み** |
-| Stage 3 | サイト構造・制作参考レポート（`mode=STRUCTURE`） | Stage 1 / 2 に準じる | 未着手 |
+| Stage 3 | サイト構造・制作参考レポート（`mode=STRUCTURE`） | Stage 1 / 2 に準じる | **実装済み（最小3節）** |
 
 Stage 1 と Stage 2 を分けたのは、難所が別物だからである。
 「HTMLから読めるMarkdownを作る」は出力品質の問題、「サーバーから任意のURLを叩く」はSSRFの問題で、
@@ -29,9 +29,20 @@ Stage 1 はネットワークに出ないため、自作フィクスチャHTML�
 ## 3. API
 
 ```text
-POST /markdownDraftHtml   multipart/form-data   htmlFile（必須）, selector（任意）
-POST /markdownDraftUrl    application/json      { "url": "...", "selector": "..."（任意） }
+POST /markdownDraftHtml   multipart/form-data   htmlFile（必須）, selector（任意）, mode（任意）
+POST /markdownDraftUrl    application/json      { "url": "...", "selector": "..."（任意）, "mode": "..."（任意） }
 ```
+
+`mode`（`WebMarkdownDraftMode`）は出力の内容を切り替える。エンドポイントを増やさず `mode` にしたのは、
+既存の `POST /markdownDraftPdf` が `mode=AUTO|VISION` で同じことをしているため。
+
+| mode | 出力 |
+| --- | --- |
+| `ARTICLE`（未指定時） | 出典ヘッダー + 本文 |
+| `STRUCTURE` | 出典ヘッダー + 構造レポート |
+| `BOTH` | 出典ヘッダー + 構造レポート + 本文 |
+
+未指定時の既定はenumの値にせずService側で決める。「未指定」をenumへ足すと、APIが受け取れる文字列が増える。
 
 - `access-token` ヘッダーを既存の `AccessTokenValidator` で検証する。
 - 成功時はどちらも `ApiResult<WebMarkdownDraftResponse>`（`markdown` / `title` / `sourceUrl` / `truncated`）。
@@ -49,11 +60,20 @@ POST /markdownDraftUrl    application/json      { "url": "...", "selector": "...
 | `ul` / `ol` / `li` | `- ` / `1. `（入れ子は半角2桁インデント） |
 | `table` / `tr` / `th` / `td` | GFMの表（`common.utils.MarkdownTableBuilder`） |
 | `pre` / `code` | フェンス付きコードブロック（`class="language-*"` から言語を引き継ぐ） / インラインコード |
+| `dl` / `dt` / `dd` | `- **用語**: 説明` の箇条書き（Markdownに定義リストの記法が無いため） |
 | `blockquote` | `> `（中の段落・見出しも引用として残す） |
 | `strong` / `b` / `em` / `i` | `**` / `*` |
 | `a[href]` | `[text](絶対URL)` |
 | `img[src]` | `![alt](絶対URL)`。**画像は取得しない**（参照のみ） |
 | `hr` | `---` |
+
+見出しの中ではリンク記法を作らず、テキストだけを残す。多くのサイトが見出しに「その見出しへのリンク」を
+埋め込んでおり、そのまま写すと目次として読みたい見出しがすべてリンクになる。行き先は同じページの
+同じ見出しなので、落としても情報は減らない。
+
+インラインコードの中身は素のテキストだけを使う。コード記法の中では他の記法が働かないため、
+`<code><a>…</a></code>` をそのまま写すとリンクともコードとも描画されない文字列になる。
+ただしコード全体が1つのリンクの場合だけ、コードを包む形（``[`text`](url)``）へ入れ替える。
 
 上記以外のタグは、中にブロック要素があれば入れ物として掘り下げ、無ければ段落として扱う。
 `div` しか使っていないページでも本文が落ちないようにするため。
@@ -112,7 +132,9 @@ URL取得（Stage 2）で増える例外（`WebFetchException` / `WebFetchBlocke
 | `WebMarkdownService` | `webcontent.service` | 拡張子・空ファイルの検証、出力上限、レスポンス組み立て |
 | `WebPageExtractor` | `webcontent.logic` | HTML解析、不要要素の除去、セレクタ絞り込み、タイトル・説明の取り出し |
 | `WebMarkdownBuilder` | `webcontent.logic` | 本文のMarkdown組み立て |
-| `WebPageContent` | `webcontent.logic` | 抽出結果（タイトル・説明・本文の根） |
+| `WebPageContent` | `webcontent.logic` | 抽出結果（タイトル・説明・本文の根・除去前のDOM） |
+| `WebStructureReportBuilder` | `webcontent.logic` | 構造レポートの組み立て |
+| `WebMarkdownDraftMode` | `webcontent.enums` | 出力モード（ARTICLE / STRUCTURE / BOTH） |
 | `WebMarkdownProperties` | `webcontent.config` | `ghost.web.markdown.*` |
 | `WebPageFetcher` | `webcontent.logic` | URL取得。HTTPクライアントを持つ唯一のクラス |
 | `WebAddressValidator` | `webcontent.logic` | 宛先の検査（スキーム・ポート・ユーザー情報・IP範囲） |
@@ -202,7 +224,59 @@ TLSのホスト名検証とHostヘッダーを自前で手当てする必要が�
 攻撃者が任意のURLを送り込める立場にもない。動かない完璧さより、限界が書いてある実装を選ぶ。
 この判断は `WebPageFetcher` のJavadocと `SECURITY.md` にも同じ内容で残す。
 
-## 10. 範囲外
+## 10. Stage 3: 構造レポート（`mode=STRUCTURE` / `BOTH`）
+
+### 10.1 目的と分担
+
+本文を読める形にするのが Stage 1 / 2、**ページの組み立て方を観察するのが Stage 3**。
+調査結果のまとめ・PDF化・要約は既存機能（Markdownメモ / `POST /markdownPdf` / `POST /markdownAiTransform`）で
+足りるため、新しく作るのは「分析の抽出項目」だけに絞る。
+
+出すのは**観察した事実と数値だけ**で、評価も改善提案も書かない。判断が要るときは出来上がったMarkdownを
+`POST /markdownAiTransform` へ渡す。この分担を崩すと、抽出器の中にAIの都合（プロンプト、トークン上限、
+provider差）が混ざり始める。
+
+### 10.2 節（3つだけ）
+
+| 節 | 内容 |
+| --- | --- |
+| 文書メタ | `title` / `lang` / `canonical` / favicon / `meta`（description・robots・viewport・theme-color・author・keywords）/ OGP 6種。**指定が無い場合は「（指定なし）」と書く**（未設定であることも事実） |
+| 見出しアウトライン | `h1`〜`h6` をレベルどおりのインデントで並べ、レベルが飛んだ箇所（h2→h4 など）に注記を付ける |
+| ランドマーク構成 | `header` / `nav` / `main` / `section` / `article` / `aside` / `footer` を入れ子のまま並べ、`aria-label` / `id` / `class` があれば見分けの手がかりとして添える |
+
+抽出できる項目は他にもあるが（ナビ、フォーム、リンク、外部依存、画像、アクセシビリティ、スタイル）、
+**使ってみて「これが欲しい」と分かってから足す**。使う前に項目を増やすと、読まれない節の維持費だけが残る。
+
+`div` のような装飾用の入れ物では階層を深くしない。実装の都合で段が深くなると、元の文書構造より
+マークアップの事情が前に出てしまう。
+
+### 10.3 レポートは除去前のDOMを見る
+
+本文からは外す `nav` / `header` / `footer` / `aside` こそ、「このサイトがページをどう組み立てているか」を
+見るときの対象になる。そのため `WebPageExtractor` は、不要要素の除去を**複製に対して**行い、
+`WebPageContent` へ「本文用に削ったroot」と「削る前のdocument」の両方を持たせる。
+複製の大きさは入力サイズの上限（アップロード20MB / URL取得2MB）で頭打ちになる。
+
+### 10.4 取れないもの
+
+jsoupはJavaScriptを実行せずCSSも評価しないため、次は取れない。取れないものをそれらしく埋めない。
+
+- 算出後のスタイル（実際の文字サイズ・色・余白）。
+- 外部CSSファイルの中身。読み込んでいるファイルの存在までしか分からない。
+- JavaScriptで描画される要素。SPAをURLから取ると、ほぼ空のDOMしか返らない。
+  **この用途では Stage 1 が本命**で、ブラウザで「名前を付けて保存」した描画後のHTMLを渡せば構造を観察できる。
+
+外部CSSを取りに行くかは保留（設計メモ34 §5.5）。`WebPageFetcher` のSSRF検査は再利用できるので技術的な壁は
+低いが、必要性が実証されていない。「色と余白が取れないせいで使えない」と実際に感じてから検討する。
+
+### 10.5 権利
+
+レポートに他社のHTML / CSSの断片を長く貼らない。出力するのは観察した事実であって、複製可能な素材ではない。
+生成したレポートはリポジトリへコミットせず、保存先は `ghost.markdown.storage-directory` のままにする。
+参考にするのは構造と設計判断（章立て、ナビの分類、必須項目の決め方）であって、文言・デザイン・
+マークアップそのものではない。
+
+## 11. 範囲外
 
 | やらないこと | 理由 |
 | --- | --- |
@@ -213,7 +287,7 @@ TLSのホスト名検証とHostヘッダーを自前で手当てする必要が�
 | robots.txt の自動解釈 | Stage 2 でも1URL・非再帰・UA明示・間隔制限で実害を塞ぎ、判断は画面の注意書きで利用者へ返す |
 | Web取り込み専用のAI要約 | `POST /markdownAiTransform` で足りる |
 
-## 11. 既知の限界
+## 12. 既知の限界
 
 - SPAなど、JavaScriptで本文を描画するページは、保存前のHTMLに本文が無いため取り込めない。
   この場合はブラウザで表示してから「名前を付けて保存」したHTMLを渡す。
@@ -224,7 +298,7 @@ TLSのホスト名検証とHostヘッダーを自前で手当てする必要が�
 - 表の結合セル（`colspan` / `rowspan`）は再現しない。Office側の表変換と同じ制限。
 - タイトルに使った `<h1>` は本文側にも残るため、見出しが重複することがある。
 
-## 12. テスト
+## 13. テスト
 
 | テスト | 観点 |
 | --- | --- |
@@ -234,14 +308,18 @@ TLSのホスト名検証とHostヘッダーを自前で手当てする必要が�
 | `WebMarkdownControllerTest` | token検証、ファイル未指定、入力不正の400、サイズ超過の413、URL経路の400 / 502 / 503 |
 | `WebAddressValidatorTest` | スキーム・ポート・ユーザー情報・禁止IP範囲（11種）・複数解決結果・loopback許可の切り替え |
 | `WebPageFetcherIntegrationTest` | 正常取得、リダイレクト上限、相対Location、Location欠落、Content-Type、200以外、サイズ上限（chunked / 宣言あり）、タイムアウト、間隔制限、loopback拒否 |
+| `WebStructureReportBuilderTest` | 文書メタ、指定なしの表示、見出しアウトライン、レベルの飛びの注記、ランドマークの入れ子、装飾divで深くしないこと |
+| `WebMarkdownDraftModeTest` | コード値変換、大文字小文字、不正値の説明、各モードの出力内容 |
 
 フィクスチャHTML（`src/test/resources/web/`）はすべて自作で、実在サイトのHTMLは持ち込まない。
 取得のテストは `com.sun.net.httpserver.HttpServer` をループバックで起動して行う。外部サイトを相手にすると、
 相手の都合で結果が変わり、リダイレクト回数やContent-Typeのような条件を狙って作れない。
 SSRF検査のテストは名前解決を差し替えて行う。実DNSに依存させると、実行環境のネットワーク設定で結果が変わる。
 
-## 13. 未実施事項
+## 14. 未実施事項
 
-- 実データ（ブラウザで保存した実ページ、実URL）での出力品質確認は最小限。
-  取り込み対象を広げる前に、数本のページで抽出品質を確かめる。
-- Stage 3（`mode=STRUCTURE`、サイト構造・制作参考レポート）は未着手。
+- 実URLでの品質確認は4サイト（jsoup / CommonMark / Maven / MDN、いずれも公開ドキュメント）。
+  ニュース系・SPA・社内Wikiの保存HTMLは未確認。
+- 構造レポートの抽出項目は3節のみ。ナビ・フォーム・リンク・外部依存・画像・アクセシビリティ・スタイルは、
+  使って必要性が分かってから足す。
+- 外部CSSの取得（Stage 3.5）は保留。

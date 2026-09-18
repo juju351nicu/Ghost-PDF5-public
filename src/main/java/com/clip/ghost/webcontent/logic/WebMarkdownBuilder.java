@@ -16,13 +16,14 @@ import org.springframework.stereotype.Component;
 
 import com.clip.ghost.common.utils.MarkdownBlockJoiner;
 import com.clip.ghost.common.utils.MarkdownTableBuilder;
+import com.clip.ghost.webcontent.enums.WebMarkdownDraftMode;
 
-import lombok.NoArgsConstructor;
+import lombok.RequiredArgsConstructor;
 
 /**
  * HTMLから取り出した本文をMarkdownへ組み立てるクラス。
  * <p>
- * 変換するのは見出し・段落・リスト・表・コードブロック・引用・水平線・リンク・画像だけにする。
+ * 変換するのは見出し・段落・リスト・定義リスト・表・コードブロック・引用・水平線・リンク・画像だけにする。
  * HTMLの表現力をすべてMarkdownへ写すことはできないため、対応表を固定し、それ以外は文字として残す。
  * 対応外のタグを見つけるたびに規則を足すと、同じページを取り込み直したときに結果が変わる。
  * <p>
@@ -33,7 +34,7 @@ import lombok.NoArgsConstructor;
  * 「元ページのどこに何の画像があったか」は残せる。
  */
 @Component
-@NoArgsConstructor
+@RequiredArgsConstructor
 public class WebMarkdownBuilder {
 	private static final DateTimeFormatter RETRIEVED_AT_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 	private static final String SOURCE_LINE_FORMAT = "- 取得元: %s";
@@ -45,6 +46,7 @@ public class WebMarkdownBuilder {
 	private static final String LINE_SEPARATOR = "\n";
 	private static final String LIST_INDENT = "  ";
 	private static final String UNORDERED_MARKER = "- ";
+	private static final String DEFINITION_SEPARATOR = ": ";
 	private static final String ORDERED_MARKER_FORMAT = "%d. ";
 	private static final String QUOTE_PREFIX = "> ";
 	private static final String HORIZONTAL_RULE = "---";
@@ -69,22 +71,34 @@ public class WebMarkdownBuilder {
 	/** インライン整形で読み飛ばすタグ。ブロックとして別に組み立てるため、文章の途中へ混ぜない。 */
 	private static final List<String> INLINE_SKIP_TAG_NAMES = List.of("ul", "ol", "table");
 
+	private final WebStructureReportBuilder webStructureReportBuilder;
+
 	/**
 	 * 本文をMarkdownへ組み立てる。
 	 * <p>
 	 * 冒頭には必ず出典ヘッダー（見出し・取得元・取得日時・説明）を付ける。Markdownメモへ貼った後に
 	 * 「これはどこから取ったものか」を思い出せないと、引用の可否も更新の要否も判断できなくなる。
+	 * <p>
+	 * 構造レポートは本文より前に置く。レポートは十数行、本文は数千行になり得るため、後ろに置くと
+	 * 読むために本文全体をスクロールすることになる。
 	 *
 	 * @param content     HTMLから取り出した本文
-	 * @param source      取得元の表示。アップロードならファイル名、Stage 2 ならURL
+	 * @param source      取得元の表示。アップロードならファイル名、URL取得ならURL
 	 * @param retrievedAt 取得日時
+	 * @param mode        出力モード。本文・構造レポート・その両方
 	 * @return Markdown本文
 	 */
-	public String build(WebPageContent content, String source, LocalDateTime retrievedAt) {
+	public String build(WebPageContent content, String source, LocalDateTime retrievedAt,
+			WebMarkdownDraftMode mode) {
 		Objects.requireNonNull(content, "content must not be null.");
 		List<String> blocks = new ArrayList<>();
 		blocks.add(buildSourceHeader(content, source, retrievedAt));
-		appendChildren(blocks, content.root());
+		if (mode.outputsStructure()) {
+			addIfNotBlank(blocks, webStructureReportBuilder.build(content));
+		}
+		if (mode.outputsArticle()) {
+			appendChildren(blocks, content.root());
+		}
 		return MarkdownBlockJoiner.join(blocks);
 	}
 
@@ -133,12 +147,13 @@ public class WebMarkdownBuilder {
 		String tagName = element.normalName();
 		int headingLevel = resolveHeadingLevel(tagName);
 		if (headingLevel > 0) {
-			addIfNotBlank(blocks, HEADING_MARKER.repeat(headingLevel) + SPACE + renderInline(element));
+			addIfNotBlank(blocks, HEADING_MARKER.repeat(headingLevel) + SPACE + renderHeadingText(element));
 			return;
 		}
 		switch (tagName) {
 		case "p" -> addIfNotBlank(blocks, renderInline(element));
 		case "ul", "ol" -> addIfNotBlank(blocks, buildList(element, 0));
+		case "dl" -> addIfNotBlank(blocks, buildDefinitionList(element));
 		case "table" -> addIfNotBlank(blocks, MarkdownTableBuilder.build(readTableRows(element)));
 		case "pre" -> addIfNotBlank(blocks, buildCodeBlock(element));
 		case "blockquote" -> addIfNotBlank(blocks, buildBlockQuote(element));
@@ -229,6 +244,57 @@ public class WebMarkdownBuilder {
 			appendNestedLists(lines, item, depth);
 		}
 		return String.join(LINE_SEPARATOR, lines);
+	}
+
+	/**
+	 * 定義リストをMarkdownへ組み立てる。
+	 * <p>
+	 * Markdownに定義リストの記法は無いため、「用語: 説明」の箇条書きへ写す。用語を太字にするのは、
+	 * 説明と地続きに並べると、どこまでが用語なのかが読み取れなくなるため。
+	 * <p>
+	 * 用語と説明を別々の段落として出す手もあるが、それだと対応関係が消える。APIリファレンスの
+	 * 属性一覧のように、定義リストは「どの語の説明か」が価値の中心にある。
+	 *
+	 * @param element 定義リスト要素（{@code dl}）
+	 * @return 定義リストのMarkdown
+	 */
+	private String buildDefinitionList(Element element) {
+		List<String> lines = new ArrayList<>();
+		for (Element child : element.children()) {
+			String text = renderInline(child);
+			if (StringUtils.isBlank(text)) {
+				continue;
+			}
+			if (Strings.CS.equals(child.normalName(), "dt")) {
+				lines.add(UNORDERED_MARKER + wrapIfNotBlank(text, BOLD_MARKER));
+				continue;
+			}
+			appendDefinitionDescription(lines, text);
+		}
+		return String.join(LINE_SEPARATOR, lines);
+	}
+
+	/**
+	 * 定義の説明を、直前の用語へつなげる形で追加する。
+	 * <p>
+	 * 1つの用語に説明が複数付く場合があるため、2つ目以降は続きの行として並べる。
+	 * 用語より先に説明が現れる壊れた並びのHTMLでも、説明を捨てずに箇条書きとして残す。
+	 *
+	 * @param lines 追加先の行リスト
+	 * @param text  説明のテキスト
+	 */
+	private void appendDefinitionDescription(List<String> lines, String text) {
+		if (CollectionUtils.isEmpty(lines)) {
+			lines.add(UNORDERED_MARKER + text);
+			return;
+		}
+		int lastIndex = lines.size() - 1;
+		String lastLine = lines.get(lastIndex);
+		if (Strings.CS.endsWith(lastLine, BOLD_MARKER)) {
+			lines.set(lastIndex, lastLine + DEFINITION_SEPARATOR + text);
+			return;
+		}
+		lines.set(lastIndex, lastLine + LINE_SEPARATOR + LIST_INDENT + text);
 	}
 
 	/**
@@ -326,6 +392,23 @@ public class WebMarkdownBuilder {
 		}
 		return inner.lines().map(line -> StringUtils.stripEnd(QUOTE_PREFIX + line, null))
 				.reduce((left, right) -> left + LINE_SEPARATOR + right).orElse(StringUtils.EMPTY);
+	}
+
+	/**
+	 * 見出しの中身をインラインのMarkdownへ整形する。
+	 * <p>
+	 * 見出しの中ではリンク記法を作らず、テキストだけを残す。多くのサイトが見出しに「この見出しへの
+	 * リンク」を埋め込んでおり、そのまま写すと目次として読みたい見出しがすべてリンク記法になる。
+	 * 行き先は同じページの同じ見出しなので、落としても情報は減らない。
+	 *
+	 * @param element 見出し要素
+	 * @return インライン整形後の見出し文字列
+	 */
+	private String renderHeadingText(Element element) {
+		// 元のDOMを壊さないよう複製してからリンクの囲みだけを外す。呼び出し元は同じDOMを使い続ける。
+		Element heading = element.clone();
+		heading.select(LINK_SELECTOR).unwrap();
+		return renderInline(heading);
 	}
 
 	/**

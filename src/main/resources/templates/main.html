@@ -139,10 +139,12 @@
 				</image-ocr-form>
 				<web-markdown-form
 					:web-state="webMarkdown"
+					:mode-items="webMarkdownModeItems"
 					:is-processing="isProcessing"
 					@html-selected="handleWebHtmlSelected"
 					@update-selector="updateWebSelector"
 					@update-url="updateWebUrl"
+					@update-mode="updateWebMode"
 					@request-web-markdown="requestWebMarkdownDraft"
 					@request-web-markdown-url="requestWebMarkdownUrlDraft"
 					@clear-web-html="clearWebMarkdown">

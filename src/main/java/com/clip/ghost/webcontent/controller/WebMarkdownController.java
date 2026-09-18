@@ -64,8 +64,9 @@ public class WebMarkdownController {
 	 * @return 起こしたMarkdown下書きを含むレスポンス
 	 */
 	@Operation(summary = "HTMLファイルからMarkdown下書き", description = "アップロードされたHTMLファイルから本文を取り出し、Markdown下書きを起こします。"
-			+ "見出し・段落・リスト・表・コードブロック・引用・リンク・画像参照だけを変換し、レイアウトやスタイルは再現しません。"
-			+ "画像は参照URLだけを残し、取得はしません。サーバーが外部へ接続することはありません。", requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE, schema = @Schema(implementation = WebMarkdownDraftRequest.class))))
+			+ "見出し・段落・リスト・定義リスト・表・コードブロック・引用・リンク・画像参照だけを変換し、レイアウトやスタイルは再現しません。"
+			+ "画像は参照URLだけを残し、取得はしません。サーバーが外部へ接続することはありません。"
+			+ "mode=STRUCTURE / BOTH では、メタ情報・見出しアウトライン・ランドマーク構成の構造レポートを付けます。", requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE, schema = @Schema(implementation = WebMarkdownDraftRequest.class))))
 	@ApiResponses({
 			@ApiResponse(responseCode = "200", description = "起こしたMarkdown下書き"),
 			@ApiResponse(responseCode = "400", description = "入力値が不正です。対応していない拡張子、セレクタの書式不正、本文が空の場合も400です。", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),
@@ -94,7 +95,8 @@ public class WebMarkdownController {
 	@Operation(summary = "URLからMarkdown下書き", description = "指定されたURLのWebページをサーバーが取得し、本文からMarkdown下書きを起こします。"
 			+ "サーバーが利用者指定の宛先へ接続するため既定では無効で、有効化した場合のみ動作します。"
 			+ "取得先はhttp / httpsの標準ポートに限り、ループバック・プライベート・リンクローカルなどのアドレスへは接続しません。"
-			+ "1回の実行で1URLのみを取得し、ページ内のリンクを自動でたどることはありません。")
+			+ "1回の実行で1URLのみを取得し、ページ内のリンクを自動でたどることはありません。"
+			+ "mode=STRUCTURE / BOTH では、メタ情報・見出しアウトライン・ランドマーク構成の構造レポートを付けます。")
 	@ApiResponses({
 			@ApiResponse(responseCode = "200", description = "起こしたMarkdown下書き"),
 			@ApiResponse(responseCode = "400", description = "URLの書式・スキーム・ポートが不正、接続が許可されない宛先、または本文が空です。", content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ErrorResponse.class))),

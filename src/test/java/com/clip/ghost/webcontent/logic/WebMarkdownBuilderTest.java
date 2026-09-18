@@ -15,6 +15,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
+import com.clip.ghost.webcontent.enums.WebMarkdownDraftMode;
+
 /**
  * {@link WebMarkdownBuilder} のMarkdown組み立て規則を検証するテスト。
  * <p>
@@ -27,7 +29,7 @@ class WebMarkdownBuilderTest {
 	private static final String TITLE = "設計メモ";
 	private static final String DESCRIPTION = "説明文";
 
-	private final WebMarkdownBuilder webMarkdownBuilder = new WebMarkdownBuilder();
+	private final WebMarkdownBuilder webMarkdownBuilder = new WebMarkdownBuilder(new WebStructureReportBuilder());
 
 	@Test
 	@DisplayName("冒頭に出典ヘッダー（タイトル・取得元・取得日時・説明）を付ける")
@@ -104,6 +106,37 @@ class WebMarkdownBuilderTest {
 	}
 
 	@Test
+	@DisplayName("定義リストを「用語: 説明」の箇条書きへ写す")
+	void buildConvertsDefinitionList() {
+		String html = "<dl><dt>align</dt><dd>配置を指定します。</dd><dt>border</dt><dd>枠線の幅です。</dd></dl>";
+
+		String markdown = build(html, TITLE, StringUtils.EMPTY);
+
+		assertTrue(Strings.CS.contains(markdown, "- **align**: 配置を指定します。\n- **border**: 枠線の幅です。"));
+	}
+
+	@Test
+	@DisplayName("1つの用語に説明が複数ある場合は続きの行として残す")
+	void buildKeepsMultipleDefinitionDescriptions() {
+		String html = "<dl><dt>align</dt><dd>配置を指定します。</dd><dd>この属性は非推奨です。</dd></dl>";
+
+		String markdown = build(html, TITLE, StringUtils.EMPTY);
+
+		assertTrue(Strings.CS.contains(markdown, "- **align**: 配置を指定します。\n  この属性は非推奨です。"));
+	}
+
+	@Test
+	@DisplayName("見出しに埋め込まれた自分自身へのリンクは記法にせずテキストだけ残す")
+	void buildKeepsHeadingTextWithoutLinkNotation() {
+		String html = "<h2><a href=\"#section\">属性</a></h2>";
+
+		String markdown = build(html, TITLE, StringUtils.EMPTY);
+
+		assertTrue(Strings.CS.contains(markdown, "## 属性"));
+		assertFalse(Strings.CS.contains(markdown, "## ["));
+	}
+
+	@Test
 	@DisplayName("表をGFMの表へ写し、1行目を見出し行にする")
 	void buildConvertsTable() {
 		String html = "<table><tr><th>項目</th><th>内容</th></tr><tr><td>形式</td><td>Markdown</td></tr></table>";
@@ -168,6 +201,41 @@ class WebMarkdownBuilderTest {
 	}
 
 	@Test
+	@DisplayName("STRUCTUREでは構造レポートだけを出し、本文は出さない")
+	void buildOutputsStructureReportOnly() {
+		String html = "<main><h1>見出し</h1><p>本文の段落</p></main>";
+
+		String markdown = build(html, TITLE, StringUtils.EMPTY, WebMarkdownDraftMode.STRUCTURE);
+
+		assertTrue(Strings.CS.contains(markdown, "## 構造レポート"));
+		assertTrue(Strings.CS.contains(markdown, "### 見出しアウトライン"));
+		assertFalse(Strings.CS.contains(markdown, "本文の段落"));
+	}
+
+	@Test
+	@DisplayName("BOTHでは出典ヘッダー・構造レポート・本文の順に出す")
+	void buildOutputsStructureReportBeforeArticle() {
+		String html = "<main><h1>見出し</h1><p>本文の段落</p></main>";
+
+		String markdown = build(html, TITLE, StringUtils.EMPTY, WebMarkdownDraftMode.BOTH);
+
+		int header = markdown.indexOf("- 取得元: page.html");
+		int report = markdown.indexOf("## 構造レポート");
+		int article = markdown.indexOf("本文の段落");
+		assertTrue(header < report && report < article);
+	}
+
+	@Test
+	@DisplayName("ARTICLEでは構造レポートを出さない")
+	void buildOmitsStructureReportForArticleMode() {
+		String markdown = build("<main><p>本文の段落</p></main>", TITLE, StringUtils.EMPTY,
+				WebMarkdownDraftMode.ARTICLE);
+
+		assertFalse(Strings.CS.contains(markdown, "## 構造レポート"));
+		assertTrue(Strings.CS.contains(markdown, "本文の段落"));
+	}
+
+	@Test
 	@DisplayName("divしか使っていないHTMLでも本文が落ちない")
 	void buildKeepsTextInsideNestedDivs() {
 		String markdown = build("<div><div>divの中の文</div></div>", TITLE, StringUtils.EMPTY);
@@ -184,8 +252,21 @@ class WebMarkdownBuilderTest {
 	 * @return 組み立てたMarkdown
 	 */
 	private String build(String bodyHtml, String title, String description) {
+		return build(bodyHtml, title, description, WebMarkdownDraftMode.ARTICLE);
+	}
+
+	/**
+	 * body断片から、出力モードを指定してMarkdownを組み立てる。
+	 *
+	 * @param bodyHtml    body内のHTML断片
+	 * @param title       ページタイトル
+	 * @param description ページの説明
+	 * @param mode        出力モード
+	 * @return 組み立てたMarkdown
+	 */
+	private String build(String bodyHtml, String title, String description, WebMarkdownDraftMode mode) {
 		Document document = Jsoup.parse("<html><body>" + bodyHtml + "</body></html>", BASE_URI);
-		WebPageContent content = new WebPageContent(title, description, document.body());
-		return webMarkdownBuilder.build(content, SOURCE, RETRIEVED_AT);
+		WebPageContent content = new WebPageContent(title, description, document.body(), document);
+		return webMarkdownBuilder.build(content, SOURCE, RETRIEVED_AT, mode);
 	}
 }

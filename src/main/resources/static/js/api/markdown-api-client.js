@@ -196,12 +196,16 @@ const transformMarkdownAi = (content, task) => {
  *
  * @param {File} htmlFile 取り込むHTMLファイル
  * @param {string} selector 本文を絞り込むCSSセレクタ。空なら送信しない
+ * @param {string} mode 出力モード。ARTICLE / STRUCTURE / BOTH
  * @returns {Promise<{data: Object|null, messages: Object[], errorMessages: string[], errorCodes: string[]}>} 取り込み結果
  */
-const requestHtmlMarkdownDraft = async (htmlFile, selector) => {
+const requestHtmlMarkdownDraft = async (htmlFile, selector, mode) => {
   const params = [{ key: "htmlFile", value: htmlFile }];
   if (selector) {
     params.push({ key: "selector", value: selector });
+  }
+  if (mode) {
+    params.push({ key: "mode", value: mode });
   }
   const response = await FetchClient.multipartRequest(
     CONST.REST_PATH.MARKDOWN_DRAFT_HTML,
@@ -230,10 +234,17 @@ const requestHtmlMarkdownDraft = async (htmlFile, selector) => {
  *
  * @param {string} url 取得先URL
  * @param {string} selector 本文を絞り込むCSSセレクタ。空なら送信しない
+ * @param {string} mode 出力モード。ARTICLE / STRUCTURE / BOTH
  * @returns {Promise<{data: Object|null, messages: Object[], errorMessages: string[], errorCodes: string[]}>} 取り込み結果
  */
-const requestUrlMarkdownDraft = (url, selector) => {
-  const payload = selector ? { url, selector } : { url };
+const requestUrlMarkdownDraft = (url, selector, mode) => {
+  const payload = { url };
+  if (selector) {
+    payload.selector = selector;
+  }
+  if (mode) {
+    payload.mode = mode;
+  }
   return requestJson(() =>
     FetchClient.postRequest(CONST.REST_PATH.MARKDOWN_DRAFT_URL, payload)
   );

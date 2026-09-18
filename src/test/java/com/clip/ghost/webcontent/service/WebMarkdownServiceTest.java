@@ -81,7 +81,7 @@ class WebMarkdownServiceTest {
 	@DisplayName("HTMLの拡張子ならLogicへ委譲し、タイトルとMarkdownをレスポンスへ含める")
 	void generateMarkdownFromHtmlDelegatesToLogic(String fileName) {
 		doReturn(createContent()).when(webPageExtractor).extract(any(), any(), any());
-		doReturn("# 設計メモ\n\n本文").when(webMarkdownBuilder).build(any(), eq(fileName), any());
+		doReturn("# 設計メモ\n\n本文").when(webMarkdownBuilder).build(any(), eq(fileName), any(), any());
 
 		ResponseEntity<ApiResult<WebMarkdownDraftResponse>> result = createService()
 				.generateMarkdownFromHtml(createRequest(fileName, HTML_CONTENT, StringUtils.EMPTY));
@@ -98,7 +98,7 @@ class WebMarkdownServiceTest {
 	@DisplayName("アップロードからの変換では取得元URLを持たないためsourceUrlはnullになる")
 	void generateMarkdownFromHtmlLeavesSourceUrlNull() {
 		doReturn(createContent()).when(webPageExtractor).extract(any(), any(), any());
-		doReturn("# 設計メモ").when(webMarkdownBuilder).build(any(), any(), any());
+		doReturn("# 設計メモ").when(webMarkdownBuilder).build(any(), any(), any(), any());
 
 		ResponseEntity<ApiResult<WebMarkdownDraftResponse>> result = createService()
 				.generateMarkdownFromHtml(createRequest("page.html", HTML_CONTENT, StringUtils.EMPTY));
@@ -110,7 +110,7 @@ class WebMarkdownServiceTest {
 	@DisplayName("セレクタは前後の空白を落としてLogicへ渡す")
 	void generateMarkdownFromHtmlTrimsSelector() {
 		doReturn(createContent()).when(webPageExtractor).extract(any(), any(), eq("article"));
-		doReturn("# 設計メモ").when(webMarkdownBuilder).build(any(), any(), any());
+		doReturn("# 設計メモ").when(webMarkdownBuilder).build(any(), any(), any(), any());
 
 		createService().generateMarkdownFromHtml(createRequest("page.html", HTML_CONTENT, "  article  "));
 
@@ -149,7 +149,7 @@ class WebMarkdownServiceTest {
 	void generateMarkdownFromHtmlTruncatesWhenOutputExceedsLimit() {
 		webMarkdownProperties.setMaxOutputCharacters(10);
 		doReturn(createContent()).when(webPageExtractor).extract(any(), any(), any());
-		doReturn("0123456789abcdef").when(webMarkdownBuilder).build(any(), any(), any());
+		doReturn("0123456789abcdef").when(webMarkdownBuilder).build(any(), any(), any(), any());
 
 		ResponseEntity<ApiResult<WebMarkdownDraftResponse>> result = createService()
 				.generateMarkdownFromHtml(createRequest("page.html", HTML_CONTENT, StringUtils.EMPTY));
@@ -179,7 +179,7 @@ class WebMarkdownServiceTest {
 		doReturn(new FetchedWebPage("https://example.test/final", "UTF-8", HTML_CONTENT.getBytes(StandardCharsets.UTF_8)))
 				.when(webPageFetcher).fetch("https://example.test/article");
 		doReturn(createContent()).when(webPageExtractor).extract(any(), eq("https://example.test/final"), any(), any());
-		doReturn("# 設計メモ").when(webMarkdownBuilder).build(any(), eq("https://example.test/final"), any());
+		doReturn("# 設計メモ").when(webMarkdownBuilder).build(any(), eq("https://example.test/final"), any(), any());
 
 		ResponseEntity<ApiResult<WebMarkdownDraftResponse>> result = createService()
 				.generateMarkdownFromUrl(createUrlRequest("https://example.test/article", StringUtils.EMPTY));
@@ -196,7 +196,7 @@ class WebMarkdownServiceTest {
 		doReturn(new FetchedWebPage("https://example.test/article", "Shift_JIS",
 				HTML_CONTENT.getBytes(StandardCharsets.UTF_8))).when(webPageFetcher).fetch(any());
 		doReturn(createContent()).when(webPageExtractor).extract(any(), any(), eq("article"), eq("Shift_JIS"));
-		doReturn("# 設計メモ").when(webMarkdownBuilder).build(any(), any(), any());
+		doReturn("# 設計メモ").when(webMarkdownBuilder).build(any(), any(), any(), any());
 
 		createService().generateMarkdownFromUrl(createUrlRequest("https://example.test/article", " article "));
 
@@ -223,7 +223,7 @@ class WebMarkdownServiceTest {
 	 * @return 抽出結果
 	 */
 	private WebPageContent createContent() {
-		return new WebPageContent("設計メモ", "説明文", Jsoup.parse(HTML_CONTENT).body());
+		return new WebPageContent("設計メモ", "説明文", Jsoup.parse(HTML_CONTENT).body(), Jsoup.parse(HTML_CONTENT));
 	}
 
 	/**

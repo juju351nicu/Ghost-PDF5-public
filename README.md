@@ -411,6 +411,9 @@ Markdown保存を含むJava 25の全286テストが成功しています。
   - 1回の実行で1URLのみを取得し、ページ内のリンクは自動でたどらない。User-Agentは `Ghost-PDF5` を明示し、ブラウザを偽装しない。
   - 取得は `java.net.http.HttpClient` を使い、`WebPageFetcher` 以外から任意の宛先へ接続できないことをArchUnitで固定している（`jsoup` は解析専用）。
   - 取り扱いの注意は [SECURITY.md](SECURITY.md) の `External Network Access (Optional)` を参照。
+- Webページ取り込みに構造レポート（`mode=STRUCTURE` / `BOTH`）を追加済み。エンドポイントは増やさず、既存2本の `mode` で切り替える。
+  - 出すのは文書メタ（title / lang / canonical / meta / OGP）、見出しアウトライン（レベルの飛びの注記付き）、ランドマーク構成の3節のみ。事実と数値だけを書き、評価や改善提案は書かない。
+  - 評価が要るときは出来上がったMarkdownを既存の `POST /markdownAiTransform` へ渡す。抽出項目は使って必要性が分かってから足す方針。
 - 画像Markdown下書き `POST /markdownDraftImage`（vision / OpenAI provider、既定無効）を追加済み。
   - `POST /markdownDraftPdf` に `mode=AUTO` を追加済み。文字レイヤーが無いページを画像化し、共有の画像変換器（OCR/vision）で補完する。`mode` 省略時は従来動作。
   - `mode=AUTO` のコストガードとして `ghost.ocr.pdf.max-pages`（既定20）と `ghost.ocr.pdf.render-dpi`（既定200）を追加済み。上限超過は1ページも変換せず400で拒否し、画像はページ単位で処理して溜めない。

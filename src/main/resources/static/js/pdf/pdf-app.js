@@ -116,6 +116,7 @@ const pdfApp = {
       pendingPasswordRetry: null,
       imageDraft: PdfFormState.createImageDraftState(),
       webMarkdown: PdfFormState.createWebMarkdownState(),
+      webMarkdownModeItems: PdfFormState.createWebMarkdownModeItems(),
       imagesPdf: buildImagesPdfState(),
       htmlPdf: PdfFormState.createHtmlPdfState(),
       officeDocument: PdfFormState.createOfficeState(),
@@ -1211,6 +1212,14 @@ const pdfApp = {
       this.webMarkdown.url = url;
     },
     /**
+     * Web取り込みカードの出力モードを保持する。
+     *
+     * @param {string} mode 選択された出力モード
+     */
+    updateWebMode(mode) {
+      this.webMarkdown.mode = mode;
+    },
+    /**
      * Web取り込みカードの選択状態を初期化する。
      */
     clearWebMarkdown() {
@@ -1231,7 +1240,8 @@ const pdfApp = {
         () =>
           MarkdownApiClient.requestHtmlMarkdownDraft(
             this.webMarkdown.fileObject,
-            this.webMarkdown.selector
+            this.webMarkdown.selector,
+            this.webMarkdown.mode
           ),
         sourceName
       );
@@ -1254,7 +1264,8 @@ const pdfApp = {
         () =>
           MarkdownApiClient.requestUrlMarkdownDraft(
             this.webMarkdown.url,
-            this.webMarkdown.selector
+            this.webMarkdown.selector,
+            this.webMarkdown.mode
           ),
         sourceName
       );

@@ -16,6 +16,7 @@ export default {
   },
   props: {
     webState: { type: Object, required: true },
+    modeItems: { type: Array, required: true },
     isProcessing: { type: Boolean, required: true },
   },
   emits: [
@@ -25,6 +26,7 @@ export default {
     "clear-web-html",
     "update-selector",
     "update-url",
+    "update-mode",
   ],
   template: `
     <article class="pdf-card web-markdown-card">
@@ -45,6 +47,12 @@ export default {
             :value="webState.url" @input="updateUrl($event)" />
         </label>
         <label class="web-markdown-card__selector">
+          出力する内容
+          <select :value="webState.mode" @change="updateMode($event)">
+            <option v-for="item in modeItems" :key="item.id" :value="item.id">{{ item.name }}</option>
+          </select>
+        </label>
+        <label class="web-markdown-card__selector">
           本文の絞り込み（任意）
           <input type="text" placeholder="article / main / #content など" maxlength="200"
             :value="webState.selector" @input="updateSelector($event)" />
@@ -56,6 +64,7 @@ export default {
         </p>
         <p class="web-markdown-card__notice">
           ブラウザで開いたページを「名前を付けて保存」したHTMLを指定します。画像は参照だけを残し、取得しません。
+          構造レポートは、メタ情報・見出しアウトライン・ランドマーク構成を事実のまま書き出します（評価は書きません）。
         </p>
         <div class="web-markdown-card__actions">
           <button type="button" :disabled="isProcessing || !webState.fileObject"
@@ -104,6 +113,14 @@ export default {
      */
     updateUrl(event) {
       this.$emit("update-url", event.target.value);
+    },
+    /**
+     * 選択された出力モードを親コンポーネントへ通知する。
+     *
+     * @param {Event} event 選択イベント
+     */
+    updateMode(event) {
+      this.$emit("update-mode", event.target.value);
     },
     /**
      * HTMLファイルからのMarkdown下書き生成を親コンポーネントへ通知する。

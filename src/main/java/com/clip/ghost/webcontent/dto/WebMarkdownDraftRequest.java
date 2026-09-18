@@ -2,6 +2,7 @@ package com.clip.ghost.webcontent.dto;
 
 import org.springframework.web.multipart.MultipartFile;
 
+import com.clip.ghost.webcontent.enums.WebMarkdownDraftMode;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -37,4 +38,14 @@ public class WebMarkdownDraftRequest {
 	@JsonProperty("selector")
 	@Size(max = 200, message = "セレクタは200文字以内で入力してください。")
 	private String selector;
+
+	/**
+	 * 出力モード。
+	 * <p>
+	 * 未指定なら本文だけ（{@code ARTICLE}）。既定値をここへ書かず、未指定のままService層で決めるのは、
+	 * {@code PdfMarkdownDraftRequest} と同じ扱いにそろえるため。
+	 */
+	@Schema(description = "出力モード。ARTICLE（本文のみ・既定）／STRUCTURE（構造レポートのみ）／BOTH（両方）。", example = "ARTICLE")
+	@JsonProperty("mode")
+	private WebMarkdownDraftMode mode;
 }

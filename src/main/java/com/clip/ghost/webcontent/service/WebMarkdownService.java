@@ -23,6 +23,7 @@ import com.clip.ghost.webcontent.config.WebMarkdownProperties;
 import com.clip.ghost.webcontent.dto.WebMarkdownDraftRequest;
 import com.clip.ghost.webcontent.dto.WebMarkdownDraftResponse;
 import com.clip.ghost.webcontent.dto.WebUrlMarkdownDraftRequest;
+import com.clip.ghost.webcontent.enums.WebMarkdownDraftMode;
 import com.clip.ghost.webcontent.exception.WebInputException;
 import com.clip.ghost.webcontent.exception.WebProcessingException;
 import com.clip.ghost.webcontent.exception.WebUnavailableException;
@@ -81,7 +82,8 @@ public class WebMarkdownService {
 		validateHtmlFile(htmlFile, fileName);
 		WebPageContent content = extractContent(htmlFile, form.getSelector());
 		// 取得日時は「いつ時点のページか」を示す出典情報のため、変換のたびに実時刻を入れる。
-		String markdown = webMarkdownBuilder.build(content, fileName, LocalDateTime.now());
+		String markdown = webMarkdownBuilder.build(content, fileName, LocalDateTime.now(),
+				resolveMode(form.getMode()));
 		LOGGER.info("HTMLからMarkdown下書きを起こしました。markdownLength={}", StringUtils.length(markdown));
 		return buildResult(content.title(), markdown, null);
 	}
@@ -104,7 +106,8 @@ public class WebMarkdownService {
 		}
 		FetchedWebPage page = webPageFetcher.fetch(request.getUrl());
 		WebPageContent content = extractFetchedContent(page, request.getSelector());
-		String markdown = webMarkdownBuilder.build(content, page.finalUrl(), LocalDateTime.now());
+		String markdown = webMarkdownBuilder.build(content, page.finalUrl(), LocalDateTime.now(),
+				resolveMode(request.getMode()));
 		LOGGER.info("URLからMarkdown下書きを起こしました。markdownLength={}", StringUtils.length(markdown));
 		return buildResult(content.title(), markdown, page.finalUrl());
 	}
@@ -126,6 +129,19 @@ public class WebMarkdownService {
 		} catch (IOException e) {
 			throw new WebProcessingException(READ_FAILURE_MESSAGE, e);
 		}
+	}
+
+	/**
+	 * 出力モードを決める。
+	 * <p>
+	 * 未指定なら本文だけ（{@link WebMarkdownDraftMode#ARTICLE}）。既定値をenumやリクエストDTOへ
+	 * 持たせず、ここで決める。「未指定」をenumの値にすると、APIが受け取れる文字列が増えてしまう。
+	 *
+	 * @param mode リクエストで指定された出力モード。未指定ならnull
+	 * @return 適用する出力モード
+	 */
+	private WebMarkdownDraftMode resolveMode(WebMarkdownDraftMode mode) {
+		return Objects.isNull(mode) ? WebMarkdownDraftMode.ARTICLE : mode;
 	}
 
 	/**

@@ -86,11 +86,16 @@ public class WebPageExtractor {
 	 */
 	public WebPageContent extract(InputStream htmlStream, String baseUri, String selector, String charsetName) {
 		Document document = parseDocument(htmlStream, baseUri, charsetName);
+		// 除去は複製に対して行い、元のDOMは残す。構造レポートはナビゲーションやフッターも対象にするため、
+		// 「本文用に削ったDOM」と「削る前のDOM」の両方が要る。複製の大きさは入力サイズの上限
+		// （アップロード20MB / URL取得2MB）で頭打ちになる。
+		Document articleDocument = document.clone();
 		// 除去はセレクタでの絞り込みより先に行う。絞り込み先の内側にもナビゲーションや広告枠は入り得る。
-		NOISE_TAG_NAMES.forEach(tagName -> document.select(tagName).remove());
-		Element root = resolveRoot(document, selector);
+		NOISE_TAG_NAMES.forEach(tagName -> articleDocument.select(tagName).remove());
+		Element root = resolveRoot(articleDocument, selector);
 		validateNotEmpty(root);
-		return new WebPageContent(resolveTitle(document, root), resolveDescription(document), root);
+		return new WebPageContent(resolveTitle(articleDocument, root), resolveDescription(articleDocument), root,
+				document);
 	}
 
 	/**
