@@ -359,6 +359,19 @@ const createHtmlPdfState = () => ({
 });
 
 /**
+ * WebページのHTMLからMarkdown下書きを起こすカードの初期画面状態を生成する。
+ *
+ * selectorは本文の絞り込みに使う任意のCSSセレクタで、空なら指定なしとして送らない。
+ *
+ * @returns {{fileObject: File|null, fileName: string, selector: string}} Web取り込みカードの画面状態
+ */
+const createWebMarkdownState = () => ({
+  fileObject: null,
+  fileName: "",
+  selector: "",
+});
+
+/**
  * 画像からPDFを作るカードの初期画面状態を生成する。
  *
  * @returns {{files: File[], pageSize: string}} 画像PDFカードの画面状態
@@ -391,6 +404,7 @@ export default {
   createImageDraftState,
   createImagesPdfState,
   createHtmlPdfState,
+  createWebMarkdownState,
   createOfficeState,
   createEpubState,
   createOfficeFormatItems,

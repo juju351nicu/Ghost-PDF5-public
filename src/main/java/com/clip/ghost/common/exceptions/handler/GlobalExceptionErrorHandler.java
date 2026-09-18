@@ -33,6 +33,8 @@ import com.clip.ghost.pdfcontent.exception.PdfImageInputException;
 import com.clip.ghost.pdfcontent.exception.PdfProcessingException;
 import com.clip.ghost.pdfcontent.exception.PdfRenderDpiException;
 import com.clip.ghost.pdfcontent.exception.PdfSplitRangeException;
+import com.clip.ghost.webcontent.exception.WebInputException;
+import com.clip.ghost.webcontent.exception.WebProcessingException;
 
 /**
  * アプリケーション共通の例外をHTTPレスポンスへ変換するREST用例外ハンドラー。
@@ -78,6 +80,9 @@ public class GlobalExceptionErrorHandler extends ResponseEntityExceptionHandler 
 	private static final String AI_PROCESSING_ERROR_MESSAGE = "Markdown本文のAI整形・要約に失敗しました。";
 	private static final String AI_UNAVAILABLE_ERROR_CODE = "aiUnavailable";
 	private static final String AI_UNAVAILABLE_ERROR_MESSAGE = "Markdown本文のAI整形・要約機能は無効です。";
+	private static final String WEB_INPUT_ERROR_CODE = "webInputError";
+	private static final String WEB_PROCESSING_ERROR_CODE = "webProcessingError";
+	private static final String WEB_PROCESSING_ERROR_MESSAGE = "Webページ取り込みに失敗しました。";
 	private static final String SEARCHABLE_PDF_UNAVAILABLE_ERROR_CODE = "searchablePdfUnavailable";
 	private static final String SEARCHABLE_PDF_UNAVAILABLE_ERROR_MESSAGE = "検索可能PDF生成機能は無効です。";
 
@@ -377,6 +382,38 @@ public class GlobalExceptionErrorHandler extends ResponseEntityExceptionHandler 
 		LOGGER.warn("検索可能PDF生成機能が無効です。message={}", ex.getMessage());
 		return createErrorResponse(SEARCHABLE_PDF_UNAVAILABLE_ERROR_CODE, SEARCHABLE_PDF_UNAVAILABLE_ERROR_MESSAGE,
 				HttpStatus.SERVICE_UNAVAILABLE);
+	}
+
+	/**
+	 * Webページ取り込みの入力が不正な場合、レスポンスステータスを400にする。
+	 * <p>
+	 * 対応していない拡張子、セレクタの書式不正、本文が取り出せない、はいずれも利用者が
+	 * 入力を変えれば通る。何を直せば通るのかは原因ごとに違うため、例外が持つ説明をそのまま返す。
+	 * この説明は固定文言で組み立てており、取り込んだHTMLの内容は含まない。
+	 *
+	 * @param ex Webページ取り込みの入力例外
+	 * @return Web入力エラーのレスポンス
+	 */
+	@ResponseStatus(HttpStatus.BAD_REQUEST)
+	@ExceptionHandler(WebInputException.class)
+	protected ResponseEntity<ErrorResponse> handleWebInput(WebInputException ex) {
+		LOGGER.warn("Webページ取り込みの入力が不正です。message={}", ex.getMessage());
+		return createErrorResponse(WEB_INPUT_ERROR_CODE, ex.getDisplayMessage(), HttpStatus.BAD_REQUEST);
+	}
+
+	/**
+	 * Webページ取り込みに失敗した場合、レスポンスステータスを500にする。
+	 *
+	 * @param ex Webページ取り込みの処理例外
+	 * @return Web処理エラーのレスポンス
+	 */
+	@ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+	@ExceptionHandler(WebProcessingException.class)
+	protected ResponseEntity<ErrorResponse> handleWebProcessing(WebProcessingException ex) {
+		LOGGER.error("Webページ取り込みに失敗しました。message={}", ex.getMessage());
+		LOGGER.debug("Webページ取り込み例外の詳細です。", ex);
+		return createErrorResponse(WEB_PROCESSING_ERROR_CODE, WEB_PROCESSING_ERROR_MESSAGE,
+				HttpStatus.INTERNAL_SERVER_ERROR);
 	}
 
 	/**

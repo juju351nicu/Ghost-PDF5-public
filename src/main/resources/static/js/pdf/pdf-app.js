@@ -8,6 +8,7 @@ import HomePanel from "../components/home-panel.js";
 import OriginalPdfForm from "../components/original-pdf-form.js";
 import InsertPdfRow from "../components/insert-pdf-row.js";
 import ImageOcrForm from "../components/image-ocr-form.js";
+import WebMarkdownForm from "../components/web-markdown-form.js";
 import ImagesToPdfForm from "../components/images-to-pdf-form.js";
 import HtmlToPdfForm from "../components/html-to-pdf-form.js";
 import OfficeForm from "../components/office-form.js";
@@ -83,6 +84,7 @@ const pdfApp = {
     "original-pdf-form": OriginalPdfForm,
     "insert-pdf-row": InsertPdfRow,
     "image-ocr-form": ImageOcrForm,
+    "web-markdown-form": WebMarkdownForm,
     "images-to-pdf-form": ImagesToPdfForm,
     "html-to-pdf-form": HtmlToPdfForm,
     "office-form": OfficeForm,
@@ -113,6 +115,7 @@ const pdfApp = {
       pdfPassword: "",
       pendingPasswordRetry: null,
       imageDraft: PdfFormState.createImageDraftState(),
+      webMarkdown: PdfFormState.createWebMarkdownState(),
       imagesPdf: buildImagesPdfState(),
       htmlPdf: PdfFormState.createHtmlPdfState(),
       officeDocument: PdfFormState.createOfficeState(),
@@ -1181,6 +1184,78 @@ const pdfApp = {
         this.imagesPdf.pageSize
       );
       this.requestPdfAndOpen(CONST.REST_PATH.PDF_FROM_IMAGES, payload);
+    },
+    /**
+     * Web取り込みカードで選択されたHTMLを保持する。
+     *
+     * @param {File} file 選択またはドロップされたHTML
+     */
+    handleWebHtmlSelected(file) {
+      this.webMarkdown.fileObject = file;
+      this.webMarkdown.fileName = file.name;
+    },
+    /**
+     * Web取り込みカードの絞り込みセレクタを保持する。
+     *
+     * @param {string} selector 入力されたCSSセレクタ
+     */
+    updateWebSelector(selector) {
+      this.webMarkdown.selector = selector;
+    },
+    /**
+     * Web取り込みカードの選択状態を初期化する。
+     */
+    clearWebMarkdown() {
+      this.webMarkdown = PdfFormState.createWebMarkdownState();
+    },
+    /**
+     * 選択したHTMLからMarkdown下書きを起こし、Markdown編集欄へ反映する。
+     *
+     * PDF・画像・Office文書からの下書きと同じく、結果は編集欄へ入れて人間が直せる形で残す。
+     * 自動保存はしない。取り込んだ内容をそのまま保存すると、中身を確認する前に
+     * 他者のページの複製が手元へ残ることになる。
+     *
+     * @returns {Promise<void>} 取り込み処理の完了Promise
+     */
+    requestWebMarkdownDraft() {
+      if (Util.isEmpty(this.webMarkdown.fileObject)) {
+        this.markdownMessage = "HTMLファイルが選択されておりません。";
+        return Promise.resolve();
+      }
+      if (this.isProcessing) {
+        return Promise.resolve();
+      }
+      this.beginProcess(ProcessState.PROCESS_LABEL.WEB_MARKDOWN);
+      this.errorMessages = [];
+      this.clearApiMessages();
+      this.markdownMessage = "";
+      const sourceFileName = this.webMarkdown.fileName;
+      return MarkdownApiClient.requestHtmlMarkdownDraft(
+        this.webMarkdown.fileObject,
+        this.webMarkdown.selector
+      )
+        .then((result) => {
+          if (!Util.isEmpty(result.errorMessages)) {
+            this.failProcess(result.errorMessages, result.errorCodes);
+            return;
+          }
+          this.applyApiMessages(result.messages);
+          this.markdownFileName =
+            this.buildMarkdownFileNameFromPdf(sourceFileName);
+          this.markdownContent = result.data.markdown || "";
+          this.clearMarkdownPreview();
+          this.markdownMessage =
+            sourceFileName + " の取り込み結果をMarkdown欄へ反映しました。";
+          this.goToMarkdownMemo();
+        })
+        .catch((error) => {
+          this.failUnexpectedProcess(
+            MarkdownApiClient.buildUnexpectedErrorMessage(error)
+          );
+        })
+        .finally(() => {
+          this.endProcessIfBusy();
+        });
     },
     /**
      * 選択画像から文字起こしを実行し、結果をMarkdown編集欄へ反映する。

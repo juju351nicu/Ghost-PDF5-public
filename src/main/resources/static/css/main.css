@@ -324,15 +324,26 @@ body > #app {
 .office-card__selected,
 .office-card__notice,
 .html-pdf-card__selected,
-.html-pdf-card__notice {
+.html-pdf-card__notice,
+.web-markdown-card__selected,
+.web-markdown-card__notice {
 	margin: 4px 0 0;
 	font-size: 0.85rem;
 	word-break: break-all;
 }
 
+/* 絞り込みセレクタは任意入力のため、ラベルと入力欄を1組にまとめて幅を抑える。 */
+.web-markdown-card__selector {
+	display: block;
+	max-width: 24rem;
+	margin: 8px 0 0;
+	font-size: 0.85rem;
+}
+
 .epub-card__actions,
 .office-card__actions,
 .html-pdf-card__actions,
+.web-markdown-card__actions,
 .images-pdf-card__actions {
 	display: flex;
 	flex-wrap: wrap;

@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+	<meta charset="utf-8">
+	<title>設計メモのサンプルページ</title>
+	<meta name="description" content="取り込みテスト用のサンプル説明">
+	<base href="https://example.test/docs/">
+	<style>body { color: red; }</style>
+	<script>var tracking = 1;</script>
+</head>
+
+<body>
+	<header>サイト共通ヘッダー</header>
+	<nav><a href="/top">トップへ</a></nav>
+	<main>
+		<article>
+			<h1>設計メモ</h1>
+			<p>この段落には<a href="guide.html">相対リンク</a>と<strong>強調</strong>があります。</p>
+			<h2>手順</h2>
+			<ol>
+				<li>最初の手順
+					<ul>
+						<li>入れ子の補足</li>
+					</ul>
+				</li>
+				<li>次の手順</li>
+			</ol>
+			<h3>対応表</h3>
+			<table>
+				<tr>
+					<th>項目</th>
+					<th>内容</th>
+				</tr>
+				<tr>
+					<td>形式</td>
+					<td>Markdown</td>
+				</tr>
+			</table>
+			<pre><code class="language-java">int value = 1;
+if (value > 0) {
+	return value;
+}</code></pre>
+			<blockquote>
+				<p>引用した一文。</p>
+			</blockquote>
+			<hr>
+			<p><img src="images/figure.png" alt="図1"></p>
+		</article>
+	</main>
+	<aside>関連記事の一覧</aside>
+	<footer>サイト共通フッター</footer>
+	<noscript>JavaScriptを有効にしてください。</noscript>
+</body>
+
+</html>
