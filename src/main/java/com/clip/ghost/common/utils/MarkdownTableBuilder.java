@@ -1,4 +1,4 @@
-package com.clip.ghost.officecontent.logic;
+package com.clip.ghost.common.utils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -12,8 +12,12 @@ import org.apache.commons.lang3.Strings;
  * <p>
  * Word / Excel / PowerPoint の表をすべてこの1箇所で組み立てる。形式ごとに書き分けると、
  * 「Wordの表は崩れないのにExcelの表は崩れる」といった差が後から効いてくる。
+ * <p>
+ * Webページ取り込み（{@code webcontent}）でも同じ組み立てを使うため、Office専用の
+ * {@code officecontent.logic} から {@code common.utils} へ移した。取り込み元が増えるたびに
+ * 表の組み立てが分かれると、上と同じ食い違いが入力形式の数だけ増える。
  */
-final class MarkdownTableBuilder {
+public final class MarkdownTableBuilder {
 	private static final String CELL_SEPARATOR = " | ";
 	private static final String ROW_PREFIX = "| ";
 	private static final String ROW_SUFFIX = " |";
@@ -39,7 +43,7 @@ final class MarkdownTableBuilder {
 	 * @param rows 行ごとのセル文字列
 	 * @return GFMの表。行が1件も無い場合は空文字
 	 */
-	static String build(List<List<String>> rows) {
+	public static String build(List<List<String>> rows) {
 		List<List<String>> targetRows = CollectionUtils.emptyIfNull(rows).stream()
 				.filter(CollectionUtils::isNotEmpty).toList();
 		if (CollectionUtils.isEmpty(targetRows)) {
