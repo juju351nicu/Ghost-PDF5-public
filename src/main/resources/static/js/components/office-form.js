@@ -41,11 +41,11 @@ export default {
           旧形式（.doc / .xls / .ppt）は対象外です。
         </p>
         <div class="office-card__actions">
-          <button type="button" :disabled="isProcessing || !officeState.fileObject"
+          <button type="button" class="btn-primary" :disabled="isProcessing || !officeState.fileObject"
             @click="requestOfficeMarkdown">Markdownにする</button>
-          <button type="button" :disabled="isProcessing || !officeState.fileObject"
+          <button type="button" class="btn-primary" :disabled="isProcessing || !officeState.fileObject"
             @click="requestPdfFromOffice">PDFにする</button>
-          <button type="button" class="secondary" :disabled="isProcessing" @click="clearOffice">クリア</button>
+          <button type="button" class="btn-neutral" :disabled="isProcessing" @click="clearOffice">クリア</button>
         </div>
       </div>
     </article>

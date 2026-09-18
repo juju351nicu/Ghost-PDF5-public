@@ -15,6 +15,10 @@ export default {
     <article class="pdf-card image-ocr-card">
       <header>画像からMarkdown（文字起こし）</header>
       <div class="pdf-card__body image-ocr-card__body">
+        <p class="image-ocr-card__notice">
+          PNG / JPEG などの画像を選択、またはCtrl+Vで貼り付けてMarkdown形式の文字起こしを作ります。
+          結果はMarkdownメモタブの編集欄へそのまま入るので、続けて保存・プレビュー・PDF出力へ進めます。
+        </p>
         <div class="file-control">
           <input type="file" accept="image/png,image/jpeg,image/gif,image/webp"
             @change="handleFileChange($event)" />
@@ -27,10 +31,14 @@ export default {
           <img :src="imageState.previewUrl" alt="選択した画像のプレビュー" />
           <span>{{ imageState.fileName }}</span>
         </div>
+        <p class="markdown-draft-mode__notice">
+          文字起こしの実行先は ghost.ocr.provider の設定で決まります。anthropic / openai を選んでいる場合は
+          画像データを外部AIへ送信します。tesseract はローカルで処理し、外部送信は行いません。
+        </p>
         <div class="image-ocr-card__actions">
-          <button type="button" :disabled="isProcessing || !imageState.fileObject"
+          <button type="button" class="btn-primary" :disabled="isProcessing || !imageState.fileObject"
             @click="requestImageDraft">画像OCR</button>
-          <button type="button" class="secondary" :disabled="isProcessing" @click="clearImage">クリア</button>
+          <button type="button" class="btn-neutral" :disabled="isProcessing" @click="clearImage">クリア</button>
         </div>
       </div>
     </article>

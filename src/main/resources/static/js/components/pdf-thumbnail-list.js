@@ -17,8 +17,8 @@ export default {
   template: `
     <div class="pdf-thumbnail-list">
       <div class="pdf-thumbnail-list__toolbar">
-        <button type="button" :disabled="isProcessing" @click="requestThumbnails">サムネイル表示</button>
-        <button type="button" :disabled="isProcessing || selectedCount === 0"
+        <button type="button" class="btn-secondary" :disabled="isProcessing" @click="requestThumbnails">サムネイル表示</button>
+        <button type="button" class="btn-neutral" :disabled="isProcessing || selectedCount === 0"
           @click="clearSelection">選択解除</button>
         <span class="pdf-thumbnail-list__message" v-if="thumbnailState.message">
           {{ thumbnailState.message }}

@@ -1,5 +1,7 @@
 <!DOCTYPE html>
-<html lang="ja">
+<!-- Picoは配色未指定だとOSのダークモードへ自動追従するが、main.cssの面の色は明るい前提で
+     置いているため、追従すると白地に明るい文字が残る。配色をlightへ固定して食い違いを防ぐ。 -->
+<html lang="ja" data-theme="light">
 
 <head>
 	<meta charset="utf-8">
@@ -39,10 +41,15 @@
 
 			<section class="tab-panel" v-show="activeTab === 'home'">
 				<home-panel
+					:quick-start-state="quickStart"
 					:recent-markdown-files="recentMarkdownFiles"
+					:recent-pdf-files="recentPdfFiles"
 					:is-processing="isProcessing"
 					@navigate-tab="handleHomeNavigate"
-					@open-recent-markdown="openRecentMarkdownFile">
+					@open-recent-markdown="openRecentMarkdownFile"
+					@quick-file-selected="handleQuickFileSelected"
+					@quick-action="handleQuickAction"
+					@clear-quick-start="clearQuickStart">
 				</home-panel>
 			</section>
 
@@ -72,12 +79,12 @@
 					@request-epub-pdf="requestEpubPdf"
 					@clear-all="clearAll">
 				</original-pdf-form>
-				<details class="insert-merge-panel" :open="insertMergePanelOpen"
+				<details class="collapse-panel insert-merge-panel" :open="insertMergePanelOpen"
 					@toggle="insertMergePanelOpen = $event.target.open">
 					<summary>PDF差し込み・結合</summary>
-					<div class="insert-merge-panel__body">
+					<div class="collapse-panel__body insert-merge-panel__body">
 						<span>差し替え、結合ファイル(PDFのみ)</span>
-						<button type="button" class="outline" @click="addInsertFileRow">行の追加</button>
+						<button type="button" class="btn-secondary" @click="addInsertFileRow">行の追加</button>
 						<div>
 							<draggable v-model="insertFiles" item-key="fileNo" @change="handleInsertFileOrderChange">
 								<template #item="{ element }">
@@ -91,8 +98,10 @@
 								</template>
 							</draggable>
 						</div>
-						<button type="button" :disabled="isProcessing" @click="requestInsertPdf">PDF差込み</button>
-						<button type="button" :disabled="isProcessing" @click="requestMergePdf">PDF結合</button>
+						<button type="button" class="btn-primary" :disabled="isProcessing || !canInsertPdf"
+							@click="requestInsertPdf">PDF差込み</button>
+						<button type="button" class="btn-primary" :disabled="isProcessing || !canMergePdf"
+							@click="requestMergePdf">PDF結合</button>
 					</div>
 				</details>
 			</section>
@@ -113,20 +122,26 @@
 					@request-pdf-from-office="requestPdfFromOffice"
 					@clear-office="clearOffice">
 				</office-form>
-				<epub-to-pdf-form
-					:epub-state="epubDocument"
-					:is-processing="isProcessing"
-					@epub-selected="handleEpubSelected"
-					@request-pdf-from-epub="requestPdfFromEpub"
-					@clear-epub="clearEpub">
-				</epub-to-pdf-form>
-				<html-to-pdf-form
-					:html-pdf-state="htmlPdf"
-					:is-processing="isProcessing"
-					@html-selected="handleHtmlPdfSelected"
-					@request-pdf-from-html="requestPdfFromHtml"
-					@clear-html="clearHtmlPdf">
-				</html-to-pdf-form>
+				<!-- EPUB・HTMLからのPDF化は画像・Officeほど使わない。常時出すと、よく使う2枚が下へ押し下がる。 -->
+				<details class="collapse-panel convert-detail-panel">
+					<summary>EPUB・HTMLからPDF</summary>
+					<div class="collapse-panel__body">
+						<epub-to-pdf-form
+							:epub-state="epubDocument"
+							:is-processing="isProcessing"
+							@epub-selected="handleEpubSelected"
+							@request-pdf-from-epub="requestPdfFromEpub"
+							@clear-epub="clearEpub">
+						</epub-to-pdf-form>
+						<html-to-pdf-form
+							:html-pdf-state="htmlPdf"
+							:is-processing="isProcessing"
+							@html-selected="handleHtmlPdfSelected"
+							@request-pdf-from-html="requestPdfFromHtml"
+							@clear-html="clearHtmlPdf">
+						</html-to-pdf-form>
+					</div>
+				</details>
 			</section>
 
 			<section class="tab-panel" v-show="activeTab === 'ocr'">
@@ -155,53 +170,76 @@
 				<article class="pdf-card markdown-panel">
 					<header>Markdownメモ</header>
 					<div class="pdf-card__body markdown-panel__body">
+						<!-- 1段目は本文に対する操作、2段目は保存済みファイルに対する操作。使う頻度の高い順に上から置く。 -->
 						<div class="markdown-panel__toolbar">
 							<input type="text" v-model="markdownFileName" placeholder="design-note.md"
 								aria-label="Markdownファイル名">
-							<button type="button" :disabled="isProcessing" @click="requestSaveMarkdown">保存</button>
-							<button type="button" class="outline" :disabled="isProcessing" @click="requestListMarkdownFiles">一覧</button>
-							<button type="button" class="outline" :disabled="isProcessing" @click="requestLoadMarkdownFile">読込</button>
-							<button type="button" class="outline" :disabled="isProcessing" @click="requestPreviewMarkdownContent">プレビュー</button>
-							<button type="button" :disabled="isProcessing" @click="requestMarkdownPdf">PDF出力</button>
-							<button type="button" class="outline" :disabled="isProcessing" @click="copyMarkdownContent">コピー</button>
-							<button type="button" class="outline" :disabled="isProcessing" @click="requestUpdateMarkdownFile">更新</button>
-							<button type="button" class="outline btn-danger" :disabled="isProcessing" @click="requestDeleteMarkdownFile">削除</button>
-							<button type="button" class="outline" :disabled="isProcessing" @click="requestMarkdownFilesCsv">一覧CSV</button>
+							<button type="button" class="btn-primary" :disabled="isProcessing || !hasMarkdownContent"
+								@click="requestSaveMarkdown">保存</button>
+							<button type="button" class="btn-secondary" :disabled="isProcessing || !hasMarkdownContent"
+								@click="requestPreviewMarkdownContent">プレビュー</button>
+							<button type="button" class="btn-primary" :disabled="isProcessing || !hasMarkdownContent"
+								@click="requestMarkdownPdf">PDF出力</button>
+							<button type="button" class="btn-secondary" :disabled="isProcessing || !hasMarkdownContent"
+								@click="copyMarkdownContent">コピー</button>
 						</div>
+						<div class="markdown-panel__toolbar">
+							<button type="button" class="btn-secondary" :disabled="isProcessing"
+								@click="requestListMarkdownFiles">一覧</button>
+							<button type="button" class="btn-secondary" :disabled="isProcessing || !hasMarkdownFileName"
+								@click="requestLoadMarkdownFile">読込</button>
+							<button type="button" class="btn-secondary" :disabled="isProcessing || !hasMarkdownFileName || !hasMarkdownContent"
+								@click="requestUpdateMarkdownFile">更新</button>
+							<button type="button" class="btn-secondary" :disabled="isProcessing"
+								@click="requestMarkdownFilesCsv">一覧CSV</button>
+							<button type="button" class="btn-danger" :disabled="isProcessing || !hasMarkdownFileName"
+								@click="requestDeleteMarkdownFile">削除</button>
+						</div>
+						<p class="pdf-card__hint">Ctrl+Sで保存、Ctrl+Enterでプレビューできます。編集内容は入力が止まってから自動でブラウザ内へ退避します。</p>
 						<p class="markdown-panel__message" v-if="markdownMessage">{{ markdownMessage }}</p>
 						<api-message-list :messages="apiMessages"></api-message-list>
 						<textarea class="markdown-panel__editor" v-model="markdownContent"
 							placeholder="# 設計メモ"></textarea>
-						<div class="markdown-panel__ai">
-							<p class="markdown-draft-mode__notice">AI整形・AI要約は、入力中のMarkdown本文を外部AI（Anthropic / OpenAI）へ送信します。</p>
-							<div class="markdown-panel__toolbar">
-								<button type="button" class="outline" :disabled="isProcessing" @click="requestMarkdownAiRefine">AI整形</button>
-								<button type="button" class="outline" :disabled="isProcessing" @click="requestMarkdownAiSummarize">AI要約</button>
-							</div>
-							<section class="markdown-panel__ai-result" v-if="aiTransformResult" aria-label="AI変換結果">
-								<p>
-									変換タスク: {{ aiTransformResult.task }} /
-									入力 {{ aiTransformResult.inputCharacterCount }} 文字 →
-									出力 {{ aiTransformResult.outputCharacterCount }} 文字
-								</p>
-								<textarea class="markdown-panel__editor" :value="aiTransformResult.markdown" readonly></textarea>
+						<!-- AI整形・AI要約は毎回使う操作ではなく、外部送信を伴う。既定で閉じておき、開いた人だけが使う形にする。 -->
+						<details class="collapse-panel">
+							<summary>AI機能（外部AIへ本文を送信します）</summary>
+							<div class="collapse-panel__body markdown-panel__ai">
+								<p class="markdown-draft-mode__notice">AI整形・AI要約は、入力中のMarkdown本文を外部AI（Anthropic / OpenAI）へ送信します。</p>
 								<div class="markdown-panel__toolbar">
-									<button type="button" :disabled="isProcessing" @click="applyAiTransformResult">編集欄へ採用</button>
-									<button type="button" class="outline" :disabled="isProcessing" @click="clearAiTransformResult">破棄</button>
+									<button type="button" class="btn-secondary" :disabled="isProcessing || !hasMarkdownContent"
+										@click="requestMarkdownAiRefine">AI整形</button>
+									<button type="button" class="btn-secondary" :disabled="isProcessing || !hasMarkdownContent"
+										@click="requestMarkdownAiSummarize">AI要約</button>
 								</div>
-							</section>
-						</div>
+								<section class="markdown-panel__ai-result" v-if="aiTransformResult" aria-label="AI変換結果">
+									<p>
+										変換タスク: {{ aiTransformResult.task }} /
+										入力 {{ aiTransformResult.inputCharacterCount }} 文字 →
+										出力 {{ aiTransformResult.outputCharacterCount }} 文字
+									</p>
+									<textarea class="markdown-panel__editor" :value="aiTransformResult.markdown" readonly></textarea>
+									<div class="markdown-panel__toolbar">
+										<button type="button" class="btn-primary" :disabled="isProcessing"
+											@click="applyAiTransformResult">編集欄へ採用</button>
+										<button type="button" class="btn-neutral" :disabled="isProcessing"
+											@click="clearAiTransformResult">破棄</button>
+									</div>
+								</section>
+							</div>
+						</details>
 						<div class="markdown-panel__columns">
 							<section class="markdown-panel__file-list" aria-label="保存済みMarkdown一覧">
 								<ul v-if="markdownFiles.length > 0">
 									<li v-for="fileInfo in markdownFiles" :key="fileInfo.fileName">
-										<button type="button" class="outline" :disabled="isProcessing" @click="selectMarkdownFile(fileInfo.fileName)">
+										<button type="button" class="btn-secondary" :disabled="isProcessing"
+										@click="selectMarkdownFile(fileInfo.fileName)">
 											{{ fileInfo.fileName }}
 										</button>
 										<span>{{ formatMarkdownFileInfo(fileInfo) }}</span>
 									</li>
 								</ul>
 								<p v-if="isMarkdownFileListLoaded && markdownFiles.length === 0">保存済みMarkdownはありません。</p>
+								<p class="pdf-card__hint" v-if="!isMarkdownFileListLoaded">「一覧」を押すと保存済みMarkdownを表示します。</p>
 							</section>
 							<section class="markdown-panel__preview" v-if="markdownPreviewHtml"
 								aria-label="Markdownプレビュー" v-html="markdownPreviewHtml"></section>

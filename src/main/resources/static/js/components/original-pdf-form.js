@@ -55,7 +55,8 @@ export default {
         <div class="pdf-card__preview" v-if="originalFile.previewUrl">
           <div class="pdf-card__preview-head">
             <span>{{ originalFile.fileName }}</span>
-            <button type="button" @click="requestOpenOriginalPdf">別タブで開く</button>
+            <button type="button" class="btn-secondary" :disabled="isProcessing"
+              @click="requestOpenOriginalPdf">別タブで開く</button>
           </div>
           <iframe class="pdf-card__preview-frame" :src="originalFile.previewUrl"
             title="選択した編集元PDFのプレビュー"></iframe>
@@ -73,20 +74,20 @@ export default {
               @blur="validateDeletePagesOnBlur"
               :class="{ 'textbox--error': originalFile.delPagesText.message }"
               :disabled="originalFile.delPagesText.disabled" placeholder="ページ指定  (入力例：2, 3-5)" />
-            <button type="button" :disabled="isProcessing" @click="requestExtractPdf">抽出する</button>
-            <button type="button" :disabled="isProcessing" @click="requestDeletePdf">削除する</button>
+            <button type="button" class="btn-primary" :disabled="isProcessing" @click="requestExtractPdf">抽出する</button>
+            <button type="button" class="btn-primary" :disabled="isProcessing" @click="requestDeletePdf">削除する</button>
             <input type="text" class="page-input" ref="splitRangesText"
               v-model="originalFile.splitRangesText.text"
               @blur="validateSplitRangesOnBlur"
               :class="{ 'textbox--error': originalFile.splitRangesText.message }"
               placeholder="分割範囲  (入力例：1-5, 6-12 / 空欄で1ページずつ)" />
-            <button type="button" :disabled="isProcessing" @click="requestSplitPdf">分割する</button>
+            <button type="button" class="btn-primary" :disabled="isProcessing" @click="requestSplitPdf">分割する</button>
             <select class="rotation-select" v-model="originalFile.rotation" aria-label="ページの回転角">
               <option v-for="item in rotationItems" :key="item.id" :value="item.id">
                 {{ item.name }}
               </option>
             </select>
-            <button type="button" :disabled="isProcessing" @click="requestRotatePdf">回転する</button>
+            <button type="button" class="btn-primary" :disabled="isProcessing" @click="requestRotatePdf">回転する</button>
             <br />
             <span class="error_message">{{ originalFile.delPagesText.message }}</span>
             <span class="error_message">{{ originalFile.splitRangesText.message }}</span>
@@ -94,15 +95,15 @@ export default {
 
           <h3 class="pdf-card__section-title">解析・他形式へ変換</h3>
           <div class="pdf-action-row">
-            <button type="button" class="outline" :disabled="isProcessing" @click="requestMetadataPdf">PDF情報を確認</button>
-            <button type="button" class="outline" :disabled="isProcessing" @click="requestTextPdf">テキスト抽出</button>
+            <button type="button" class="btn-secondary" :disabled="isProcessing" @click="requestMetadataPdf">PDF情報を確認</button>
+            <button type="button" class="btn-secondary" :disabled="isProcessing" @click="requestTextPdf">テキスト抽出</button>
             <select class="markdown-draft-mode-select" v-model="originalFile.markdownDraftMode"
               aria-label="Markdown下書きの変換モード">
               <option v-for="item in markdownDraftModeItems" :key="item.id" :value="item.id">
                 {{ item.name }}
               </option>
             </select>
-            <button type="button" :disabled="isProcessing" @click="requestMarkdownDraftPdf">Markdown下書き</button>
+            <button type="button" class="btn-primary" :disabled="isProcessing" @click="requestMarkdownDraftPdf">Markdown下書き</button>
             <select class="image-format-select" v-model="originalFile.imageFormat" aria-label="画像化の出力形式">
               <option v-for="item in imageFormatItems" :key="item.id" :value="item.id">
                 {{ item.name }}
@@ -110,20 +111,30 @@ export default {
             </select>
             <input type="number" class="dpi-input" v-model="originalFile.imageDpi" min="1"
               aria-label="画像化の解像度（DPI）" placeholder="dpi（空欄で既定値）" />
-            <button type="button" :disabled="isProcessing" @click="requestImagesPdf">画像化する</button>
-            <button type="button" :disabled="isProcessing" @click="requestHtmlPdf">HTML出力</button>
-            <select class="office-format-select" v-model="originalFile.officeFormat"
-              aria-label="出力するOffice形式">
-              <option v-for="item in officeFormatItems" :key="item.id" :value="item.id">
-                {{ item.name }}
-              </option>
-            </select>
-            <button type="button" :disabled="isProcessing" @click="requestOfficeFromPdf">Office出力</button>
-            <button type="button" :disabled="isProcessing" @click="requestEpubPdf">EPUB出力</button>
+            <button type="button" class="btn-primary" :disabled="isProcessing" @click="requestImagesPdf">画像化する</button>
             <p class="markdown-draft-mode__notice" v-if="isVisionModeSelected">
               VISIONは全ページを外部AIへ送るため、ページ数分の費用が発生します。
             </p>
           </div>
+
+          <!-- HTML / Office / EPUB出力はMarkdown下書き・画像化ほど使わない。常時並べると、
+               よく使う操作がボタンの列に埋もれる。 -->
+          <details class="collapse-panel pdf-card__detail-panel">
+            <summary>他形式へ出力（HTML / Office / EPUB）</summary>
+            <div class="collapse-panel__body">
+              <div class="pdf-action-row">
+                <button type="button" class="btn-primary" :disabled="isProcessing" @click="requestHtmlPdf">HTML出力</button>
+                <select class="office-format-select" v-model="originalFile.officeFormat"
+                  aria-label="出力するOffice形式">
+                  <option v-for="item in officeFormatItems" :key="item.id" :value="item.id">
+                    {{ item.name }}
+                  </option>
+                </select>
+                <button type="button" class="btn-primary" :disabled="isProcessing" @click="requestOfficeFromPdf">Office出力</button>
+                <button type="button" class="btn-primary" :disabled="isProcessing" @click="requestEpubPdf">EPUB出力</button>
+              </div>
+            </div>
+          </details>
 
           <h3 class="pdf-card__section-title">検索可能PDF（OCRサンドイッチ）</h3>
           <div class="pdf-action-row">
@@ -133,21 +144,23 @@ export default {
                 {{ item.name }}
               </option>
             </select>
-            <button type="button" :disabled="isProcessing" @click="requestSearchablePdf">検索可能PDFにする</button>
+            <button type="button" class="btn-primary" :disabled="isProcessing" @click="requestSearchablePdf">検索可能PDFにする</button>
             <p class="markdown-draft-mode__notice">
               ローカルのTesseractでOCRし、見た目はそのままで検索・コピペ可能なPDFを作ります。外部送信は行いません。
             </p>
           </div>
 
-          <button type="button" class="secondary" @click="clearAll">全クリア</button>
+          <!-- サムネイルは編集元PDFがないと取得できない。PDF未選択のうちは押せるボタンを置かず、
+               「PDFを選択すると操作が出る」という他の操作と同じ見え方にそろえる。 -->
+          <pdf-thumbnail-list
+            :thumbnail-state="thumbnailState"
+            :is-processing="isProcessing"
+            @request-thumbnails="requestThumbnailsPdf"
+            @toggle-page="toggleThumbnailPage"
+            @clear-selection="clearThumbnailSelection">
+          </pdf-thumbnail-list>
+          <button type="button" class="btn-neutral" @click="clearAll">全クリア</button>
         </template>
-        <pdf-thumbnail-list
-          :thumbnail-state="thumbnailState"
-          :is-processing="isProcessing"
-          @request-thumbnails="requestThumbnailsPdf"
-          @toggle-page="toggleThumbnailPage"
-          @clear-selection="clearThumbnailSelection">
-        </pdf-thumbnail-list>
         <dl class="pdf-metadata" v-if="pdfMetadata.loaded">
           <div class="pdf-metadata__row">
             <dt>ファイル名</dt>

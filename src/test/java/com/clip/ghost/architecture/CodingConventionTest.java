@@ -47,6 +47,8 @@ class CodingConventionTest {
 	private static final Path FRONTEND_FETCH_CLIENT_SCRIPT = FRONTEND_SOURCE.resolve("api/fetch-client.js");
 	private static final Path FRONTEND_API_ERROR_UTILS_SCRIPT = FRONTEND_SOURCE.resolve("api/api-error-utils.js");
 	private static final Path FRONTEND_API_RESULT_UTILS_SCRIPT = FRONTEND_SOURCE.resolve("api/api-result-utils.js");
+	private static final Path FRONTEND_UI_PREFERENCE_STATE_SCRIPT = FRONTEND_SOURCE
+			.resolve("models/ui-preference-state.js");
 	private static final Path FRONTEND_FILE_RESPONSE_HANDLER_SCRIPT = FRONTEND_SOURCE
 			.resolve("api/file-response-handler.js");
 	private static final Path TEST_SOURCE = Paths.get("src/test/java");
@@ -350,6 +352,18 @@ class CodingConventionTest {
 	}
 
 	@Test
+	@DisplayName("ブラウザ内保存への書き込みをui-preference-stateへ閉じる")
+	void frontendCodeDoesNotWriteBrowserStorageOutsideUiPreferenceState() throws IOException {
+		// pdf-app.jsはPDFパスワードなど機密の画面状態も持つ。書き込み口が増えると、
+		// 覚えておきたい表示設定のつもりで機密まで残す経路ができる。
+		List<Path> targetFiles = new ArrayList<>(scriptFiles(FRONTEND_SOURCE));
+		targetFiles.remove(FRONTEND_UTIL_SCRIPT);
+		targetFiles.remove(FRONTEND_UI_PREFERENCE_STATE_SCRIPT);
+
+		assertNoToken(targetFiles, List.of("Util.setLocalStorage", "Util.getLocalStorageObject"));
+	}
+
+	@Test
 	@DisplayName("廃止したユーティリティ別名をutil.js以外で使わない")
 	void frontendCodeDoesNotUseDeprecatedUtilityAliasesOutsideUtil() throws IOException {
 		List<Path> targetFiles = new ArrayList<>(scriptFiles(FRONTEND_SOURCE));
@@ -428,6 +442,14 @@ class CodingConventionTest {
 						"class=\"button_normal", "class=\"button_circle", "class=\"ECM_CheckboxInput",
 						"class=\"selectbox", "class=\"modal__", "class=\"modal-overlay", "class=\"textbox\"",
 						"class=\"textbox "));
+	}
+
+	@Test
+	@DisplayName("操作ボタンはPicoの見た目クラスではなく役割別のbtn-*クラスを使う")
+	void frontendButtonsUseRoleBasedStyleClasses() throws IOException {
+		assertNoToken(frontendVueFiles(),
+				List.of("class=\"outline\"", "class=\"outline ", "class=\"secondary\"", "class=\"secondary ",
+						"class=\"contrast\"", "class=\"contrast "));
 	}
 
 	@Test

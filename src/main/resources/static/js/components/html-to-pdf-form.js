@@ -33,9 +33,9 @@ export default {
           外部CSSや外部画像は取り込みません。見た目を保つにはHTML内でスタイルを完結させてください。
         </p>
         <div class="html-pdf-card__actions">
-          <button type="button" :disabled="isProcessing || !htmlPdfState.fileObject"
+          <button type="button" class="btn-primary" :disabled="isProcessing || !htmlPdfState.fileObject"
             @click="requestPdfFromHtml">PDFにする</button>
-          <button type="button" class="secondary" :disabled="isProcessing" @click="clearHtml">クリア</button>
+          <button type="button" class="btn-neutral" :disabled="isProcessing" @click="clearHtml">クリア</button>
         </div>
       </div>
     </article>
