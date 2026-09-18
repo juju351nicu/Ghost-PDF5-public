@@ -8,32 +8,86 @@
 	--pico-primary: var(--ghost-color-primary);
 	--pico-primary-hover: var(--ghost-color-primary-hover);
 	--pico-primary-focus: rgba(1, 93, 154, .25);
-	--ghost-color-page-bg: rgb(225, 228, 233);
+	/* 面は「紙」ではなく作業台として置く。白いカードを浮かせるため、地は白より少しだけ冷たく暗くする。 */
+	--ghost-color-page-bg: #eef1f6;
 	--ghost-color-surface: #ffffff;
-	--ghost-color-text: #333333;
+	/* 面から一段引っ込む面。カードの中に置く入力欄・プレビュー枠に使う。 */
+	--ghost-color-surface-sunken: #f7f9fc;
+	--ghost-color-text: #1c2430;
 	/* 本文より一段弱い文字色。補足説明やファイル情報など、読み飛ばしてよい情報に使う。 */
-	--ghost-color-muted: #59636e;
-	--ghost-color-border: #d0d7de;
-	--ghost-color-error: #a5272a;
+	--ghost-color-muted: #62708a;
+	--ghost-color-border: #e1e6ee;
+	/* 入力欄など、境界を本文と同じ強さで見せたい箇所。--ghost-color-borderより一段濃い。 */
+	--ghost-color-border-strong: #ccd4e0;
+	--ghost-color-error: #b42318;
 	--ghost-color-warning-text: #7a4b00;
-	--ghost-color-warning-bg: #fff8c5;
-	--ghost-color-warning-border: #e3b341;
-	/* 淡い青の面。カード見出し、補助ボタンのhover、選択中サムネイルで共有する。 */
-	--ghost-color-section-bg: #dceff8;
+	--ghost-color-warning-bg: #fef7e6;
+	--ghost-color-warning-border: #f0c977;
+	/* 淡い青の面。補助ボタンのhover、選択中サムネイル、完了表示で共有する。 */
+	--ghost-color-section-bg: #e7f1f9;
 	/* クリア・取り消しなど、何も生み出さない操作のボタン色。 */
 	--ghost-color-neutral: #56647a;
 	--ghost-color-neutral-hover: #445064;
 	/* 押せないボタンの色。青系のまま彩度を落とし、押せる青との違いが一目で分かるようにする。 */
-	--ghost-color-disabled: #9ec9dd;
+	--ghost-color-disabled: #a9c4d6;
 	--ghost-content-width: 1120px;
 	--ghost-control-width: 22rem;
+	/* 角丸と影は3段だけ用意し、要素ごとに数値を書かない。面の重なりが場所ごとにばらつくのを防ぐ。 */
+	--ghost-radius-sm: 6px;
+	--ghost-radius-md: 10px;
+	--ghost-radius-lg: 14px;
+	--ghost-shadow-card: 0 1px 2px rgba(16, 24, 40, .04), 0 4px 16px rgba(16, 24, 40, .06);
+	--ghost-shadow-raised: 0 1px 2px rgba(16, 24, 40, .06);
+	--ghost-focus-ring: 0 0 0 3px rgba(1, 93, 154, .22);
+
+	/*
+	 * Pico側の既定値。Pico 2は画面幅に応じてroot font-sizeを125%まで上げるため、広い画面ほど
+	 * 文字とフォーム部品が大きくなり、業務ツールとしては間延びして見える。倍率を固定して密度をそろえる。
+	 * 角丸・余白・境界色も、ここでPicoへ渡しておけば個別セレクタで上書きせずに済む。
+	 */
+	--pico-font-size: 100%;
+	--pico-line-height: 1.6;
+	--pico-border-radius: var(--ghost-radius-md);
+	--pico-form-element-spacing-vertical: .55rem;
+	--pico-form-element-spacing-horizontal: .75rem;
+	--pico-color: var(--ghost-color-text);
+	--pico-muted-color: var(--ghost-color-muted);
+	--pico-background-color: var(--ghost-color-page-bg);
+	--pico-border-color: var(--ghost-color-border);
+	--pico-form-element-border-color: var(--ghost-color-border-strong);
+	--pico-card-background-color: var(--ghost-color-surface);
+	--pico-card-sectioning-background-color: var(--ghost-color-surface);
+	--pico-card-box-shadow: none;
+	--pico-font-family: var(--ghost-font-family);
+	--pico-font-family-sans-serif: var(--ghost-font-family);
+	/* OS標準のUIフォントを先に置く。Windows 11ならSegoe UI Variable、macOSならSF Proが当たり、
+	   Webフォントを読みに行かずに現行OSの字面になる。日本語は明示的に追記する。 */
+	--ghost-font-family: system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Noto Sans JP",
+		"Yu Gothic UI", "Meiryo", sans-serif;
 }
 
 body {
 	background-color: var(--ghost-color-page-bg);
 	color: var(--ghost-color-text);
+	font-family: var(--ghost-font-family);
+	/* 日本語と英数字が混ざる画面なので、和欧間は詰めすぎない。 */
+	letter-spacing: .01em;
+	-webkit-font-smoothing: antialiased;
 	margin: 0;
 	padding: 0;
+}
+
+/* キーボード操作の現在位置は、マウス操作の邪魔をしない形で常に見えるようにする。 */
+:focus-visible {
+	outline: none;
+	box-shadow: var(--ghost-focus-ring);
+}
+
+/* 動きを減らす設定の利用者には、hoverや開閉のtransitionを出さない。 */
+@media (prefers-reduced-motion: reduce) {
+	* {
+		transition: none !important;
+	}
 }
 
 body > #app {
@@ -56,25 +110,28 @@ body > #app {
 	/* Picoは<nav>へjustify-content: space-betweenを当てる。効かせたままだと画面幅に応じてタブ間隔が広がり、
 	   押す位置が幅ごとに変わるため、左詰めへ戻す。 */
 	justify-content: flex-start;
-	gap: 4px;
-	margin-bottom: 20px;
-	border-bottom: 2px solid var(--ghost-color-border);
+	gap: 2px;
+	margin-bottom: 24px;
+	border-bottom: 1px solid var(--ghost-color-border);
 }
 
 .tab-nav__item {
 	width: auto;
-	margin: 0 0 -2px;
-	padding: 10px 18px;
+	margin: 0 0 -1px;
+	padding: 10px 14px;
 	border: none;
 	border-bottom: 2px solid transparent;
-	border-radius: 0;
+	border-radius: var(--ghost-radius-sm) var(--ghost-radius-sm) 0 0;
 	background: none;
-	color: var(--ghost-color-text);
+	color: var(--ghost-color-muted);
+	font-size: .9375rem;
 	font-weight: 600;
 	cursor: pointer;
+	transition: background-color .15s ease, color .15s ease;
 }
 
 .tab-nav__item:hover {
+	background-color: rgba(1, 93, 154, .06);
 	color: var(--ghost-color-primary);
 }
 
@@ -98,9 +155,16 @@ body > #app {
 /* 1カード内の操作を役割別に見出しで分ける（ページ操作 / 解析・変換）。 */
 .pdf-card__section-title {
 	margin: 4px 0 0;
-	font-size: .9375rem;
+	font-size: .8125rem;
 	font-weight: 700;
-	color: var(--ghost-color-text);
+	letter-spacing: .06em;
+	color: var(--ghost-color-muted);
+}
+
+/* 節が続くカード（ホームなど）は、2つ目以降の節の頭に罫線を引いてまとまりを示す。 */
+.pdf-card__body > section + section {
+	padding-top: 16px;
+	border-top: 1px solid var(--ghost-color-border);
 }
 
 /*
@@ -118,9 +182,11 @@ body > #app {
 .btn-danger {
 	border-width: 1px;
 	border-style: solid;
-	border-radius: 8px;
-	padding: .55rem 1rem;
+	border-radius: var(--ghost-radius-md);
+	padding: .5rem .95rem;
+	font-size: .9375rem;
 	font-weight: 600;
+	line-height: 1.4;
 	transition: background-color .15s ease, border-color .15s ease, color .15s ease;
 }
 
@@ -128,6 +194,7 @@ body > #app {
 	background-color: var(--ghost-color-primary);
 	border-color: var(--ghost-color-primary);
 	color: #fff;
+	box-shadow: var(--ghost-shadow-raised);
 }
 
 .btn-primary:is(:hover, :focus) {
@@ -180,30 +247,39 @@ body > #app {
 	background-color: var(--ghost-color-disabled);
 	border-color: var(--ghost-color-disabled);
 	color: #fff;
+	box-shadow: none;
 	cursor: not-allowed;
 }
 
 /* 毎回は使わない操作をしまう折りたたみパネル（PDF差し込み・結合、MarkdownメモのAI機能）。
    常時表示すると、よく使う操作が探しにくくなるものだけをここへ入れる。 */
 .collapse-panel > summary {
-	padding: 10px 14px;
+	padding: 12px 18px;
 	border: 1px solid var(--ghost-color-border);
-	border-radius: 6px;
+	border-radius: var(--ghost-radius-lg);
 	background: var(--ghost-color-surface);
+	box-shadow: var(--ghost-shadow-raised);
+	font-size: .9375rem;
 	font-weight: 700;
 	cursor: pointer;
+	transition: background-color .15s ease;
+}
+
+.collapse-panel > summary:hover {
+	background: var(--ghost-color-surface-sunken);
 }
 
 .collapse-panel[open] > summary {
-	border-radius: 6px 6px 0 0;
+	border-radius: var(--ghost-radius-lg) var(--ghost-radius-lg) 0 0;
 	border-bottom: none;
+	box-shadow: none;
 }
 
 .collapse-panel__body {
-	padding: 16px;
+	padding: 18px;
 	border: 1px solid var(--ghost-color-border);
 	border-top: none;
-	border-radius: 0 0 6px 6px;
+	border-radius: 0 0 var(--ghost-radius-lg) var(--ghost-radius-lg);
 	background: var(--ghost-color-surface);
 }
 
@@ -238,19 +314,31 @@ body > #app {
 .pdf-card {
 	width: 100%;
 	max-width: var(--ghost-content-width);
-	margin: 0 0 28px;
+	margin: 0 0 24px;
+	border: 1px solid var(--ghost-color-border);
+	border-radius: var(--ghost-radius-lg);
+	background: var(--ghost-color-surface);
+	box-shadow: var(--ghost-shadow-card);
 	overflow: hidden;
 }
 
+/* 見出しは水色のベタ塗りをやめ、面は白のままヘアラインで区切る。塗りが減るほどカードの境界が
+   はっきりし、中の操作へ目が行く。 */
 .pdf-card > header {
-	background: var(--ghost-color-section-bg);
+	padding: 14px 20px;
+	border-bottom: 1px solid var(--ghost-color-border);
+	background: var(--ghost-color-surface);
 	color: var(--ghost-color-text);
+	font-size: .9375rem;
+	font-weight: 700;
+	letter-spacing: .02em;
 	margin-bottom: 0;
 }
 
 .pdf-card__body {
 	display: grid;
-	gap: 12px;
+	gap: 14px;
+	padding: 20px;
 }
 
 /* カード本文はgridのため、直下のボタンは行幅いっぱいに伸びる。全クリアのような補助操作が
@@ -264,8 +352,11 @@ body > #app {
 /* 実行中の操作と結果を1箇所へ出すパネル。状態ごとに左の色帯だけを変え、レイアウトは共通にする。 */
 .process-panel {
 	margin: 0 0 20px;
-	border-left: 4px solid var(--ghost-color-border);
+	border: 1px solid var(--ghost-color-border);
+	border-left: 4px solid var(--ghost-color-border-strong);
+	border-radius: var(--ghost-radius-md);
 	background-color: var(--ghost-color-surface);
+	box-shadow: var(--ghost-shadow-raised);
 }
 
 .process-panel__body {
@@ -355,9 +446,11 @@ body > #app {
 .file-drop-zone {
 	display: grid;
 	gap: 8px;
-	padding: 12px;
-	border: 1px dashed var(--ghost-color-border);
-	border-radius: 6px;
+	padding: 16px;
+	border: 1px dashed var(--ghost-color-border-strong);
+	border-radius: var(--ghost-radius-md);
+	background-color: var(--ghost-color-surface-sunken);
+	transition: background-color .15s ease, border-color .15s ease;
 }
 
 .file-drop-zone--over {
@@ -367,12 +460,34 @@ body > #app {
 
 .file-drop-zone__label {
 	margin: 0;
-	font-size: 14px;
+	color: var(--ghost-color-muted);
+	font-size: .875rem;
 }
 
 .file-control input[type="file"] {
 	width: min(34rem, 100%);
 	margin-bottom: 0;
+}
+
+/* ファイル選択ボタンはPico既定だと濃いグレーで、画面内で唯一「役割の読めない色」になる。
+   補助操作(btn-secondary)と同じ見た目にそろえる。 */
+.file-control input[type="file"]::file-selector-button,
+.home-panel input[type="file"]::file-selector-button {
+	margin-right: .75rem;
+	padding: .4rem .8rem;
+	border: 1px solid var(--ghost-color-primary);
+	border-radius: var(--ghost-radius-sm);
+	background-color: var(--ghost-color-surface);
+	color: var(--ghost-color-primary);
+	font-size: .875rem;
+	font-weight: 600;
+	cursor: pointer;
+	transition: background-color .15s ease;
+}
+
+.file-control input[type="file"]::file-selector-button:hover,
+.home-panel input[type="file"]::file-selector-button:hover {
+	background-color: var(--ghost-color-section-bg);
 }
 
 .pdf-action-row {
@@ -386,6 +501,12 @@ body > #app {
 .pdf-action-row input[type="checkbox"] {
 	flex: 0 0 auto;
 	margin: 0;
+}
+
+/* 角丸の既定値(--pico-border-radius)をチェックボックスへそのまま当てると真円になり、
+   単一選択のラジオと見分けが付かなくなる。四角のまま角だけ落とす。 */
+input[type="checkbox"] {
+	border-radius: 4px;
 }
 
 .page-input {
@@ -517,16 +638,16 @@ body > #app {
 	width: 100%;
 	height: 480px;
 	border: 1px solid var(--ghost-color-border);
-	border-radius: 6px;
-	background: var(--ghost-color-surface);
+	border-radius: var(--ghost-radius-md);
+	background: var(--ghost-color-surface-sunken);
 }
 
 .pdf-metadata {
 	margin-top: 16px;
 	width: min(640px, 100%);
 	border: 1px solid var(--ghost-color-border);
-	border-radius: 6px;
-	background: var(--ghost-color-surface);
+	border-radius: var(--ghost-radius-md);
+	background: var(--ghost-color-surface-sunken);
 	overflow: hidden;
 }
 
@@ -593,7 +714,7 @@ body > #app {
 	margin: 0;
 	padding: 6px;
 	border: 2px solid var(--ghost-color-border);
-	border-radius: 6px;
+	border-radius: var(--ghost-radius-md);
 	background: var(--ghost-color-surface);
 	color: var(--ghost-color-text);
 	cursor: pointer;
@@ -654,7 +775,7 @@ body > #app {
 	flex-direction: column;
 	gap: 4px;
 	border: 1px solid var(--ghost-color-warning-border);
-	border-radius: 6px;
+	border-radius: var(--ghost-radius-md);
 	background: var(--ghost-color-warning-bg);
 	padding: 8px 12px;
 }
@@ -670,7 +791,7 @@ body > #app {
 	flex-basis: 100%;
 	margin: 4px 0 0;
 	border: 1px solid var(--ghost-color-warning-border);
-	border-radius: 6px;
+	border-radius: var(--ghost-radius-md);
 	background: var(--ghost-color-warning-bg);
 	padding: 8px 12px;
 	color: var(--ghost-color-warning-text);
@@ -696,9 +817,9 @@ body > #app {
 	flex-direction: column;
 	gap: 10px;
 	border: 1px solid var(--ghost-color-border);
-	border-radius: 6px;
-	background: var(--ghost-color-surface);
-	padding: 12px;
+	border-radius: var(--ghost-radius-md);
+	background: var(--ghost-color-surface-sunken);
+	padding: 14px;
 }
 
 .markdown-panel__ai-result p {
@@ -715,9 +836,9 @@ body > #app {
 .markdown-panel__preview {
 	min-height: 140px;
 	border: 1px solid var(--ghost-color-border);
-	border-radius: 6px;
-	background: var(--ghost-color-surface);
-	padding: 12px;
+	border-radius: var(--ghost-radius-md);
+	background: var(--ghost-color-surface-sunken);
+	padding: 14px;
 	overflow-wrap: anywhere;
 }
 
@@ -769,11 +890,12 @@ body > #app {
 
 .header {
 	background-color: var(--ghost-color-primary);
+	box-shadow: 0 1px 3px rgba(16, 24, 40, .12);
 }
 
 .header-inner {
 	max-width: var(--ghost-content-width);
-	height: 80px;
+	height: 60px;
 	margin: 0 auto;
 	padding-left: 40px;
 	padding-right: 40px;
@@ -784,6 +906,9 @@ body > #app {
 
 .header-logo {
 	color: #fff;
+	font-size: 1.0625rem;
+	font-weight: 700;
+	letter-spacing: .04em;
 }
 
 /* フッターは操作対象ではないため、ヘッダーと同じ青では置かない。面は白のまま、上の罫線だけで本文と区切る。
@@ -794,7 +919,8 @@ body > #app {
 	flex-direction: column;
 	background-color: var(--ghost-color-surface);
 	border-top: 1px solid var(--ghost-color-border);
-	padding: .75rem;
+	padding: 1.25rem .75rem;
+	font-size: .875rem;
 }
 
 .footer__list {
@@ -921,6 +1047,9 @@ body > #app {
 		width: 100%;
 		border: none;
 		border-radius: 0;
+		/* 画面では沈んだ面にしているが、紙には地色を出さない（「背景のグラフィック」を
+		   有効にして印刷すると全面が薄く塗られるため）。 */
+		background: none;
 		padding: 0;
 	}
 
@@ -964,9 +1093,9 @@ body > #app {
 	justify-content: center;
 	min-height: 64px;
 	padding: 12px;
-	border: 2px dashed var(--ghost-color-border);
-	border-radius: 6px;
-	background: var(--ghost-color-surface);
+	border: 1px dashed var(--ghost-color-border-strong);
+	border-radius: var(--ghost-radius-md);
+	background: var(--ghost-color-surface-sunken);
 	color: var(--ghost-color-muted);
 	text-align: center;
 	cursor: pointer;
@@ -987,7 +1116,7 @@ body > #app {
 	max-height: 220px;
 	width: auto;
 	border: 1px solid var(--ghost-color-border);
-	border-radius: 6px;
+	border-radius: var(--ghost-radius-md);
 	background: var(--ghost-color-surface);
 }
 

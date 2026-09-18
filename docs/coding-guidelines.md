@@ -144,6 +144,14 @@ temporaryDirectory から Paths.get(temporaryDirectory) で生成する。
 - 実行できない条件（ファイル未選択、本文が空、処理中）は `:disabled` で先に示す。押させてからエラー文で伝えない。
   - 判定は `pdf-app.js` のcomputed（`hasMarkdownContent` / `canMergePdf` など）に置き、templateへ式を書き散らさない。
 - ヘッダーだけを濃い青にし、フッターは白＋上罫線に留める。画面下に濃い帯があると、作業中に視線がそちらへ引かれる。
+- 角丸・影・面の色は `main.css` の `:root` にあるトークンだけで表現する。要素ごとに `border-radius: 6px` のような数値を書かない。
+  - 角丸は `--ghost-radius-sm / -md / -lg`、影は `--ghost-shadow-card / -raised`、focusリングは `--ghost-focus-ring`。
+  - 面は3段で足りる。`--ghost-color-page-bg`（地）→ `--ghost-color-surface`（カード）→ `--ghost-color-surface-sunken`（カード内の読み取り専用・入力の枠）。
+- Picoの既定値を変えたい場合は、個別セレクタを上書きせず `:root` で `--pico-*` へ渡す。
+  - Pico 2は画面幅に応じてroot font-sizeを125%まで上げる。`--pico-font-size: 100%` で固定し、広い画面でも密度を保つ。
+  - `--pico-border-radius` を大きくするとチェックボックスが真円になりラジオと見分けが付かなくなるため、`input[type="checkbox"]` だけ角丸を戻す。
+- 配色は `<html data-theme="light">` でlightへ固定する。未指定だとPicoがOSのダークモードへ自動追従し、明るい前提で置いた面の色と食い違う。
+  - ダークモードへ対応する場合は、この固定を外す前に `--ghost-color-*` のダーク側を全て定義する。
 - 毎回は使わない操作（PDF差し込み・結合、MarkdownメモのAI機能）は `collapse-panel` の `<details>` へ入れ、既定で閉じる。
   - 特に外部AIへ送信する操作は、注意書きを畳んだ中ではなく `<summary>` にも出す。開く前に外部送信だと分かるようにする。
 
