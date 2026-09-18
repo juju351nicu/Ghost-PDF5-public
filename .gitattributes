@@ -29,3 +29,7 @@
 *.ttf  binary
 *.woff binary
 *.woff2 binary
+
+# pdf.js の vendor 配置物。bcmap は CMap の binary 表現、pfb は Type1 フォント。
+*.bcmap binary
+*.pfb  binary
