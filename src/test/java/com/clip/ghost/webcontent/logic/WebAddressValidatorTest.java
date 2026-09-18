@@ -1,13 +1,16 @@
 package com.clip.ghost.webcontent.logic;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.UnknownHostException;
 import java.util.List;
 
+import org.apache.commons.lang3.Strings;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -147,6 +150,38 @@ class WebAddressValidatorTest {
 		WebAddressValidator validator = createValidator(PUBLIC_ADDRESS);
 
 		assertThrows(WebInputException.class, () -> validator.validate(url));
+	}
+
+	@ParameterizedTest
+	@DisplayName("日本語や空白を含むURLも、パーセントエンコードして受け付ける")
+	@ValueSource(strings = { "https://example.test/日本語/ページ", "https://example.test/docs/ページ#見出し",
+			"https://example.test/search?q=日本語", "https://example.test/a b" })
+	void validateAcceptsNonAsciiUrl(String url) {
+		URI uri = createValidator(PUBLIC_ADDRESS).validate(url);
+
+		// ブラウザのアドレス欄からそのまま貼り付けた形を弾かない。エンコード済みのURLはそのまま通る。
+		assertEquals(PUBLIC_HOST, uri.getHost());
+		assertFalse(Strings.CS.contains(uri.toString(), " "));
+	}
+
+	@Test
+	@DisplayName("エンコード済みのURLを二重にエンコードしない")
+	void validateKeepsAlreadyEncodedUrl() {
+		String url = "https://example.test/docs/%E6%97%A5%E6%9C%AC%E8%AA%9E";
+
+		URI uri = createValidator(PUBLIC_ADDRESS).validate(url);
+
+		assertEquals(url, uri.toString());
+	}
+
+	@ParameterizedTest
+	@DisplayName("スキームの大文字小文字を問わず受け付け、小文字へそろえる")
+	@ValueSource(strings = { "HTTPS://example.test/page", "Http://example.test/page" })
+	void validateNormalizesScheme(String url) {
+		URI uri = createValidator(PUBLIC_ADDRESS).validate(url);
+
+		// java.net.http.HttpClientはスキームが小文字でないURIを受け付けないため、ここでそろえる。
+		assertTrue(Strings.CS.equalsAny(uri.getScheme(), "http", "https"));
 	}
 
 	@Test

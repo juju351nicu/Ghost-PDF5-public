@@ -56,6 +56,20 @@ class WebMarkdownBuilderTest {
 	}
 
 	@Test
+	@DisplayName("説明が長すぎる場合は出典ヘッダーで切り詰める")
+	void buildShortensLongDescription() {
+		String longDescription = "説明文。".repeat(200);
+
+		String markdown = build("<p>本文</p>", TITLE, longDescription);
+
+		// 索引やナビの文字列をそのままdescriptionへ入れているページがあり、出典ヘッダーが本文より長くなる。
+		String descriptionLine = markdown.lines().filter(line -> Strings.CS.startsWith(line, "- 説明:")).findFirst()
+				.orElse(StringUtils.EMPTY);
+		assertTrue(descriptionLine.length() <= 210, () -> "説明行が長すぎます: " + descriptionLine.length());
+		assertTrue(Strings.CS.contains(descriptionLine, "…"));
+	}
+
+	@Test
 	@DisplayName("タイトルが取れない場合は取得元を見出しにする")
 	void buildUsesSourceAsHeadingWhenTitleIsBlank() {
 		String markdown = build("<p>本文</p>", StringUtils.EMPTY, StringUtils.EMPTY);
@@ -233,6 +247,93 @@ class WebMarkdownBuilderTest {
 
 		assertFalse(Strings.CS.contains(markdown, "## 構造レポート"));
 		assertTrue(Strings.CS.contains(markdown, "本文の段落"));
+	}
+
+	@Test
+	@DisplayName("表のcaptionを表の直前に見出しとして残す")
+	void buildKeepsTableCaption() {
+		String html = "<table><caption>対応表</caption><tr><th>項目</th></tr><tr><td>値</td></tr></table>";
+
+		String markdown = build(html, TITLE, StringUtils.EMPTY);
+
+		assertTrue(Strings.CS.contains(markdown, "**対応表**\n\n| 項目 |"));
+	}
+
+	@Test
+	@DisplayName("コードブロックの中にコードフェンスがあっても囲みが壊れない")
+	void buildEscapesCodeFenceInsideCodeBlock() {
+		String markdown = build("<pre><code>```\nsample\n```</code></pre>", TITLE, StringUtils.EMPTY);
+
+		assertTrue(Strings.CS.contains(markdown, "````\n```\nsample\n```\n````"));
+	}
+
+	@Test
+	@DisplayName("インラインコードの中にバッククォートがあっても囲みが壊れない")
+	void buildEscapesBacktickInsideInlineCode() {
+		String markdown = build("<p><code>a`b</code></p>", TITLE, StringUtils.EMPTY);
+
+		assertTrue(Strings.CS.contains(markdown, "`` a`b ``"));
+	}
+
+	@Test
+	@DisplayName("入れ物の直下にある文とブロックが混在していても文が落ちない")
+	void buildKeepsTextMixedWithBlockElements() {
+		String markdown = build("<div>入れ物直下の文<p>段落</p>続きの文</div>", TITLE, StringUtils.EMPTY);
+
+		assertTrue(Strings.CS.contains(markdown, "入れ物直下の文"));
+		assertTrue(Strings.CS.contains(markdown, "段落"));
+		assertTrue(Strings.CS.contains(markdown, "続きの文"));
+	}
+
+	@Test
+	@DisplayName("リスト項目の中の表が落ちない")
+	void buildKeepsTableInsideListItem() {
+		String html = "<ul><li>手順<table><tr><th>項目</th></tr><tr><td>値</td></tr></table></li></ul>";
+
+		String markdown = build(html, TITLE, StringUtils.EMPTY);
+
+		assertTrue(Strings.CS.contains(markdown, "- 手順"));
+		assertTrue(Strings.CS.contains(markdown, "| 項目 |"));
+	}
+
+	@Test
+	@DisplayName("引用の中の引用も引用として残す")
+	void buildConvertsNestedBlockQuote() {
+		String markdown = build("<blockquote><p>外側</p><blockquote><p>内側</p></blockquote></blockquote>", TITLE,
+				StringUtils.EMPTY);
+
+		assertTrue(Strings.CS.contains(markdown, "> 外側"));
+		assertTrue(Strings.CS.contains(markdown, "> > 内側"));
+	}
+
+	@Test
+	@DisplayName("見出しの中の画像はalt付きの参照として残す")
+	void buildKeepsImageInsideHeading() {
+		String markdown = build("<h2><img src=\"logo.png\" alt=\"ロゴ\">製品名</h2>", TITLE, StringUtils.EMPTY);
+
+		assertTrue(Strings.CS.contains(markdown, "## ![ロゴ](https://example.test/docs/logo.png)製品名"));
+	}
+
+	@Test
+	@DisplayName("thead / tbody で囲まれた表も1つの表として読む")
+	void buildReadsTableWithSectionElements() {
+		String html = "<table><thead><tr><th>項目</th></tr></thead><tbody><tr><td>値</td></tr></tbody></table>";
+
+		String markdown = build(html, TITLE, StringUtils.EMPTY);
+
+		assertTrue(Strings.CS.contains(markdown, "| 項目 |\n| --- |\n| 値 |"));
+	}
+
+	@Test
+	@DisplayName("入れ子の表の行を外側の表へ混ぜない")
+	void buildDoesNotMixNestedTableRows() {
+		String html = "<table><tr><td>外<table><tr><td>内</td></tr></table></td></tr></table>";
+
+		String markdown = build(html, TITLE, StringUtils.EMPTY);
+
+		// 外側の表の行は1行だけ。入れ子の表の行がそこへ混ざると列がずれる。
+		assertFalse(Strings.CS.contains(markdown, "| 内 |\n| 内 |"));
+		assertTrue(Strings.CS.contains(markdown, "外"));
 	}
 
 	@Test

@@ -22,6 +22,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
@@ -35,6 +36,7 @@ import com.clip.ghost.webcontent.config.WebMarkdownProperties;
 import com.clip.ghost.webcontent.dto.WebMarkdownDraftRequest;
 import com.clip.ghost.webcontent.dto.WebMarkdownDraftResponse;
 import com.clip.ghost.webcontent.dto.WebUrlMarkdownDraftRequest;
+import com.clip.ghost.webcontent.enums.WebMarkdownDraftMode;
 import com.clip.ghost.webcontent.exception.WebInputException;
 import com.clip.ghost.webcontent.exception.WebUnavailableException;
 import com.clip.ghost.webcontent.logic.FetchedWebPage;
@@ -162,6 +164,39 @@ class WebMarkdownServiceTest {
 	}
 
 	@Test
+	@DisplayName("上限での切り落としでサロゲートペアを割らない")
+	void generateMarkdownFromHtmlDoesNotSplitSurrogatePair() {
+		webMarkdownProperties.setMaxOutputCharacters(3);
+		doReturn(createContent()).when(webPageExtractor).extract(any(), any(), any());
+		// 3文字目から絵文字（サロゲートペア）が始まる。上限3でそのまま切ると、絵文字の片側だけが末尾に残る。
+		doReturn("ab😀cd").when(webMarkdownBuilder).build(any(), any(), any(), any());
+
+		ResponseEntity<ApiResult<WebMarkdownDraftResponse>> result = createService()
+				.generateMarkdownFromHtml(createRequest("page.html", HTML_CONTENT, StringUtils.EMPTY));
+
+		String markdown = result.getBody().getData().getMarkdown();
+		assertFalse(Character.isHighSurrogate(markdown.charAt(markdown.length() - 1)),
+				"壊れた文字が末尾に残っています。");
+		assertTrue(result.getBody().getData().getTruncated());
+	}
+
+	@Test
+	@DisplayName("構造レポートだけのモードでも出力上限を適用する")
+	void generateMarkdownFromHtmlTruncatesStructureOutput() {
+		webMarkdownProperties.setMaxOutputCharacters(5);
+		doReturn(createEmptyContent()).when(webPageExtractor).extract(any(), any(), any());
+		doReturn("0123456789").when(webMarkdownBuilder).build(any(), any(), any(),
+				eq(WebMarkdownDraftMode.STRUCTURE));
+		WebMarkdownDraftRequest form = createRequest("page.html", HTML_CONTENT, StringUtils.EMPTY);
+		form.setMode(WebMarkdownDraftMode.STRUCTURE);
+
+		ResponseEntity<ApiResult<WebMarkdownDraftResponse>> result = createService().generateMarkdownFromHtml(form);
+
+		assertEquals("01234", result.getBody().getData().getMarkdown());
+		assertTrue(result.getBody().getData().getTruncated());
+	}
+
+	@Test
 	@DisplayName("URL取得が無効な場合は取得を試みずWebUnavailableExceptionになる")
 	void generateMarkdownFromUrlThrowsWhenFetchIsDisabled() {
 		WebUrlMarkdownDraftRequest request = createUrlRequest("https://example.test/article", StringUtils.EMPTY);
@@ -215,6 +250,88 @@ class WebMarkdownServiceTest {
 		request.setUrl(url);
 		request.setSelector(selector);
 		return request;
+	}
+
+	@Test
+	@DisplayName("本文が取り出せないHTMLは、本文を出すモードではWebInputExceptionになる")
+	void generateMarkdownFromHtmlThrowsWhenArticleIsEmpty() {
+		doReturn(createEmptyContent()).when(webPageExtractor).extract(any(), any(), any());
+		WebMarkdownDraftRequest form = createRequest("page.html", HTML_CONTENT, StringUtils.EMPTY);
+		WebMarkdownService service = createService();
+
+		WebInputException exception = assertThrows(WebInputException.class,
+				() -> service.generateMarkdownFromHtml(form));
+
+		assertTrue(Strings.CS.contains(exception.getDisplayMessage(), "本文"));
+		verify(webMarkdownBuilder, never()).build(any(), any(), any(), any());
+	}
+
+	@Test
+	@DisplayName("本文が空でも、構造レポートだけを求めるモードなら結果を返す")
+	void generateMarkdownFromHtmlBuildsStructureEvenWhenArticleIsEmpty() {
+		doReturn(createEmptyContent()).when(webPageExtractor).extract(any(), any(), any());
+		doReturn("## 構造レポート").when(webMarkdownBuilder).build(any(), any(), any(),
+				eq(WebMarkdownDraftMode.STRUCTURE));
+		WebMarkdownDraftRequest form = createRequest("page.html", HTML_CONTENT, StringUtils.EMPTY);
+		form.setMode(WebMarkdownDraftMode.STRUCTURE);
+
+		ResponseEntity<ApiResult<WebMarkdownDraftResponse>> result = createService().generateMarkdownFromHtml(form);
+
+		// SPAのように本文がほぼ空のページでも、構造の観察はできる。本文が要るモードだけ空を弾く。
+		assertEquals("## 構造レポート", result.getBody().getData().getMarkdown());
+	}
+
+	@Test
+	@DisplayName("画像しかないページは本文ありとして扱う")
+	void generateMarkdownFromHtmlAcceptsImageOnlyContent() {
+		String imageOnly = "<html><body><img src=\"figure.png\" alt=\"図\"></body></html>";
+		doReturn(new WebPageContent("図だけ", StringUtils.EMPTY, Jsoup.parse(imageOnly).body(), Jsoup.parse(imageOnly)))
+				.when(webPageExtractor).extract(any(), any(), any());
+		doReturn("![図](figure.png)").when(webMarkdownBuilder).build(any(), any(), any(), any());
+
+		ResponseEntity<ApiResult<WebMarkdownDraftResponse>> result = createService()
+				.generateMarkdownFromHtml(createRequest("page.html", HTML_CONTENT, StringUtils.EMPTY));
+
+		assertEquals("![図](figure.png)", result.getBody().getData().getMarkdown());
+	}
+
+	@Test
+	@DisplayName("ファイル名が取れないアップロードでも取得元の表示を空にしない")
+	void generateMarkdownFromHtmlUsesFallbackFileName() {
+		WebMarkdownDraftRequest form = new WebMarkdownDraftRequest();
+		form.setHtmlFile(new MockMultipartFile(HTML_FILE_PART_NAME, StringUtils.EMPTY, "text/html",
+				HTML_CONTENT.getBytes(StandardCharsets.UTF_8)));
+		WebMarkdownService service = createService();
+
+		// ファイル名が空だと拡張子を判定できないため入力エラーになる。取得元の表示が空文字のまま使われることはない。
+		WebInputException exception = assertThrows(WebInputException.class,
+				() -> service.generateMarkdownFromHtml(form));
+
+		assertTrue(Strings.CS.contains(exception.getDisplayMessage(), ".html / .htm"));
+	}
+
+	@Test
+	@DisplayName("URL取得でも本文が空なら本文モードでは入力エラーにする")
+	void generateMarkdownFromUrlThrowsWhenArticleIsEmpty() {
+		webFetchProperties.setEnabled(true);
+		doReturn(new FetchedWebPage("https://example.test/spa", null, HTML_CONTENT.getBytes(StandardCharsets.UTF_8)))
+				.when(webPageFetcher).fetch(any());
+		doReturn(createEmptyContent()).when(webPageExtractor).extract(any(), any(), any(), any());
+		WebUrlMarkdownDraftRequest request = createUrlRequest("https://example.test/spa", StringUtils.EMPTY);
+		WebMarkdownService service = createService();
+
+		assertThrows(WebInputException.class, () -> service.generateMarkdownFromUrl(request));
+	}
+
+	/**
+	 * 本文が空の抽出結果を生成する。
+	 *
+	 * @return 本文が空の抽出結果
+	 */
+	private WebPageContent createEmptyContent() {
+		String emptyHtml = "<html><head><title>空のページ</title></head><body><div id=\"root\"></div></body></html>";
+		Document document = Jsoup.parse(emptyHtml);
+		return new WebPageContent("空のページ", StringUtils.EMPTY, document.body(), document);
 	}
 
 	/**

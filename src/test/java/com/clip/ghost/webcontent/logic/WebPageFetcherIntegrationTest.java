@@ -1,6 +1,7 @@
 package com.clip.ghost.webcontent.logic;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -175,6 +176,59 @@ class WebPageFetcherIntegrationTest {
 	}
 
 	@Test
+	@DisplayName("Content-Typeが示す文字コードを取得結果へ渡す")
+	void fetchKeepsCharsetFromContentType() {
+		FetchedWebPage page = createFetcher().fetch(url("/shift-jis"));
+
+		assertEquals("Shift_JIS", page.charsetName());
+	}
+
+	@Test
+	@DisplayName("扱えない文字コードが宣言されていても取得し、判定はHTML側へ委ねる")
+	void fetchIgnoresUnsupportedCharset() {
+		FetchedWebPage page = createFetcher().fetch(url("/bogus-charset"));
+
+		// 存在しない文字コード名をそのまま解析へ渡すと、解析側が例外になり500へ落ちる。
+		assertNull(page.charsetName());
+	}
+
+	@Test
+	@DisplayName("圧縮された応答は、中身を取り違えないよう失敗として扱う")
+	void fetchRejectsCompressedResponse() {
+		WebPageFetcher fetcher = createFetcher();
+
+		WebFetchException exception = assertThrows(WebFetchException.class, () -> fetcher.fetch(url("/gzip")));
+
+		assertTrue(Strings.CS.contains(exception.getMessage(), "圧縮"));
+	}
+
+	@Test
+	@DisplayName("パーセントエンコードされたリダイレクト先も追える")
+	void fetchFollowsEncodedRedirect() {
+		FetchedWebPage page = createFetcher().fetch(url("/redirect-encoded"));
+
+		assertTrue(Strings.CS.contains(page.finalUrl(), "%E6%97%A5%E6%9C%AC%E8%AA%9E"));
+	}
+
+	@Test
+	@DisplayName("規格に反する生の非ASCIIのLocationは、取得先の失敗（502相当）として扱う")
+	void fetchRejectsRawNonAsciiRedirect() {
+		WebPageFetcher fetcher = createFetcher();
+
+		// ヘッダーはASCIIで送る決まりのため、生の日本語を書く取得先とはそもそも通信が成立しない。
+		// 500（アプリの障害）ではなく取得失敗として扱えていることを確かめる。
+		assertThrows(WebFetchException.class, () -> fetcher.fetch(url("/redirect-non-ascii")));
+	}
+
+	@Test
+	@DisplayName("日本語を含むURLをそのまま渡しても取得できる")
+	void fetchAcceptsNonAsciiUrl() {
+		FetchedWebPage page = createFetcher().fetch(url("/日本語"));
+
+		assertEquals(HTML_BODY, new String(page.content(), StandardCharsets.UTF_8));
+	}
+
+	@Test
 	@DisplayName("allow-loopbackが無効ならループバック宛の取得を拒否する")
 	void fetchRejectsLoopbackWhenNotAllowed() {
 		webFetchProperties.setAllowLoopback(false);
@@ -238,6 +292,19 @@ class WebPageFetcherIntegrationTest {
 		});
 		httpServer.createContext("/declared-large",
 				exchange -> respond(exchange, STATUS_OK, HTML_CONTENT_TYPE, new byte[4096]));
+		httpServer.createContext("/shift-jis", exchange -> respond(exchange, STATUS_OK, "text/html; charset=Shift_JIS",
+				HTML_BODY.getBytes(StandardCharsets.UTF_8)));
+		httpServer.createContext("/bogus-charset", exchange -> respond(exchange, STATUS_OK,
+				"text/html; charset=utf-8-bogus", HTML_BODY.getBytes(StandardCharsets.UTF_8)));
+		httpServer.createContext("/gzip", exchange -> {
+			exchange.getResponseHeaders().set("Content-Encoding", "gzip");
+			respond(exchange, STATUS_OK, HTML_CONTENT_TYPE, HTML_BODY.getBytes(StandardCharsets.UTF_8));
+		});
+		httpServer.createContext("/redirect-non-ascii", exchange -> redirect(exchange, "/日本語"));
+		httpServer.createContext("/redirect-encoded",
+				exchange -> redirect(exchange, "/%E6%97%A5%E6%9C%AC%E8%AA%9E"));
+		httpServer.createContext("/日本語",
+				exchange -> respond(exchange, STATUS_OK, HTML_CONTENT_TYPE, HTML_BODY.getBytes(StandardCharsets.UTF_8)));
 		httpServer.createContext("/slow", exchange -> {
 			sleepQuietly();
 			respond(exchange, STATUS_OK, HTML_CONTENT_TYPE, HTML_BODY.getBytes(StandardCharsets.UTF_8));

@@ -7,6 +7,8 @@ import java.net.http.HttpClient;
 import java.net.http.HttpClient.Redirect;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.Charset;
+import java.nio.charset.IllegalCharsetNameException;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
@@ -59,6 +61,8 @@ public class WebPageFetcher {
 	private static final String ACCEPT_HEADER = "Accept";
 	private static final String ACCEPT_HEADER_VALUE = "text/html,application/xhtml+xml";
 	private static final String CONTENT_TYPE_HEADER = "Content-Type";
+	private static final String CONTENT_ENCODING_HEADER = "Content-Encoding";
+	private static final String IDENTITY_ENCODING = "identity";
 	private static final String LOCATION_HEADER = "Location";
 	private static final String CHARSET_PARAMETER = "charset=";
 	private static final List<String> SUPPORTED_CONTENT_TYPES = List.of("text/html", "application/xhtml+xml");
@@ -75,6 +79,7 @@ public class WebPageFetcher {
 	private static final String REDIRECT_LOCATION_MESSAGE = "リダイレクト先が示されていないため取得できません。";
 	private static final String SIZE_LIMIT_MESSAGE = "取得したページが上限の %d バイトを超えました。";
 	private static final String READ_FAILURE_MESSAGE = "取得したページを読み取れませんでした。";
+	private static final String COMPRESSED_MESSAGE = "圧縮された応答のため取り込めません。ブラウザで開いて保存したHTMLを取り込んでください。";
 
 	private final WebFetchProperties webFetchProperties;
 	private final WebAddressValidator webAddressValidator;
@@ -118,6 +123,7 @@ public class WebPageFetcher {
 				}
 				validateStatus(response);
 				validateContentType(response);
+				validateContentEncoding(response);
 				LOGGER.info("Webページを取得しました。status={}", response.statusCode());
 				return buildPage(currentUri, response, body);
 			} catch (IOException e) {
@@ -222,6 +228,24 @@ public class WebPageFetcher {
 	}
 
 	/**
+	 * 応答が圧縮されていないことを確認する。
+	 * <p>
+	 * {@code Accept-Encoding} を送っていないため通常は非圧縮で返るが、それを無視して圧縮を返す
+	 * 取得先もある。{@code java.net.http.HttpClient} は展開しないため、そのまま解析へ回すと
+	 * 圧縮データをHTMLとして読み、意味の無いMarkdownが正常な結果として返ってしまう。
+	 * 展開を実装するより、取り込めないことを伝えて別の手段（ブラウザで保存）へ案内する。
+	 *
+	 * @param response 応答
+	 * @throws WebFetchException 圧縮された応答の場合
+	 */
+	private void validateContentEncoding(HttpResponse<InputStream> response) {
+		String encoding = header(response, CONTENT_ENCODING_HEADER);
+		if (StringUtils.isNotBlank(encoding) && !Strings.CI.equals(StringUtils.trim(encoding), IDENTITY_ENCODING)) {
+			throw new WebFetchException(COMPRESSED_MESSAGE);
+		}
+	}
+
+	/**
 	 * 取得結果を組み立てる。
 	 *
 	 * @param currentUri 最終URI
@@ -273,7 +297,29 @@ public class WebPageFetcher {
 		}
 		String charsetName = StringUtils.substring(contentType, parameterIndex + CHARSET_PARAMETER.length());
 		// charset="utf-8" のように引用符で囲む応答もあるため、囲みを外してから渡す。
-		return StringUtils.trimToNull(StringUtils.strip(StringUtils.substringBefore(charsetName, ";"), "\"'"));
+		return toSupportedCharsetName(
+				StringUtils.trimToNull(StringUtils.strip(StringUtils.substringBefore(charsetName, ";"), "\"'")));
+	}
+
+	/**
+	 * この環境で扱える文字コード名だけを返す。
+	 * <p>
+	 * 綴りの誤りや独自表記の文字コード名を宣言する取得先がある。そのまま解析へ渡すと解析側が例外になり、
+	 * 「HTMLは取れているのに500」という分かりにくい失敗になる。扱えない名前は捨て、BOMと
+	 * {@code <meta charset>} からの判定へ委ねる。
+	 *
+	 * @param charsetName 応答が宣言した文字コード名
+	 * @return 扱える場合はその名前。扱えない場合はnull
+	 */
+	private String toSupportedCharsetName(String charsetName) {
+		if (StringUtils.isBlank(charsetName)) {
+			return null;
+		}
+		try {
+			return Charset.isSupported(charsetName) ? charsetName : null;
+		} catch (IllegalCharsetNameException e) {
+			return null;
+		}
 	}
 
 	/**

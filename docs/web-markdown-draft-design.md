@@ -58,7 +58,7 @@ POST /markdownDraftUrl    application/json      { "url": "...", "selector": "...
 | `h1`〜`h6` | `#`〜`######` |
 | `p` | 段落 |
 | `ul` / `ol` / `li` | `- ` / `1. `（入れ子は半角2桁インデント） |
-| `table` / `tr` / `th` / `td` | GFMの表（`common.utils.MarkdownTableBuilder`） |
+| `table` / `tr` / `th` / `td` | GFMの表（`common.utils.MarkdownTableBuilder`）。`caption` は表の直前に太字の1行 |
 | `pre` / `code` | フェンス付きコードブロック（`class="language-*"` から言語を引き継ぐ） / インラインコード |
 | `dl` / `dt` / `dd` | `- **用語**: 説明` の箇条書き（Markdownに定義リストの記法が無いため） |
 | `blockquote` | `> `（中の段落・見出しも引用として残す） |
@@ -74,6 +74,13 @@ POST /markdownDraftUrl    application/json      { "url": "...", "selector": "...
 インラインコードの中身は素のテキストだけを使う。コード記法の中では他の記法が働かないため、
 `<code><a>…</a></code>` をそのまま写すとリンクともコードとも描画されない文字列になる。
 ただしコード全体が1つのリンクの場合だけ、コードを包む形（``[`text`](url)``）へ入れ替える。
+
+コードの中身にバッククォートやコードフェンスが含まれる場合は、囲みを1つ長くする。同じ長さだと、
+コードの途中でコードが終わったと解釈され、以降の本文までコード扱いになる。
+
+入れ物の直下に地の文がある場合（`<div>説明<p>…</p></div>`）、その文も出現順を保って段落にする。
+子要素だけを掘ると地の文が落ちる。リスト項目の中の表・コードブロック・引用・定義リストも、
+項目の続きとして1段深いインデントで出す。インライン整形では拾えないため、追わないと丸ごと落ちる。
 
 上記以外のタグは、中にブロック要素があれば入れ物として掘り下げ、無ければ段落として扱う。
 `div` しか使っていないページでも本文が落ちないようにするため。
@@ -92,7 +99,8 @@ POST /markdownDraftUrl    application/json      { "url": "...", "selector": "...
 
 ## 5. 抽出方針
 
-- `script` / `style` / `nav` / `header` / `footer` / `aside` / `form` / `noscript` / `iframe` / `svg` を除去する。
+- `script` / `style` / `nav` / `header` / `footer` / `aside` / `form` / `button` / `noscript` / `iframe` / `svg` を除去する。
+  `button` は「ページをコピー」のような操作のラベルで、本文に混ざると独立した段落として残る。
   除去はセレクタでの絞り込みより先に行う。絞り込み先の内側にもナビゲーションや広告枠は入り得るため。
 - 本文らしさをスコアリングするヒューリスティック（readability系）は入れない。閾値調整が終わらないうえ、
   なぜその出力になったのかを説明できなくなる。
@@ -100,12 +108,19 @@ POST /markdownDraftUrl    application/json      { "url": "...", "selector": "...
   一致が複数あるときは最初の1件だけを使う。連結すると同じセレクタでも本文量がページごとに変わる。
 - 文字コードはjsoupに委ねる（`Jsoup.parse(InputStream, null, baseUri)`）。BOM → `<meta charset>` → 既定UTF-8の
   順で判定される。自前で判定すると、判定規則がブラウザと食い違ったときに文字化けの原因を追えなくなる。
+- **本文が空かどうかは抽出器では判定しない。** 空を許さないかは「何を出力するか」で決まるため、
+  判定はService層が行う（`mode=STRUCTURE` では本文が空でも結果を返す）。
+- 出典ヘッダーの説明（`meta description`）は200文字で切る。索引やナビの文字列をそのまま
+  `description` へ入れているサイトがあり、放っておくと出典だけで数百文字になる。
 
 ## 6. 上限
 
 `ghost.web.markdown.max-output-characters`（既定100,000）を超えた分は切り落とし、
 `truncated=true` と `ApiResult` のWARNINGメッセージ（`webMarkdownTruncated`）で通知する。
 黙って切ると、利用者は後半が無いことに気付かないままMarkdownメモを完成品として扱ってしまう。
+
+切る位置が文字の途中（UTF-16のサロゲートペアの間）になる場合は1つ手前で切る。そのまま切ると、
+壊れた文字が末尾に残る。
 
 アップロードサイズの上限はPDFと同じ `PdfConstants.MAX_PDF_FILE_SIZE_BYTES`（20MB）で、超過は413。
 種類ごとに上限を変えると、どの上限が適用されたのかを利用者が判断できなくなるため。
@@ -161,12 +176,13 @@ URLから取っても同じMarkdownになる。
 
 | # | 検査 | 実装 | 落ちたときの例外 |
 | --- | --- | --- | --- |
+| 0 | URLをASCIIへそろえる（日本語のパスやフラグメントをUTF-8のパーセントエンコードへ、スキームを小文字へ）。ブラウザのアドレス欄から貼り付けた形を弾かないため | `WebAddressValidator` | — |
 | 1 | スキームは `http` / `https` のみ（`file` / `ftp` / `jar` / `data` / `gopher` は拒否） | `WebAddressValidator` | `WebInputException`（400） |
 | 2 | ポートは `ghost.web.fetch.allowed-ports`（既定80 / 443）のみ | `WebAddressValidator` | `WebInputException`（400） |
 | 3 | ユーザー情報付きURL（`user:pass@host`）を拒否 | `WebAddressValidator` | `WebInputException`（400） |
 | 4 | 名前解決した**全アドレス**を検査。ループバック（`allow-loopback` 無効時）・プライベート・リンクローカル（`169.254.169.254` を含む）・ワイルドカード・マルチキャスト・IPv6ユニークローカルを拒否。IPv4射影IPv6は射影元のIPv4で判定 | `WebAddressValidator` | `WebFetchBlockedException`（400） |
 | 5 | リダイレクトは自前ループで `max-redirects`（既定3）まで。**毎ホップで 1〜4 をやり直す** | `WebPageFetcher` | `WebFetchException`（502） |
-| 6 | `Content-Type` は `text/html` / `application/xhtml+xml` のみ | `WebPageFetcher` | `WebFetchException`（502） |
+| 6 | `Content-Type` は `text/html` / `application/xhtml+xml` のみ。`Content-Encoding` が付く（圧縮された）応答も拒否 | `WebPageFetcher` | `WebFetchException`（502） |
 | 7 | 本文は `BoundedInputStream` で**実読み取りバイト数**を `max-bytes`（既定2MB）に抑える | `WebPageFetcher` | `WebFetchException`（502） |
 | 8 | 接続・読み取りタイムアウト `timeout-seconds`（既定10秒） | `WebPageFetcher` | `WebFetchException`（502） |
 | 9 | User-Agent を `user-agent`（既定 `Ghost-PDF5`）で明示。ブラウザを偽装しない | `WebPageFetcher` | — |
@@ -179,6 +195,14 @@ URLから取っても同じMarkdownになる。
 サイズ上限は「超えたら切り詰める」ではなく「超えたら失敗」にした。途中までのHTMLを正常な取得結果として
 返すと、本文が欠けたMarkdownが出来上がり、利用者はそれが欠けていることに気付けない。
 `Content-Length` は読まない。宣言値を信じる実装は、小さく詐称した応答やchunked応答で素通りする。
+
+`Accept-Encoding` を送らないため通常は非圧縮で返るが、それを無視して圧縮を返す取得先もある。
+JDKのHTTPクライアントは展開しないため、そのまま解析すると圧縮データをHTMLとして読み、
+意味の無いMarkdownが正常な結果として返る。展開を実装せず、取り込めないことを伝えて
+「ブラウザで保存したHTMLを取り込む」へ案内する。
+
+応答が宣言する文字コード名は、この環境で扱えるものだけを解析へ渡す。綴りの誤りや独自表記を
+そのまま渡すと解析側が例外になり、「HTMLは取れているのに500」という分かりにくい失敗になる。
 
 ### 9.2 設定
 
@@ -293,8 +317,6 @@ jsoupはJavaScriptを実行せずCSSも評価しないため、次は取れな�
   この場合はブラウザで表示してから「名前を付けて保存」したHTMLを渡す。
 - 相対URLの絶対化は、アップロードでは HTML内の `<base href>` がある場合だけ効く。
   取得元URLを基準にできるのは Stage 2 から。
-- 入れ物要素に直接書かれたテキスト（`<article>本文<p>…</p></article>` の「本文」）は、
-  同じ要素内にブロック要素があると落ちる。ブロック単位で走査しているため。
 - 表の結合セル（`colspan` / `rowspan`）は再現しない。Office側の表変換と同じ制限。
 - タイトルに使った `<h1>` は本文側にも残るため、見出しが重複することがある。
 
@@ -310,6 +332,7 @@ jsoupはJavaScriptを実行せずCSSも評価しないため、次は取れな�
 | `WebPageFetcherIntegrationTest` | 正常取得、リダイレクト上限、相対Location、Location欠落、Content-Type、200以外、サイズ上限（chunked / 宣言あり）、タイムアウト、間隔制限、loopback拒否 |
 | `WebStructureReportBuilderTest` | 文書メタ、指定なしの表示、見出しアウトライン、レベルの飛びの注記、ランドマークの入れ子、装飾divで深くしないこと |
 | `WebMarkdownDraftModeTest` | コード値変換、大文字小文字、不正値の説明、各モードの出力内容 |
+| `FrontendWebMarkdownContractTest` | モードの選択肢とenumの一致、URLとendpointの一致、責務別JS境界の経由、URL取得の既定無効、画面の注意書き、ファイル名の置き換え規則の一致 |
 
 フィクスチャHTML（`src/test/resources/web/`）はすべて自作で、実在サイトのHTMLは持ち込まない。
 取得のテストは `com.sun.net.httpserver.HttpServer` をループバックで起動して行う。外部サイトを相手にすると、
@@ -318,8 +341,8 @@ SSRF検査のテストは名前解決を差し替えて行う。実DNSに依存�
 
 ## 14. 未実施事項
 
-- 実URLでの品質確認は4サイト（jsoup / CommonMark / Maven / MDN、いずれも公開ドキュメント）。
-  ニュース系・SPA・社内Wikiの保存HTMLは未確認。
+- 実URLでの品質確認は10サイト（jsoup / CommonMark / Maven / MDN / PostgreSQL / Python / W3C /
+  example.com / React（SSR） / デジタル庁 / IPA）。ニュース系・有料記事・社内Wikiの保存HTMLは未確認。
 - 構造レポートの抽出項目は3節のみ。ナビ・フォーム・リンク・外部依存・画像・アクセシビリティ・スタイルは、
   使って必要性が分かってから足す。
 - 外部CSSの取得（Stage 3.5）は保留。

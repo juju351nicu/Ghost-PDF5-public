@@ -137,6 +137,47 @@ class WebStructureReportBuilderTest {
 		assertTrue(Strings.CS.contains(report, "ありません。"));
 	}
 
+	@Test
+	@DisplayName("見分けの手がかりが長すぎる場合は切り詰めて1行を読める長さに保つ")
+	void buildShortensLongLandmarkLabel() {
+		String longClass = "flex items-center justify-between gap-4 px-6 py-3 text-sm font-medium text-slate-700 "
+				+ "hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2";
+		String html = "<body><main class=\"" + longClass + "\"><p>本文</p></main></body>";
+
+		String report = build(html);
+
+		// ユーティリティクラス主体のサイトでは、classがそのままだと1行が数百文字になり構成が読めない。
+		String landmarkLine = report.lines().filter(line -> Strings.CS.contains(line, "- main")).findFirst()
+				.orElse(StringUtils.EMPTY);
+		assertTrue(landmarkLine.length() <= 80, () -> "1行が長すぎます: " + landmarkLine.length());
+		assertTrue(Strings.CS.contains(landmarkLine, "…"));
+	}
+
+	@Test
+	@DisplayName("h1が無くh3から始まるページでもアウトラインを出す")
+	void buildBuildsOutlineWhenFirstHeadingIsNotH1() {
+		String report = build("<body><h3>小見出しから始まる</h3><h4>その下</h4></body>");
+
+		assertTrue(Strings.CS.contains(report, "- h3 小見出しから始まる"));
+		assertFalse(Strings.CS.contains(report, "見出しレベルが飛んでいます"));
+	}
+
+	@Test
+	@DisplayName("見出しが1つ下がるだけの並びには注記を付けない")
+	void buildDoesNotAnnotateNormalHeadingSequence() {
+		String report = build("<body><h1>大</h1><h2>中</h2><h1>大2</h1></body>");
+
+		assertFalse(Strings.CS.contains(report, "飛んでいます"));
+	}
+
+	@Test
+	@DisplayName("langが無いページでも「（指定なし）」として出す")
+	void buildMarksMissingLangAsNotSet() {
+		String report = build("<html><head><title>設計メモ</title></head><body><p>本文</p></body></html>");
+
+		assertTrue(Strings.CS.contains(report, "- lang: （指定なし）"));
+	}
+
 	/**
 	 * HTMLから構造レポートを組み立てる。
 	 *

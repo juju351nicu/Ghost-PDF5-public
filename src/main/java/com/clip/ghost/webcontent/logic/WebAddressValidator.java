@@ -5,6 +5,7 @@ import java.net.InetAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import org.apache.commons.collections4.CollectionUtils;
@@ -44,6 +45,11 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class WebAddressValidator {
 	private static final String SCHEME_HTTP = "http";
+	private static final String SCHEME_SEPARATOR = "://";
+	private static final String PERCENT_ENCODED_FORMAT = "%%%02X";
+	private static final int ASCII_SPACE = 0x20;
+	private static final int ASCII_DELETE = 0x7F;
+	private static final int BYTE_MASK = 0xFF;
 	private static final String SCHEME_HTTPS = "https";
 	private static final int DEFAULT_HTTP_PORT = 80;
 	private static final int DEFAULT_HTTPS_PORT = 443;
@@ -89,7 +95,7 @@ public class WebAddressValidator {
 			throw new WebInputException(INVALID_URL_MESSAGE);
 		}
 		try {
-			URI uri = new URI(StringUtils.trim(url));
+			URI uri = new URI(normalizeScheme(encodeToAscii(StringUtils.trim(url))));
 			if (!uri.isAbsolute() || StringUtils.isBlank(uri.getHost())) {
 				throw new WebInputException(INVALID_URL_MESSAGE);
 			}
@@ -97,6 +103,60 @@ public class WebAddressValidator {
 		} catch (URISyntaxException e) {
 			throw new WebInputException(INVALID_URL_MESSAGE, e);
 		}
+	}
+
+	/**
+	 * URLをASCIIだけの形へそろえる。
+	 * <p>
+	 * ブラウザのアドレス欄は日本語のパスやフラグメントをそのまま見せるため、利用者が貼り付けるURLには
+	 * 非ASCII文字が普通に混じる。一方、HTTPクライアントへ渡せるのはASCIIのURIだけで、そのまま渡すと
+	 * 取得前に落ちる。ここでUTF-8のパーセントエンコードへ直しておく。
+	 * <p>
+	 * エンコード済みのURLは全文字がASCIIなので、二重エンコードにはならない。
+	 *
+	 * @param url 取得先URL
+	 * @return ASCIIだけになったURL
+	 */
+	private String encodeToAscii(String url) {
+		StringBuilder builder = new StringBuilder();
+		// サロゲートペア（絵文字など）を半分ずつ変換しないよう、char単位ではなくcode point単位で回す。
+		url.codePoints().forEach(codePoint -> appendAscii(builder, codePoint));
+		return builder.toString();
+	}
+
+	/**
+	 * 1文字分をASCIIとして追加する。
+	 *
+	 * @param builder   追加先
+	 * @param codePoint 対象のcode point
+	 */
+	private void appendAscii(StringBuilder builder, int codePoint) {
+		if (codePoint > ASCII_SPACE && codePoint < ASCII_DELETE) {
+			builder.appendCodePoint(codePoint);
+			return;
+		}
+		byte[] bytes = new String(Character.toChars(codePoint)).getBytes(StandardCharsets.UTF_8);
+		for (byte value : bytes) {
+			builder.append(PERCENT_ENCODED_FORMAT.formatted(value & BYTE_MASK));
+		}
+	}
+
+	/**
+	 * スキームを小文字へそろえる。
+	 * <p>
+	 * {@code HTTPS://…} のような表記も利用者は普通に貼り付けるが、JDKのHTTPクライアントは
+	 * スキームが小文字でないURIを受け付けない。
+	 *
+	 * @param url 取得先URL
+	 * @return スキームを小文字にしたURL
+	 */
+	private String normalizeScheme(String url) {
+		int separatorIndex = Strings.CS.indexOf(url, SCHEME_SEPARATOR);
+		if (separatorIndex < 0) {
+			return url;
+		}
+		return StringUtils.lowerCase(StringUtils.substring(url, 0, separatorIndex))
+				+ StringUtils.substring(url, separatorIndex);
 	}
 
 	/**

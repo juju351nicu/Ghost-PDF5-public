@@ -7,6 +7,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
 
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.Strings;
 import org.slf4j.Logger;
@@ -57,6 +58,8 @@ public class WebMarkdownService {
 	private static final String EMPTY_FILE_MESSAGE = "HTMLファイルの中身が空です。";
 	private static final String UNSUPPORTED_EXTENSION_MESSAGE = "HTMLとして読み込めないファイルです。.html / .htm を指定してください。";
 	private static final String READ_FAILURE_MESSAGE = "アップロードされたHTMLを読み取れませんでした。";
+	private static final String IMAGE_SELECTOR = "img";
+	private static final String EMPTY_CONTENT_MESSAGE = "HTMLから本文を取り出せませんでした。JavaScriptで描画するページの場合は、ブラウザで表示してから「名前を付けて保存」したHTMLを指定してください。";
 	private static final String TRUNCATED_MESSAGE_CODE = "webMarkdownTruncated";
 	private static final String TRUNCATED_MESSAGE = "取り込み結果が上限の %d 文字を超えたため、以降を切り落としました。必要な部分だけを取り込むにはセレクタを指定してください。";
 
@@ -80,10 +83,11 @@ public class WebMarkdownService {
 		MultipartFile htmlFile = form.getHtmlFile();
 		String fileName = StringUtils.defaultIfBlank(htmlFile.getOriginalFilename(), UNKNOWN_FILE_NAME);
 		validateHtmlFile(htmlFile, fileName);
+		WebMarkdownDraftMode mode = resolveMode(form.getMode());
 		WebPageContent content = extractContent(htmlFile, form.getSelector());
+		validateArticleContent(content, mode);
 		// 取得日時は「いつ時点のページか」を示す出典情報のため、変換のたびに実時刻を入れる。
-		String markdown = webMarkdownBuilder.build(content, fileName, LocalDateTime.now(),
-				resolveMode(form.getMode()));
+		String markdown = webMarkdownBuilder.build(content, fileName, LocalDateTime.now(), mode);
 		LOGGER.info("HTMLからMarkdown下書きを起こしました。markdownLength={}", StringUtils.length(markdown));
 		return buildResult(content.title(), markdown, null);
 	}
@@ -104,10 +108,11 @@ public class WebMarkdownService {
 		if (!webFetchProperties.isEnabled()) {
 			throw new WebUnavailableException("URLからのWebページ取得機能は無効です。");
 		}
+		WebMarkdownDraftMode mode = resolveMode(request.getMode());
 		FetchedWebPage page = webPageFetcher.fetch(request.getUrl());
 		WebPageContent content = extractFetchedContent(page, request.getSelector());
-		String markdown = webMarkdownBuilder.build(content, page.finalUrl(), LocalDateTime.now(),
-				resolveMode(request.getMode()));
+		validateArticleContent(content, mode);
+		String markdown = webMarkdownBuilder.build(content, page.finalUrl(), LocalDateTime.now(), mode);
 		LOGGER.info("URLからMarkdown下書きを起こしました。markdownLength={}", StringUtils.length(markdown));
 		return buildResult(content.title(), markdown, page.finalUrl());
 	}
@@ -142,6 +147,28 @@ public class WebMarkdownService {
 	 */
 	private WebMarkdownDraftMode resolveMode(WebMarkdownDraftMode mode) {
 		return Objects.isNull(mode) ? WebMarkdownDraftMode.ARTICLE : mode;
+	}
+
+	/**
+	 * 本文を出力するモードのとき、本文が取り出せていることを確認する。
+	 * <p>
+	 * 判定をここへ置くのは、空を許さないかが「何を出力するか」で決まるため。構造レポートだけを求める
+	 * モードでは、JavaScriptで描画するページのように本文がほぼ空でも、観察できる構造は残っている。
+	 * <p>
+	 * 文字が無くても画像があれば本文ありとして扱う。図だけのページも取り込む価値がある。
+	 *
+	 * @param content 抽出結果
+	 * @param mode    出力モード
+	 * @throws WebInputException 本文を出力するモードで本文が空の場合
+	 */
+	private void validateArticleContent(WebPageContent content, WebMarkdownDraftMode mode) {
+		if (!mode.outputsArticle()) {
+			return;
+		}
+		if (StringUtils.isBlank(content.root().text())
+				&& CollectionUtils.isEmpty(content.root().select(IMAGE_SELECTOR))) {
+			throw new WebInputException(EMPTY_CONTENT_MESSAGE);
+		}
 	}
 
 	/**
@@ -198,7 +225,8 @@ public class WebMarkdownService {
 			String sourceUrl) {
 		int maxCharacters = webMarkdownProperties.getMaxOutputCharacters();
 		boolean truncated = StringUtils.length(markdown) > maxCharacters;
-		String outputMarkdown = truncated ? StringUtils.substring(markdown, 0, maxCharacters) : markdown;
+		String outputMarkdown = truncated ? StringUtils.substring(markdown, 0, safeTruncateLength(markdown,
+				maxCharacters)) : markdown;
 		WebMarkdownDraftResponse response = buildResponse(title, outputMarkdown, truncated, sourceUrl);
 		if (truncated) {
 			LOGGER.info("取り込み結果を上限で切り落としました。maxCharacters={}", maxCharacters);
@@ -206,6 +234,23 @@ public class WebMarkdownService {
 					List.of(new ApiMessage(TRUNCATED_MESSAGE_CODE, TRUNCATED_MESSAGE.formatted(maxCharacters)))));
 		}
 		return ResponseEntity.ok(ApiResult.of(response));
+	}
+
+	/**
+	 * 文字を割らずに切れる長さを求める。
+	 * <p>
+	 * Javaの文字列はUTF-16のため、絵文字などは2つ分の長さを持つ。上限でそのまま切ると、その片側だけが
+	 * 末尾に残り、画面やファイルに壊れた文字が出る。切る位置がペアの途中なら1つ手前で切る。
+	 *
+	 * @param markdown      切り落とし対象のMarkdown
+	 * @param maxCharacters 出力文字数の上限
+	 * @return 文字を割らずに切れる長さ
+	 */
+	private int safeTruncateLength(String markdown, int maxCharacters) {
+		if (maxCharacters <= 0) {
+			return 0;
+		}
+		return Character.isHighSurrogate(markdown.charAt(maxCharacters - 1)) ? maxCharacters - 1 : maxCharacters;
 	}
 
 	/**

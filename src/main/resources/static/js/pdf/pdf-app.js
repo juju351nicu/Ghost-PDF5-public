@@ -1327,9 +1327,26 @@ const pdfApp = {
      */
     buildMarkdownFileNameFromWebSource(title, sourceName) {
       if (!Util.isEmpty(title)) {
-        return this.buildMarkdownFileNameFromPdf(title + ".html");
+        return this.buildMarkdownFileNameFromPdf(
+          this.toFileNameSafeText(title) + ".html"
+        );
       }
-      return this.buildMarkdownFileNameFromPdf(sourceName);
+      return this.buildMarkdownFileNameFromPdf(
+        this.toFileNameSafeText(sourceName)
+      );
+    },
+    /**
+     * ファイル名に使えない文字を、サーバの保存時と同じ規則で置き換える。
+     *
+     * ページタイトルやURLには `|` `:` `/` が普通に含まれる。そのまま候補名にすると、
+     * 保存時にサーバ側（PathUtils.sanitizeFileName）が置き換えるため、画面に出したファイル名と
+     * 実際に保存される名前が食い違う。置き換えの規則をサーバと同じにして、見えている名前で保存されるようにする。
+     *
+     * @param {string} source ファイル名の元にする文字列
+     * @returns {string} ファイル名に使える形へ直した文字列
+     */
+    toFileNameSafeText(source) {
+      return source.replace(/[\\/:*?"<>|\u0000-\u001F]+/g, "_");
     },
     /**
      * 選択画像から文字起こしを実行し、結果をMarkdown編集欄へ反映する。

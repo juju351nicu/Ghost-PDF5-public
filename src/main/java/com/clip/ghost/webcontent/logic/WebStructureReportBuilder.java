@@ -56,6 +56,8 @@ public class WebStructureReportBuilder {
 	private static final String LANDMARK_LINE_FORMAT = "%s%s";
 	private static final String LANDMARK_LABEL_FORMAT = " … %s";
 	private static final String REPEATED_LINE_FORMAT = "%s（同じ並びが %d 件）";
+	private static final String ELLIPSIS = "…";
+	private static final int MAX_LABEL_LENGTH = 40;
 	private static final int MAX_HEADING_LEVEL = 6;
 
 	/** ランドマークとして数える要素。HTMLの文書構造を表す要素だけに限る。 */
@@ -148,7 +150,7 @@ public class WebStructureReportBuilder {
 	 * section で割っているか」といった組み立て方は、件数だけでは分からない。
 	 * <p>
 	 * 同じ種類の要素が複数ある場合の見分けが付くよう、{@code aria-label} / {@code id} / {@code class} が
-	 * あれば添える。無ければ要素名だけを出す。
+	 * あれば添える。無ければ要素名だけを出す。長すぎる手がかりは切り詰める。
 	 *
 	 * @param document 除去前のDOM
 	 * @return ランドマーク構成のMarkdown
@@ -216,8 +218,12 @@ public class WebStructureReportBuilder {
 	 */
 	private String describeLandmark(Element element) {
 		String label = StringUtils.firstNonBlank(element.attr("aria-label"), element.id(), element.className());
-		return StringUtils.isBlank(label) ? StringUtils.EMPTY
-				: LANDMARK_LABEL_FORMAT.formatted(StringUtils.normalizeSpace(label));
+		if (StringUtils.isBlank(label)) {
+			return StringUtils.EMPTY;
+		}
+		// ユーティリティクラス主体のサイトではclassが数百文字になる。手がかりとして読める長さで切る。
+		return LANDMARK_LABEL_FORMAT
+				.formatted(StringUtils.abbreviate(StringUtils.normalizeSpace(label), ELLIPSIS, MAX_LABEL_LENGTH));
 	}
 
 	/**
