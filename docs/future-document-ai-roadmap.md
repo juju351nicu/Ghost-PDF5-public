@@ -402,7 +402,7 @@ export
 - 2026-09-13に `mode=VISION`（文字レイヤーの有無に関係なく全ページを画像変換）を追加済み。
   文字レイヤーを持つ設計書PDFでも表をMarkdown表として取得できる。`mode` は `PdfMarkdownDraftMode` enumで扱う。
   VISIONは総ページ数がそのまま上限判定と費用の対象になる。実APIでの比較と費用の実測は未実施。
-- ページ選択用サムネイル（`POST /thumbnailsPdf`）と、選択結果をページ指定へ反映するUIを追加済み。
+- ページ選択用サムネイル（pdf.jsによるブラウザ内描画）と、選択結果をページ指定へ反映するUIを追加済み。
 - 詳細は `docs/page-markdown-draft-api-design.md` と `docs/image-markdown-draft-design.md`（第13〜14節）を参照する。
 
 目的:

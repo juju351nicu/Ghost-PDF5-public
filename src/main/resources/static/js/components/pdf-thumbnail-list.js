@@ -1,11 +1,11 @@
 /**
  * PDFのページ選択用サムネイル一覧を表示するVueコンポーネント。
  *
- * API呼び出しは親のpdf-app.jsに残し、このコンポーネントは表示・選択状態の見せ方・
+ * 描画の実行は親のpdf-app.jsに残し、このコンポーネントは表示・選択状態の見せ方・
  * イベント通知に責務を限定する（既存のoriginal-pdf-form.jsと同じ分担）。
  *
- * サムネイルの取得は自動では行わない。サーバー側に文書セッションが無く、取得のたびに
- * PDF全体をアップロードするため、利用者がボタンを押したときだけ走らせる。
+ * 描画はpdf.jsでブラウザ内で行うため、通常はファイル選択と同時に親が走らせる。ボタンは
+ * パスワード付きPDFの入力後など、利用者が自分でやり直すときの導線として残す。
  */
 export default {
   name: "PdfThumbnailList",
@@ -13,11 +13,11 @@ export default {
     thumbnailState: { type: Object, required: true },
     isProcessing: { type: Boolean, required: true },
   },
-  emits: ["request-thumbnails", "toggle-page", "clear-selection"],
+  emits: ["render-thumbnails", "toggle-page", "clear-selection"],
   template: `
     <div class="pdf-thumbnail-list">
       <div class="pdf-thumbnail-list__toolbar">
-        <button type="button" class="btn-secondary" :disabled="isProcessing" @click="requestThumbnails">サムネイル表示</button>
+        <button type="button" class="btn-secondary" :disabled="isProcessing" @click="renderThumbnails">サムネイル表示</button>
         <button type="button" class="btn-neutral" :disabled="isProcessing || selectedCount === 0"
           @click="clearSelection">選択解除</button>
         <span class="pdf-thumbnail-list__message" v-if="thumbnailState.message">
@@ -58,10 +58,10 @@ export default {
       return this.thumbnailState.selectedPageNumbers.includes(pageNumber);
     },
     /**
-     * サムネイル取得リクエストを親コンポーネントへ通知する。
+     * サムネイルの描画し直しを親コンポーネントへ通知する。
      */
-    requestThumbnails() {
-      this.$emit("request-thumbnails");
+    renderThumbnails() {
+      this.$emit("render-thumbnails");
     },
     /**
      * ページの選択・解除を親コンポーネントへ通知する。

@@ -1,7 +1,10 @@
 # パスワード保護PDFの取り扱い設計
 
 対象: `POST /showPdf` / `/metadataPdf` / `/textPdf` / `/extractPdf` / `/mergePdf` / `/splitPdf` /
-`/deletePdf` / `/insertPdf` / `/markdownDraftPdf` / `/thumbnailsPdf`
+`/deletePdf` / `/insertPdf` / `/markdownDraftPdf`
+
+サムネイル描画はpdf.jsでブラウザ内に移したため、この一覧から外れている。パスワードは
+`getDocument({ password })` へ渡し、サーバーへは送らない。画面のパスワード入力欄は共通のものを使う。
 
 ---
 
@@ -71,7 +74,6 @@ PDFを受け取る6つのリクエストDTOへ、任意項目 `password` を追�
 | `MergePdfRequest` | `/mergePdf` |
 | `SplitPdfRequest` | `/splitPdf` |
 | `PdfMarkdownDraftRequest` | `/markdownDraftPdf` |
-| `PdfThumbnailRequest` | `/thumbnailsPdf` |
 
 1リクエストにつきパスワードは1つ。`/mergePdf` の結合対象と `/insertPdf` の差し込みPDFにも
 同じパスワードを適用する。保護されていないPDFは指定されても影響を受けない。

@@ -59,6 +59,23 @@ commons-lang3 3.19 で `StringUtils` の比較・検索・置換系は非推奨�
 - Markdownの表組み立てとブロック連結は `MarkdownTableBuilder` / `MarkdownBlockJoiner`。
 - 画像文字起こしのプロンプト文言は `ImageMarkdownPromptBuilder`、Markdown本文AI変換は `MarkdownAiPromptBuilder`。
   provider実装（Anthropic / OpenAI）へ文言を書き写さない。
+- pdf.jsの読み込みは `js/pdf/pdf-thumbnail-renderer.js` だけ。他のcomponentやapp stateから直接importしない。
+
+## PDFの担当分け
+
+**加工はサーバーのPDFBox、表示はブラウザのpdf.js。** 置き換えの関係ではなく担当が違う。
+
+- 成果物としてPDFやファイルを返す処理（抽出・削除・結合・分割・回転・差し込み・検索可能PDF・
+  Markdown→PDF）は、必ずサーバー側へ置く。ブラウザ側でPDFを組み立てない。
+- 画面で見せるだけの処理（ページ選択用サムネイル）はpdf.jsでブラウザ内に閉じる。
+  見るためだけにPDFをアップロードしない。パスワードもブラウザの外へ出さない。
+- pdf.jsの用途を表示以外へ広げない。広げる必要が出たら規約側で範囲を決め直す。
+- フロントのライブラリはCDNではなくアプリ内から配信する（Vueは `webjars`、pdf.jsは `static/vendor/`）。
+  pdf.jsは `build/` だけでは足りず、`cmaps/` と `standard_fonts/` も同じバージョンで要る。
+  **CMapの指定漏れは例外を出さず、日本語PDFだけ文字が欠けて描画される。**
+
+詳細と、承知しているトレードオフ（サムネイルと `POST /imagesPdf` で描画実装が違う件）は
+[コーディング規約](docs/coding-guidelines.md) の「PDFの担当分け（PDFBox / pdf.js）」にある。
 
 ## 自動検出
 
@@ -72,6 +89,7 @@ commons-lang3 3.19 で `StringUtils` の比較・検索・置換系は非推奨�
 - `productionCodeUsesMarkdownTextNormalizerForLineEndings`
 - `frontendButtonsUseRoleBasedStyleClasses`（操作ボタンは `btn-primary` / `btn-secondary` / `btn-neutral` / `btn-danger` のいずれかを付ける）
 - `frontendCodeDoesNotWriteBrowserStorageOutsideUiPreferenceState`（ブラウザ内保存への書き込みは `ui-preference-state.js` だけ）
+- `frontendCodeLoadsPdfjsOnlyInThumbnailRenderer`（pdf.jsの読み込みは `pdf-thumbnail-renderer.js` だけ）
 
 `CodingConventionTest` には他にも `@Autowired` field injection禁止、`System.out` / `printStackTrace` 禁止、
 public宣言へのJavadoc必須などの規約が入っている。新しい規約を足す場合もここへ追加し、ドキュメントだけで終わらせない。

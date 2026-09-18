@@ -5,6 +5,9 @@
 Ghost-PDF5は、Spring Boot 4、Java 25、Apache PDFBoxを使用したlocal-firstのPDF・Markdown文書ツールです。
 PDFの結合、分割、ページ操作、テキスト抽出、Markdown下書き作成を、既存`main.html`から利用できます。
 
+PDFの**加工**はサーバー側のPDFBox、画面の**表示**（ページ選択用サムネイル）はブラウザ側のpdf.jsが担当します。
+線引きは[コーディング規約](docs/coding-guidelines.md)の「PDFの担当分け（PDFBox / pdf.js）」にあります。
+
 ## ドキュメント
 
 - [コーディング規約](docs/coding-guidelines.md)
@@ -216,16 +219,14 @@ Public repository化後も、当面はlocal development / portfolio用途を前�
   - 判定と変換で同じ `normalizePagesText` を通すようにし、全角英数字（既存の `toHalfWidth`）・全角カンマ/読点・全角ハイフン/ダッシュ/長音・空白を吸収する。分割範囲入力も同じ経路にそろえた
   - あわせて2つの入力欄のplaceholderを半角カンマの流儀にそろえた。全角カンマも受け付けるが、案内は画面が生成する値（`1-3,5`）とAPIの形式に合わせる
   - `FrontendPageInputContractTest` で壊れた正規表現の再混入、判定・変換の経路の分岐、placeholderと受け付ける区切り文字のズレを検知
-- サムネイル一覧からのページ選択を追加（`POST /thumbnailsPdf`）
-  - 全ページを低DPIで画像化し、data URI（`data:image/png;base64,...`）で返す。画面はサムネイルをクリックしてページを選び、既存の「ページ指定」欄へ反映する（`1-3,5` のように連続ページは範囲へ畳む）。手入力の欄はそのまま残している
-  - **1リクエストで全ページ分**返す。サーバー側に文書セッションが無く、ページごとに呼ぶと27ページのPDFで20 MBのアップロードが27回発生するため
-  - 解像度とページ数上限を設定で持つ（`ghost.pdf.thumbnail.dpi` 既定40 / `ghost.pdf.thumbnail.max-pages` 既定100）。上限超過は1ページも描画せず400
-  - 1ページずつ画像化してdata URIへ変換し、画像の参照は都度捨てる（`mode=AUTO` と同じ考え方）。同時にメモリへ載るのは1ページ分
-  - **レスポンスサイズ実測**: 27ページ・テキスト中心のPDF（Letterサイズ、40dpiで340x440px）で **79 KB**（1ページあたりdata URI約2.8 KB）
-    - 図や写真が多いページはPNGが大きくなり、1ページ20〜40 KB（base64で約1.33倍）に達しうる。その場合でも既定の100ページ上限で概ね3〜5 MBに収まる見積もり
-    - 既定40dpiはページの見分けには十分で、これ以上下げると文字の並びが判別しづらくなるため据え置く
-  - サムネイルはキャッシュしない。キャッシュにはアップロードしたPDFをサーバー側で保持する設計変更が必要で、別に扱う
-  - `FrontendThumbnailContractTest` で「コンポーネント → payload → API client → app state」の接続と、自動取得しないこと・ページごとに取得しないことを固定
+- サムネイル一覧からのページ選択を追加し、描画をpdf.jsでブラウザ内に寄せた
+  - 画面はサムネイルをクリックしてページを選び、既存の「ページ指定」欄へ反映する（`1-3,5` のように連続ページは範囲へ畳む）。手入力の欄はそのまま残している
+  - 当初は `POST /thumbnailsPdf` でPDFBoxがサーバー側で画像化していた。サーバー側に文書セッションが無いため、サムネイルを見るたびにPDF全体（最大20 MB）をアップロードし直す必要があり、「サムネイル表示」ボタンを押したときだけ取得する作りにしていた
+  - pdf.jsのcanvas描画へ置き換え、アップロードを不要にした。**ファイル選択と同時に自動表示**でき、PDFの中身はブラウザの外へ出ない。サーバー側のサムネイルAPI一式（controller / service / properties / DTO）は削除済み
+  - pdf.jsはCDNではなく `static/vendor/pdfjs/` へバージョン固定で配置する。理由と更新手順は同ディレクトリの `README.md`
+  - 描画倍率は40dpi相当（`40/72`）、ページ数上限は100ページ。どちらも `pdf-thumbnail-renderer.js` の定数として持つ
+  - パスワード付きPDFは `getDocument({ password })` で開く。ファイル選択時の自動描画では入力欄を割り込ませず、サムネイル欄へ案内だけ出し、「サムネイル表示」を押したときに既存のパスワード入力パネルへ回す
+  - `FrontendThumbnailContractTest` で「コンポーネント → app state → pdf.js描画」の接続、vendor配置物の同梱、サーバーへ送らないことを固定
 - `deletePdf` / `insertPdf` のファイルサイズ検証をOpenAPIの413定義と整合させ、Controller単体テストで固定
 - `CodingConventionTest` にDOM直接操作とHTML直接挿入の再混入検知を追加
 - `CodingConventionTest` にfield injection の `@Autowired` 再混入検知を追加
@@ -298,6 +299,11 @@ Markdown保存だけの段階では追加しませんでしたが、HTMLプレ�
    - 現状の小さなDTO変換では追加しない。
 5. Testcontainers
    - DB / S3 など外部ミドルウェアを本物に近い形でテストする必要が出た場合に検討する。
+
+フロントエンドのライブラリは、CDNではなくアプリ内から配信します（Vueは `webjars`、pdf.jsは `static/vendor/`）。
+ローカルのPDFを扱うアプリで、外部CDNが落ちると画面が使えなくなる状態を作らないためです。
+Markdownの描画ライブラリ（`marked` など）は**追加しません**。Markdown→HTMLは `MarkdownHtmlRenderer`
+（commonmark + jsoup）に一本化しており、画面プレビューとPDF出力で変換規則を分けないためです。
 
 ### 将来拡張メモ
 
@@ -433,10 +439,10 @@ Markdown保存を含むJava 25の全286テストが成功しています。
   - Markdown管理、履歴、設定、レビューなどで画面が2〜3画面以上に増えたら移行タイミング。
   - TypeScript は API client、入力フォーム、エラー表示を型で守りたくなった段階で導入を検討する。
   - Vuetify などのUIライブラリは、Vite + TypeScript の足場が安定した後に検討する。
-- `pdf.js` 導入は当分先にする。**サムネイル一覧からのページ選択は実装済みで、pdf.jsは引き続き不要。**
-  - 編集元PDFはブラウザ標準ビューアをiframeで表示しており、ページ番号とサムネイルはその機能でも確認できる。
-  - サムネイル一覧からのページ選択は `POST /thumbnailsPdf`（`PDFRenderer` で低DPIのページ画像をdata URIで返す）で実装した。pdf.jsは必須ではないという判断のとおりに作れている。
-  - テキストレイヤー、注釈表示、ページの並べ替えが必要になった段階で、あらためて検討する。
+- `pdf.js` 導入済み（`static/vendor/pdfjs/`）。用途はサムネイル描画に限定する。
+  - 編集元PDFの表示は従来どおりブラウザ標準ビューアのiframeで行う。pdf.jsのビューアUIへは置き換えない。
+  - サムネイルは当初 `POST /thumbnailsPdf`（PDFBoxの `PDFRenderer`）で作っていたが、見るたびにPDF全体のアップロードが必要だった。pdf.jsでブラウザ内描画へ移し、サーバーAPIは削除した。
+  - テキストレイヤー、注釈表示、ページの並べ替えが必要になった段階で、pdf.jsの使用範囲を広げるかをあらためて検討する。
 - APIが増えた場合、`typingGame/src/utils/fetchClient.ts` / `apiErrorUtils.ts` を参考に、
   `HttpError` の導入を検討する。
   - 現状のGhost-PDF5はPDF API中心のため、`api/fetch-client.js` / `api/pdf-api-client.js` / `api/api-error-utils.js` の分離で十分。

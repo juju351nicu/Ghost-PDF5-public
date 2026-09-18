@@ -24,7 +24,7 @@ export default {
   emits: [
     "file-change",
     "files-dropped",
-    "request-thumbnails-pdf",
+    "render-thumbnails-pdf",
     "toggle-thumbnail-page",
     "clear-thumbnail-selection",
     "request-open-original-pdf",
@@ -155,7 +155,7 @@ export default {
           <pdf-thumbnail-list
             :thumbnail-state="thumbnailState"
             :is-processing="isProcessing"
-            @request-thumbnails="requestThumbnailsPdf"
+            @render-thumbnails="renderThumbnailsPdf"
             @toggle-page="toggleThumbnailPage"
             @clear-selection="clearThumbnailSelection">
           </pdf-thumbnail-list>
@@ -333,10 +333,10 @@ export default {
       this.$emit("request-epub-pdf");
     },
     /**
-     * サムネイル取得リクエストを親コンポーネントへ通知する。
+     * サムネイルの描画し直しを親コンポーネントへ通知する。
      */
-    requestThumbnailsPdf() {
-      this.$emit("request-thumbnails-pdf");
+    renderThumbnailsPdf() {
+      this.$emit("render-thumbnails-pdf");
     },
     /**
      * サムネイルのページ選択・解除を親コンポーネントへ通知する。

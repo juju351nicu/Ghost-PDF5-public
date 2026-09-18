@@ -153,7 +153,8 @@ Controllerを `MarkdownController` へ相乗りさせないのは、レスポン
 - `FrontendMarkdownPdfContractTest`: ボタン → app → API client → fetch-client → downloadBlob の接続。
 - `CodingConventionTest`: markdowncontentの層依存、openhtmltopdfの利用箇所限定。
 
-実際の見た目（表の罫線、コードブロックの背景、ページ番号）は、生成PDFを `POST /thumbnailsPdf` で画像化して目視確認した。
+実際の見た目（表の罫線、コードブロックの背景、ページ番号）は、生成PDFを当時の `POST /thumbnailsPdf` で画像化して
+目視確認した。このAPIはpdf.jsによるブラウザ内描画へ移行して削除済みのため、同じ確認は `POST /imagesPdf` で行う。
 
 ## 12. やっていないこと
 
