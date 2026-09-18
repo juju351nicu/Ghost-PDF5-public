@@ -12,7 +12,7 @@
 	--pico-primary-hover: var(--ghost-color-primary-hover);
 	--pico-primary-focus: rgba(21, 85, 140, .25);
 	/* 外枠。ヘッダー・フッターと地続きの濃い青にして、生成りの作業面を額のように囲む。 */
-	--ghost-color-page-bg: #114a7d;
+	--ghost-color-page-bg: #1a5b93;
 	/* 作業面。タブとカードを載せる生成り。 */
 	--ghost-color-canvas: #faf6e3;
 	/* カード。作業面よりわずかに明るい暖色寄りの白。 */
@@ -963,7 +963,7 @@ input[type="checkbox"] {
 
 .footer__copyright {
 	margin: 0;
-	color: rgba(250, 246, 227, .72);
+	color: rgba(250, 246, 227, .8);
 	font-weight: 400;
 	font-size: .8em;
 }
