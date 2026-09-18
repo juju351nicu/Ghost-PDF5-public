@@ -22,6 +22,9 @@ import lombok.NoArgsConstructor;
 /**
  * HTMLを解析し、Markdownへ写す対象（タイトル・説明・本文の根）を取り出すクラス。
  * <p>
+ * 取り出した本文が空かどうかは判定しない。空を許さないかは「何を出力するか」で決まり、それを知っているのは
+ * Service層のため（構造レポートだけを出すモードでは、本文が空でも結果を返す）。
+ * <p>
  * 本文らしさをスコアリングするヒューリスティックは使わない。除去するタグを固定の一覧に限ることで、
  * 「なぜこの出力になったのか」を毎回同じ根拠で説明できるようにする。読み落としが起きる場合は、
  * 利用者がセレクタ（{@code article} など）を指定して絞り込む。
@@ -39,17 +42,16 @@ public class WebPageExtractor {
 	 * <p>
 	 * ナビゲーション・広告枠・フォームはページの本文ではなく、Markdownメモへ入っても読み返す価値が無い。
 	 * {@code script} / {@code style} / {@code noscript} を残すと、コードや宣言文がそのまま本文として出る。
+	 * {@code button} は「ページをコピー」のような操作のラベルで、本文に混ざると独立した段落として残る。
 	 */
 	private static final List<String> NOISE_TAG_NAMES = List.of("script", "style", "nav", "header", "footer", "aside",
-			"form", "noscript", "iframe", "svg");
+			"form", "button", "noscript", "iframe", "svg");
 
 	private static final String DESCRIPTION_META_SELECTOR = "meta[name=description]";
 	private static final String CONTENT_ATTRIBUTE = "content";
 	private static final String HEADING_SELECTOR = "h1";
-	private static final String IMAGE_SELECTOR = "img";
 	private static final String SELECTOR_SYNTAX_ERROR_MESSAGE = "セレクタの書式が正しくありません。article や main のようなCSSセレクタを指定してください。";
 	private static final String SELECTOR_NOT_FOUND_MESSAGE = "指定されたセレクタに一致する要素がHTMLにありません。セレクタを見直すか、空欄にしてページ全体を対象にしてください。";
-	private static final String EMPTY_CONTENT_MESSAGE = "HTMLから本文を取り出せませんでした。JavaScriptで描画するページの場合は、ブラウザで表示してから「名前を付けて保存」したHTMLを指定してください。";
 	private static final String READ_FAILURE_MESSAGE = "HTMLの解析に失敗しました。";
 
 	/**
@@ -63,29 +65,52 @@ public class WebPageExtractor {
 	 * @param baseUri    相対URLを絶対化する基準URL。アップロードで基準が無い場合は空文字
 	 * @param selector   本文を絞り込むCSSセレクタ。空なら {@code <body>} 全体
 	 * @return Markdownへ写す対象
-	 * @throws WebInputException      セレクタの書式が不正、一致する要素が無い、または本文が空の場合
+	 * @throws WebInputException      セレクタの書式が不正、または一致する要素が無い場合
 	 * @throws WebProcessingException HTMLを読み取れなかった場合
 	 */
 	public WebPageContent extract(InputStream htmlStream, String baseUri, String selector) {
-		Document document = parseDocument(htmlStream, baseUri);
+		return extract(htmlStream, baseUri, selector, null);
+	}
+
+	/**
+	 * 文字コードを指定してHTMLを解析し、Markdownへ写す対象を取り出す。
+	 * <p>
+	 * URL取得では応答の {@code Content-Type} が文字コードを示すことがある。HTTPヘッダーの指定は
+	 * HTML内の {@code <meta charset>} より優先されるため、指定があればそれを渡す。
+	 *
+	 * @param htmlStream  HTMLの入力ストリーム
+	 * @param baseUri     相対URLを絶対化する基準URL。アップロードで基準が無い場合は空文字
+	 * @param selector    本文を絞り込むCSSセレクタ。空なら {@code <body>} 全体
+	 * @param charsetName 文字コード名。nullならBOMと {@code <meta charset>} から判定する
+	 * @return Markdownへ写す対象
+	 * @throws WebInputException      セレクタの書式が不正、または一致する要素が無い場合
+	 * @throws WebProcessingException HTMLを読み取れなかった場合
+	 */
+	public WebPageContent extract(InputStream htmlStream, String baseUri, String selector, String charsetName) {
+		Document document = parseDocument(htmlStream, baseUri, charsetName);
+		// 除去は複製に対して行い、元のDOMは残す。構造レポートはナビゲーションやフッターも対象にするため、
+		// 「本文用に削ったDOM」と「削る前のDOM」の両方が要る。複製の大きさは入力サイズの上限
+		// （アップロード20MB / URL取得2MB）で頭打ちになる。
+		Document articleDocument = document.clone();
 		// 除去はセレクタでの絞り込みより先に行う。絞り込み先の内側にもナビゲーションや広告枠は入り得る。
-		NOISE_TAG_NAMES.forEach(tagName -> document.select(tagName).remove());
-		Element root = resolveRoot(document, selector);
-		validateNotEmpty(root);
-		return new WebPageContent(resolveTitle(document, root), resolveDescription(document), root);
+		NOISE_TAG_NAMES.forEach(tagName -> articleDocument.select(tagName).remove());
+		Element root = resolveRoot(articleDocument, selector);
+		return new WebPageContent(resolveTitle(articleDocument, root), resolveDescription(articleDocument), root,
+				document);
 	}
 
 	/**
 	 * HTMLを解析してDOMを組み立てる。
 	 *
-	 * @param htmlStream HTMLの入力ストリーム
-	 * @param baseUri    相対URLを絶対化する基準URL
+	 * @param htmlStream  HTMLの入力ストリーム
+	 * @param baseUri     相対URLを絶対化する基準URL
+	 * @param charsetName 文字コード名。nullならjsoupの判定に任せる
 	 * @return 解析済みのDOM
 	 * @throws WebProcessingException HTMLを読み取れなかった場合
 	 */
-	private Document parseDocument(InputStream htmlStream, String baseUri) {
+	private Document parseDocument(InputStream htmlStream, String baseUri, String charsetName) {
 		try {
-			return Jsoup.parse(htmlStream, null, StringUtils.defaultString(baseUri));
+			return Jsoup.parse(htmlStream, StringUtils.trimToNull(charsetName), StringUtils.defaultString(baseUri));
 		} catch (IOException e) {
 			throw new WebProcessingException(READ_FAILURE_MESSAGE, e);
 		}
@@ -127,20 +152,6 @@ public class WebPageExtractor {
 		} catch (SelectorParseException e) {
 			// jsoupの書式エラーメッセージはそのまま画面へ出さない。内部表現が利用者の指定文字列と対応しない。
 			throw new WebInputException(SELECTOR_SYNTAX_ERROR_MESSAGE, e);
-		}
-	}
-
-	/**
-	 * 本文が空でないことを確認する。
-	 * <p>
-	 * 画像しかないページもあるため、文字が無くても画像があれば取り込み対象として扱う。
-	 *
-	 * @param root 本文の根の要素
-	 * @throws WebInputException 文字も画像も無い場合
-	 */
-	private void validateNotEmpty(Element root) {
-		if (StringUtils.isBlank(root.text()) && CollectionUtils.isEmpty(root.select(IMAGE_SELECTOR))) {
-			throw new WebInputException(EMPTY_CONTENT_MESSAGE);
 		}
 	}
 

@@ -96,13 +96,25 @@ class WebPageExtractorTest {
 	}
 
 	@Test
-	@DisplayName("除去後に本文が残らないHTMLはWebInputExceptionになる")
-	void extractThrowsWhenContentIsEmpty() throws IOException {
-		byte[] html = readFixture(EMPTY_BODY);
+	@DisplayName("除去後に本文が残らないHTMLでも例外にせず、空の本文として返す")
+	void extractReturnsEmptyContentWhenNothingRemains() throws IOException {
+		WebPageContent content = extractFixture(EMPTY_BODY, StringUtils.EMPTY);
 
-		WebInputException exception = assertThrows(WebInputException.class, () -> extract(html, StringUtils.EMPTY));
+		// 空を許さないかは「何を出力するか」で決まるため、判定はService層が行う。
+		assertTrue(StringUtils.isBlank(content.root().text()));
+		assertEquals("本文が無いページ", content.title());
+	}
 
-		assertTrue(Strings.CS.contains(exception.getDisplayMessage(), "本文"));
+	@Test
+	@DisplayName("ボタンのラベルは本文に残らない")
+	void extractRemovesButtonLabels() {
+		byte[] html = "<article><p>本文</p><button>ページをコピー</button></article>".getBytes(StandardCharsets.UTF_8);
+
+		WebPageContent content = extract(html, StringUtils.EMPTY);
+
+		// 操作のためのラベルであって読み返す対象ではない。本文へ混ざると段落として残ってしまう。
+		assertFalse(Strings.CS.contains(content.root().text(), "ページをコピー"));
+		assertTrue(Strings.CS.contains(content.root().text(), "本文"));
 	}
 
 	@Test

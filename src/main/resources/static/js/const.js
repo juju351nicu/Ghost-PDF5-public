@@ -16,6 +16,7 @@ const REST_PATH = {
   MARKDOWN_PDF: "/markdownPdf",
   MARKDOWN_DRAFT_IMAGE: "/markdownDraftImage",
   MARKDOWN_DRAFT_HTML: "/markdownDraftHtml",
+  MARKDOWN_DRAFT_URL: "/markdownDraftUrl",
   EXTRACT_PDF: "/extractPdf",
   MERGE_PDF: "/mergePdf",
   SPLIT_PDF: "/splitPdf",

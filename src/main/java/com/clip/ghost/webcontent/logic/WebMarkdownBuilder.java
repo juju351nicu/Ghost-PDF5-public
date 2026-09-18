@@ -16,13 +16,14 @@ import org.springframework.stereotype.Component;
 
 import com.clip.ghost.common.utils.MarkdownBlockJoiner;
 import com.clip.ghost.common.utils.MarkdownTableBuilder;
+import com.clip.ghost.webcontent.enums.WebMarkdownDraftMode;
 
-import lombok.NoArgsConstructor;
+import lombok.RequiredArgsConstructor;
 
 /**
  * HTMLから取り出した本文をMarkdownへ組み立てるクラス。
  * <p>
- * 変換するのは見出し・段落・リスト・表・コードブロック・引用・水平線・リンク・画像だけにする。
+ * 変換するのは見出し・段落・リスト・定義リスト・表・コードブロック・引用・水平線・リンク・画像だけにする。
  * HTMLの表現力をすべてMarkdownへ写すことはできないため、対応表を固定し、それ以外は文字として残す。
  * 対応外のタグを見つけるたびに規則を足すと、同じページを取り込み直したときに結果が変わる。
  * <p>
@@ -33,7 +34,7 @@ import lombok.NoArgsConstructor;
  * 「元ページのどこに何の画像があったか」は残せる。
  */
 @Component
-@NoArgsConstructor
+@RequiredArgsConstructor
 public class WebMarkdownBuilder {
 	private static final DateTimeFormatter RETRIEVED_AT_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 	private static final String SOURCE_LINE_FORMAT = "- 取得元: %s";
@@ -45,9 +46,12 @@ public class WebMarkdownBuilder {
 	private static final String LINE_SEPARATOR = "\n";
 	private static final String LIST_INDENT = "  ";
 	private static final String UNORDERED_MARKER = "- ";
+	private static final String DEFINITION_SEPARATOR = ": ";
 	private static final String ORDERED_MARKER_FORMAT = "%d. ";
 	private static final String QUOTE_PREFIX = "> ";
 	private static final String HORIZONTAL_RULE = "---";
+	private static final String ELLIPSIS = "…";
+	private static final int MAX_DESCRIPTION_LENGTH = 200;
 	private static final String CODE_FENCE = "```";
 	private static final String INLINE_CODE_MARKER = "`";
 	private static final String BOLD_MARKER = "**";
@@ -60,6 +64,8 @@ public class WebMarkdownBuilder {
 	private static final String ALT_ATTRIBUTE = "alt";
 	private static final String TABLE_TAG = "table";
 	private static final String CODE_TAG = "code";
+	private static final String CAPTION_TAG = "caption";
+	private static final String LINK_SELECTOR = "a[href]";
 	private static final int MAX_HEADING_LEVEL = 6;
 
 	/** 入れ子の可能性があるブロック要素。これらを含む要素は、段落ではなく入れ物として扱う。 */
@@ -68,22 +74,37 @@ public class WebMarkdownBuilder {
 	/** インライン整形で読み飛ばすタグ。ブロックとして別に組み立てるため、文章の途中へ混ぜない。 */
 	private static final List<String> INLINE_SKIP_TAG_NAMES = List.of("ul", "ol", "table");
 
+	/** リスト項目の中で、項目の続きのブロックとして出すタグ。インライン整形では拾えない。 */
+	private static final List<String> ITEM_BLOCK_TAG_NAMES = List.of("table", "pre", "blockquote", "dl");
+
+	private final WebStructureReportBuilder webStructureReportBuilder;
+
 	/**
 	 * 本文をMarkdownへ組み立てる。
 	 * <p>
 	 * 冒頭には必ず出典ヘッダー（見出し・取得元・取得日時・説明）を付ける。Markdownメモへ貼った後に
 	 * 「これはどこから取ったものか」を思い出せないと、引用の可否も更新の要否も判断できなくなる。
+	 * <p>
+	 * 構造レポートは本文より前に置く。レポートは十数行、本文は数千行になり得るため、後ろに置くと
+	 * 読むために本文全体をスクロールすることになる。
 	 *
 	 * @param content     HTMLから取り出した本文
-	 * @param source      取得元の表示。アップロードならファイル名、Stage 2 ならURL
+	 * @param source      取得元の表示。アップロードならファイル名、URL取得ならURL
 	 * @param retrievedAt 取得日時
+	 * @param mode        出力モード。本文・構造レポート・その両方
 	 * @return Markdown本文
 	 */
-	public String build(WebPageContent content, String source, LocalDateTime retrievedAt) {
+	public String build(WebPageContent content, String source, LocalDateTime retrievedAt,
+			WebMarkdownDraftMode mode) {
 		Objects.requireNonNull(content, "content must not be null.");
 		List<String> blocks = new ArrayList<>();
 		blocks.add(buildSourceHeader(content, source, retrievedAt));
-		appendChildren(blocks, content.root());
+		if (mode.outputsStructure()) {
+			addIfNotBlank(blocks, webStructureReportBuilder.build(content));
+		}
+		if (mode.outputsArticle()) {
+			appendChildren(blocks, content.root());
+		}
 		return MarkdownBlockJoiner.join(blocks);
 	}
 
@@ -104,7 +125,10 @@ public class WebMarkdownBuilder {
 		lines.add(SOURCE_LINE_FORMAT.formatted(sourceLabel));
 		lines.add(RETRIEVED_AT_LINE_FORMAT.formatted(RETRIEVED_AT_FORMAT.format(retrievedAt)));
 		if (StringUtils.isNotBlank(content.description())) {
-			lines.add(DESCRIPTION_LINE_FORMAT.formatted(content.description()));
+			// ページの索引やナビの文字列をそのままdescriptionへ入れているサイトがあり、放っておくと
+			// 出典ヘッダーだけで数百文字になる。出典は一目で読めることに意味があるので切り詰める。
+			lines.add(DESCRIPTION_LINE_FORMAT
+					.formatted(StringUtils.abbreviate(content.description(), ELLIPSIS, MAX_DESCRIPTION_LENGTH)));
 		}
 		return String.join(LINE_SEPARATOR, lines);
 	}
@@ -132,13 +156,14 @@ public class WebMarkdownBuilder {
 		String tagName = element.normalName();
 		int headingLevel = resolveHeadingLevel(tagName);
 		if (headingLevel > 0) {
-			addIfNotBlank(blocks, HEADING_MARKER.repeat(headingLevel) + SPACE + renderInline(element));
+			addIfNotBlank(blocks, HEADING_MARKER.repeat(headingLevel) + SPACE + renderHeadingText(element));
 			return;
 		}
 		switch (tagName) {
 		case "p" -> addIfNotBlank(blocks, renderInline(element));
 		case "ul", "ol" -> addIfNotBlank(blocks, buildList(element, 0));
-		case "table" -> addIfNotBlank(blocks, MarkdownTableBuilder.build(readTableRows(element)));
+		case "dl" -> addIfNotBlank(blocks, buildDefinitionList(element));
+		case "table" -> appendTable(blocks, element);
 		case "pre" -> addIfNotBlank(blocks, buildCodeBlock(element));
 		case "blockquote" -> addIfNotBlank(blocks, buildBlockQuote(element));
 		case "hr" -> blocks.add(HORIZONTAL_RULE);
@@ -150,17 +175,70 @@ public class WebMarkdownBuilder {
 	}
 
 	/**
+	 * 表をMarkdownへ追加する。
+	 * <p>
+	 * {@code caption} は表の直前に太字の1行として出す。Markdownの表にキャプションの記法が無く、
+	 * 捨てると「何の表か」が分からなくなる。入れ子の表のキャプションを外側へ付けないよう、
+	 * 直近の {@code table} がこの表であるものだけを対象にする。
+	 *
+	 * @param blocks  追加先のブロックリスト
+	 * @param element 表要素
+	 */
+	private void appendTable(List<String> blocks, Element element) {
+		Element caption = element.selectFirst(CAPTION_TAG);
+		if (Objects.nonNull(caption) && Objects.equals(caption.closest(TABLE_TAG), element)) {
+			addIfNotBlank(blocks, wrapIfNotBlank(renderInline(caption), BOLD_MARKER));
+		}
+		addIfNotBlank(blocks, MarkdownTableBuilder.build(readTableRows(element)));
+	}
+
+	/**
 	 * 対応表に無いタグを、入れ物または段落として追加する。
 	 *
 	 * @param blocks  追加先のブロックリスト
 	 * @param element 変換対象の要素
 	 */
 	private void appendContainerOrParagraph(List<String> blocks, Element element) {
-		if (containsBlockElement(element)) {
-			appendChildren(blocks, element);
+		if (!containsBlockElement(element)) {
+			addIfNotBlank(blocks, renderInline(element));
 			return;
 		}
-		addIfNotBlank(blocks, renderInline(element));
+		// 子をそのまま掘るだけだと、入れ物の直下に地の文がある場合（<div>説明<p>…</p></div>）にその文が落ちる。
+		// ブロックに当たるまでのインライン要素とテキストを1つの段落としてまとめ、出現順を保ったまま出す。
+		StringBuilder inlineBuffer = new StringBuilder();
+		for (Node node : element.childNodes()) {
+			if (node instanceof Element child && isBlockElement(child)) {
+				flushInlineBuffer(blocks, inlineBuffer);
+				appendBlock(blocks, child);
+				continue;
+			}
+			appendInlineNode(inlineBuffer, node);
+		}
+		flushInlineBuffer(blocks, inlineBuffer);
+	}
+
+	/**
+	 * 溜めたインラインの塊を段落として書き出し、バッファを空にする。
+	 *
+	 * @param blocks       追加先のブロックリスト
+	 * @param inlineBuffer インラインの塊
+	 */
+	private void flushInlineBuffer(List<String> blocks, StringBuilder inlineBuffer) {
+		addIfNotBlank(blocks, StringUtils.strip(inlineBuffer.toString()));
+		inlineBuffer.setLength(0);
+	}
+
+	/**
+	 * ブロックとして扱う要素かを判定する。
+	 * <p>
+	 * 自身がブロック要素か、ブロック要素を含む場合にtrueを返す。中にブロックを抱えたインライン要素を
+	 * 段落へ混ぜると、その中の見出しや表が段落の文字列として潰れてしまう。
+	 *
+	 * @param element 判定対象の要素
+	 * @return ブロックとして扱う場合true
+	 */
+	private boolean isBlockElement(Element element) {
+		return CollectionUtils.isNotEmpty(element.select(BLOCK_ELEMENT_SELECTOR));
 	}
 
 	/**
@@ -226,8 +304,60 @@ public class WebMarkdownBuilder {
 			itemNumber++;
 			lines.add(StringUtils.stripEnd(LIST_INDENT.repeat(depth) + marker + renderInline(item), null));
 			appendNestedLists(lines, item, depth);
+			appendItemBlocks(lines, item, depth);
 		}
 		return String.join(LINE_SEPARATOR, lines);
+	}
+
+	/**
+	 * 定義リストをMarkdownへ組み立てる。
+	 * <p>
+	 * Markdownに定義リストの記法は無いため、「用語: 説明」の箇条書きへ写す。用語を太字にするのは、
+	 * 説明と地続きに並べると、どこまでが用語なのかが読み取れなくなるため。
+	 * <p>
+	 * 用語と説明を別々の段落として出す手もあるが、それだと対応関係が消える。APIリファレンスの
+	 * 属性一覧のように、定義リストは「どの語の説明か」が価値の中心にある。
+	 *
+	 * @param element 定義リスト要素（{@code dl}）
+	 * @return 定義リストのMarkdown
+	 */
+	private String buildDefinitionList(Element element) {
+		List<String> lines = new ArrayList<>();
+		for (Element child : element.children()) {
+			String text = renderInline(child);
+			if (StringUtils.isBlank(text)) {
+				continue;
+			}
+			if (Strings.CS.equals(child.normalName(), "dt")) {
+				lines.add(UNORDERED_MARKER + wrapIfNotBlank(text, BOLD_MARKER));
+				continue;
+			}
+			appendDefinitionDescription(lines, text);
+		}
+		return String.join(LINE_SEPARATOR, lines);
+	}
+
+	/**
+	 * 定義の説明を、直前の用語へつなげる形で追加する。
+	 * <p>
+	 * 1つの用語に説明が複数付く場合があるため、2つ目以降は続きの行として並べる。
+	 * 用語より先に説明が現れる壊れた並びのHTMLでも、説明を捨てずに箇条書きとして残す。
+	 *
+	 * @param lines 追加先の行リスト
+	 * @param text  説明のテキスト
+	 */
+	private void appendDefinitionDescription(List<String> lines, String text) {
+		if (CollectionUtils.isEmpty(lines)) {
+			lines.add(UNORDERED_MARKER + text);
+			return;
+		}
+		int lastIndex = lines.size() - 1;
+		String lastLine = lines.get(lastIndex);
+		if (Strings.CS.endsWith(lastLine, BOLD_MARKER)) {
+			lines.set(lastIndex, lastLine + DEFINITION_SEPARATOR + text);
+			return;
+		}
+		lines.set(lastIndex, lastLine + LINE_SEPARATOR + LIST_INDENT + text);
 	}
 
 	/**
@@ -242,6 +372,29 @@ public class WebMarkdownBuilder {
 			if (Strings.CS.equalsAny(child.normalName(), "ul", "ol")) {
 				addIfNotBlank(lines, buildList(child, depth + 1));
 			}
+		}
+	}
+
+	/**
+	 * リスト項目の中にあるブロック（表・コードブロック・引用・定義リスト）を項目の続きとして追加する。
+	 * <p>
+	 * これらはインライン整形で読み飛ばすため、追わないと項目の中身が丸ごと落ちる。項目の続きだと分かるよう、
+	 * 1段深いインデントを付けて並べる。
+	 *
+	 * @param lines 追加先の行リスト
+	 * @param item  リスト項目（{@code li}）
+	 * @param depth 現在の入れ子の深さ
+	 */
+	private void appendItemBlocks(List<String> lines, Element item, int depth) {
+		String indent = LIST_INDENT.repeat(depth + 1);
+		for (Element child : item.children()) {
+			if (!ITEM_BLOCK_TAG_NAMES.contains(child.normalName())) {
+				continue;
+			}
+			List<String> childBlocks = new ArrayList<>();
+			appendBlock(childBlocks, child);
+			MarkdownBlockJoiner.join(childBlocks).lines()
+					.forEach(line -> lines.add(StringUtils.stripEnd(indent + line, null)));
 		}
 	}
 
@@ -282,7 +435,26 @@ public class WebMarkdownBuilder {
 		if (StringUtils.isBlank(code)) {
 			return StringUtils.EMPTY;
 		}
-		return CODE_FENCE + resolveCodeLanguage(element) + LINE_SEPARATOR + code + LINE_SEPARATOR + CODE_FENCE;
+		// Markdownの説明ページのように、コードの中にコードフェンスが入っていることがある。囲みと同じ長さだと
+		// そこでブロックが終わったと解釈され、以降の本文がコード扱いになる。中で使われているより長い囲みにする。
+		String fence = INLINE_CODE_MARKER.repeat(Math.max(CODE_FENCE.length(), longestBacktickRun(code) + 1));
+		return fence + resolveCodeLanguage(element) + LINE_SEPARATOR + code + LINE_SEPARATOR + fence;
+	}
+
+	/**
+	 * 文字列に含まれるバッククォートの最長連続数を数える。
+	 *
+	 * @param text 対象文字列
+	 * @return バッククォートの最長連続数
+	 */
+	private int longestBacktickRun(String text) {
+		int longest = 0;
+		int current = 0;
+		for (char character : text.toCharArray()) {
+			current = character == '`' ? current + 1 : 0;
+			longest = Math.max(longest, current);
+		}
+		return longest;
 	}
 
 	/**
@@ -325,6 +497,23 @@ public class WebMarkdownBuilder {
 		}
 		return inner.lines().map(line -> StringUtils.stripEnd(QUOTE_PREFIX + line, null))
 				.reduce((left, right) -> left + LINE_SEPARATOR + right).orElse(StringUtils.EMPTY);
+	}
+
+	/**
+	 * 見出しの中身をインラインのMarkdownへ整形する。
+	 * <p>
+	 * 見出しの中ではリンク記法を作らず、テキストだけを残す。多くのサイトが見出しに「この見出しへの
+	 * リンク」を埋め込んでおり、そのまま写すと目次として読みたい見出しがすべてリンク記法になる。
+	 * 行き先は同じページの同じ見出しなので、落としても情報は減らない。
+	 *
+	 * @param element 見出し要素
+	 * @return インライン整形後の見出し文字列
+	 */
+	private String renderHeadingText(Element element) {
+		// 元のDOMを壊さないよう複製してからリンクの囲みだけを外す。呼び出し元は同じDOMを使い続ける。
+		Element heading = element.clone();
+		heading.select(LINK_SELECTOR).unwrap();
+		return renderInline(heading);
 	}
 
 	/**
@@ -375,11 +564,58 @@ public class WebMarkdownBuilder {
 		case "a" -> renderLink(element);
 		case "img" -> renderImage(element);
 		case "br" -> LINE_SEPARATOR;
-		case "code" -> wrapIfNotBlank(renderInline(element), INLINE_CODE_MARKER);
+		case "code" -> renderInlineCode(element);
 		case "strong", "b" -> wrapIfNotBlank(renderInline(element), BOLD_MARKER);
 		case "em", "i" -> wrapIfNotBlank(renderInline(element), ITALIC_MARKER);
 		default -> renderInline(element);
 		};
+	}
+
+	/**
+	 * インラインコードをMarkdownへ整形する。
+	 * <p>
+	 * コード記法の中では他の記法が働かない。中身を通常のインライン整形に掛けると、
+	 * APIリファレンスのように {@code <code><a>…</a></code>} と書かれたページで
+	 * リンク記法がコード記法の内側へ入り、どちらとしても描画されない文字列になる。
+	 * そのため中身は素のテキストだけを使う。
+	 * <p>
+	 * ただし、コード全体が1つのリンクになっている場合は、コードを包む形
+	 * （{@code [`text`](url)}）へ入れ替える。この形ならリンクとコードが両立し、
+	 * 参照先を失わずに済む。部分的にリンクを含む場合は入れ替えられないため、コードとしてだけ残す。
+	 *
+	 * @param element {@code code} 要素
+	 * @return インラインコードのMarkdown
+	 */
+	private String renderInlineCode(Element element) {
+		String code = wrapInlineCode(StringUtils.normalizeSpace(element.text()));
+		if (StringUtils.isBlank(code)) {
+			return StringUtils.EMPTY;
+		}
+		Element link = element.selectFirst(LINK_SELECTOR);
+		if (Objects.isNull(link) || !Strings.CS.equals(link.text(), element.text())) {
+			return code;
+		}
+		String url = resolveUrl(link, HREF_ATTRIBUTE);
+		return StringUtils.isBlank(url) ? code : LINK_FORMAT.formatted(code, url);
+	}
+
+	/**
+	 * インラインコードの囲みを付ける。
+	 * <p>
+	 * 中身にバッククォートがある場合は、それより1つ多い囲みにして前後へ空白を入れる（Markdownの規則）。
+	 * 同じ長さの囲みだと、コードの途中でコードが終わったと解釈される。
+	 *
+	 * @param text コードの中身
+	 * @return 囲みを付けたインラインコード。中身が空なら空文字
+	 */
+	private String wrapInlineCode(String text) {
+		if (StringUtils.isBlank(text)) {
+			return StringUtils.EMPTY;
+		}
+		int longestRun = longestBacktickRun(text);
+		String marker = INLINE_CODE_MARKER.repeat(longestRun + 1);
+		String padding = longestRun > 0 ? SPACE : StringUtils.EMPTY;
+		return marker + padding + text + padding + marker;
 	}
 
 	/**

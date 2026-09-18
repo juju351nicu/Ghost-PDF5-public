@@ -116,6 +116,7 @@ const pdfApp = {
       pendingPasswordRetry: null,
       imageDraft: PdfFormState.createImageDraftState(),
       webMarkdown: PdfFormState.createWebMarkdownState(),
+      webMarkdownModeItems: PdfFormState.createWebMarkdownModeItems(),
       imagesPdf: buildImagesPdfState(),
       htmlPdf: PdfFormState.createHtmlPdfState(),
       officeDocument: PdfFormState.createOfficeState(),
@@ -1203,6 +1204,22 @@ const pdfApp = {
       this.webMarkdown.selector = selector;
     },
     /**
+     * Web取り込みカードの取得先URLを保持する。
+     *
+     * @param {string} url 入力されたURL
+     */
+    updateWebUrl(url) {
+      this.webMarkdown.url = url;
+    },
+    /**
+     * Web取り込みカードの出力モードを保持する。
+     *
+     * @param {string} mode 選択された出力モード
+     */
+    updateWebMode(mode) {
+      this.webMarkdown.mode = mode;
+    },
+    /**
      * Web取り込みカードの選択状態を初期化する。
      */
     clearWebMarkdown() {
@@ -1211,10 +1228,6 @@ const pdfApp = {
     /**
      * 選択したHTMLからMarkdown下書きを起こし、Markdown編集欄へ反映する。
      *
-     * PDF・画像・Office文書からの下書きと同じく、結果は編集欄へ入れて人間が直せる形で残す。
-     * 自動保存はしない。取り込んだ内容をそのまま保存すると、中身を確認する前に
-     * 他者のページの複製が手元へ残ることになる。
-     *
      * @returns {Promise<void>} 取り込み処理の完了Promise
      */
     requestWebMarkdownDraft() {
@@ -1222,6 +1235,53 @@ const pdfApp = {
         this.markdownMessage = "HTMLファイルが選択されておりません。";
         return Promise.resolve();
       }
+      const sourceName = this.webMarkdown.fileName;
+      return this.requestWebMarkdown(
+        () =>
+          MarkdownApiClient.requestHtmlMarkdownDraft(
+            this.webMarkdown.fileObject,
+            this.webMarkdown.selector,
+            this.webMarkdown.mode
+          ),
+        sourceName
+      );
+    },
+    /**
+     * 入力したURLのWebページからMarkdown下書きを起こし、Markdown編集欄へ反映する。
+     *
+     * サーバー側の取得機能が無効なら503が返り、共通のエラー表示で「機能が無効」と分かる。
+     * 画面側で有効・無効を推測して出し分けない。設定はサーバーが持つもので、画面が持つと二重管理になる。
+     *
+     * @returns {Promise<void>} 取り込み処理の完了Promise
+     */
+    requestWebMarkdownUrlDraft() {
+      if (Util.isEmpty(this.webMarkdown.url)) {
+        this.markdownMessage = "URLが入力されておりません。";
+        return Promise.resolve();
+      }
+      const sourceName = this.webMarkdown.url;
+      return this.requestWebMarkdown(
+        () =>
+          MarkdownApiClient.requestUrlMarkdownDraft(
+            this.webMarkdown.url,
+            this.webMarkdown.selector,
+            this.webMarkdown.mode
+          ),
+        sourceName
+      );
+    },
+    /**
+     * Webページ取り込みAPIを実行し、成功時はMarkdown編集欄へ反映する。
+     *
+     * PDF・画像・Office文書からの下書きと同じく、結果は編集欄へ入れて人間が直せる形で残す。
+     * 自動保存はしない。取り込んだ内容をそのまま保存すると、中身を確認する前に
+     * 他者のページの複製が手元へ残ることになる。
+     *
+     * @param {Function} request 取り込みAPIを実行する関数
+     * @param {string} sourceName 取得元の表示名。ファイル名またはURL
+     * @returns {Promise<void>} 取り込み処理の完了Promise
+     */
+    requestWebMarkdown(request, sourceName) {
       if (this.isProcessing) {
         return Promise.resolve();
       }
@@ -1229,23 +1289,21 @@ const pdfApp = {
       this.errorMessages = [];
       this.clearApiMessages();
       this.markdownMessage = "";
-      const sourceFileName = this.webMarkdown.fileName;
-      return MarkdownApiClient.requestHtmlMarkdownDraft(
-        this.webMarkdown.fileObject,
-        this.webMarkdown.selector
-      )
+      return request()
         .then((result) => {
           if (!Util.isEmpty(result.errorMessages)) {
             this.failProcess(result.errorMessages, result.errorCodes);
             return;
           }
           this.applyApiMessages(result.messages);
-          this.markdownFileName =
-            this.buildMarkdownFileNameFromPdf(sourceFileName);
+          this.markdownFileName = this.buildMarkdownFileNameFromWebSource(
+            result.data.title,
+            sourceName
+          );
           this.markdownContent = result.data.markdown || "";
           this.clearMarkdownPreview();
           this.markdownMessage =
-            sourceFileName + " の取り込み結果をMarkdown欄へ反映しました。";
+            sourceName + " の取り込み結果をMarkdown欄へ反映しました。";
           this.goToMarkdownMemo();
         })
         .catch((error) => {
@@ -1256,6 +1314,39 @@ const pdfApp = {
         .finally(() => {
           this.endProcessIfBusy();
         });
+    },
+    /**
+     * Webページ取り込み結果のMarkdown保存候補名を組み立てる。
+     *
+     * URLから取り込んだ場合、URL文字列はそのままではファイル名にできない。
+     * ページタイトルを優先し、取れない場合だけ取得元の名前から作る。
+     *
+     * @param {string} title 取り込んだページのタイトル
+     * @param {string} sourceName 取得元の表示名。ファイル名またはURL
+     * @returns {string} Markdown保存候補名
+     */
+    buildMarkdownFileNameFromWebSource(title, sourceName) {
+      if (!Util.isEmpty(title)) {
+        return this.buildMarkdownFileNameFromPdf(
+          this.toFileNameSafeText(title) + ".html"
+        );
+      }
+      return this.buildMarkdownFileNameFromPdf(
+        this.toFileNameSafeText(sourceName)
+      );
+    },
+    /**
+     * ファイル名に使えない文字を、サーバの保存時と同じ規則で置き換える。
+     *
+     * ページタイトルやURLには `|` `:` `/` が普通に含まれる。そのまま候補名にすると、
+     * 保存時にサーバ側（PathUtils.sanitizeFileName）が置き換えるため、画面に出したファイル名と
+     * 実際に保存される名前が食い違う。置き換えの規則をサーバと同じにして、見えている名前で保存されるようにする。
+     *
+     * @param {string} source ファイル名の元にする文字列
+     * @returns {string} ファイル名に使える形へ直した文字列
+     */
+    toFileNameSafeText(source) {
+      return source.replace(/[\\/:*?"<>|\u0000-\u001F]+/g, "_");
     },
     /**
      * 選択画像から文字起こしを実行し、結果をMarkdown編集欄へ反映する。
