@@ -335,7 +335,7 @@ export
 | C: Markdown保存 | 完了 |
 | D: Markdown編集 / Markdown to PDF | 完了（編集、Markdown to PDF） |
 | E: AI整形 / 要約 | 実装完了（`POST /markdownAiTransform`）。OpenAIでの実API確認は完了、Anthropicは未確認 |
-| F: Vector DB / RAG | 未着手。着手判断は「今はやらない」（2026-09-17）。`../成果物/31_プロンプト_PhaseF_VectorDB-RAG.md`参照 |
+| F: Vector DB / RAG | 未着手。着手判断は「今はやらない」（2026-09-17）。`../成果物/3_実装プロンプト/31_プロンプト_PhaseF_VectorDB-RAG.md`参照 |
 | G: CSV / Excel / Word対応 | 完了（CSV出力、Office⇄PDF/Markdown、画像⇄PDF、HTML/EPUB⇄PDF、ページ回転） |
 | H: 検索可能PDF（OCRサンドイッチ） | 完了（`POST /searchablePdf`）。実Tesseractでの日本語確認・ブラウザ確認まで完了。PR #17でmainへマージ済み |
 
@@ -512,7 +512,7 @@ export
 初回確認でシステム名を省略する事象が見つかったため、system prompt（固有名詞の種類を具体的に列挙し
 「1回しか登場しない場合でも省略しない」ことを明示）を調整し、再検証でシステム名の保持を確認した。
 Anthropicでの実API確認は未実施。詳細は `docs/markdown-ai-transform-design.md`（第12節）と
-`../成果物/30_実API確認結果_PhaseE_AI整形要約.md` を参照する。
+`../成果物/4_確認記録/30_実API確認結果_PhaseE_AI整形要約.md` を参照する。
 
 - `imagecontent` の provider抽象（`ImageToMarkdownConverter` / `ImageConverterResolver` / `OcrAnthropicProperties` /
   `OcrOpenAiProperties`）と同じ構造を、テキスト入出力専用の `aicontent` package（`controller` / `service` /
@@ -552,9 +552,9 @@ Anthropicでの実API確認は未実施。詳細は `docs/markdown-ai-transform-
 状態: 未着手。Spring AIもVector DBも依存に入れていない。
 
 **着手判断（2026-09-17）: 本実装は今はやらない。** 保存済みMarkdownが0件（`ghost.markdown.storage-directory`実測）で、
-`../成果物/20_構想_プロダクト化の道筋.md`§10が明記する「保存済み文書が100件規模を超えて『探せない』と感じてから」
+`../成果物/1_方針と計画/20_構想_プロダクト化の道筋.md`§10が明記する「保存済み文書が100件規模を超えて『探せない』と感じてから」
 という閾値に達していない。プロダクト化の方向（同§5のA/B/C）も未決定で、Vector DBの持ち方（ローカル1ファイルか
-マルチテナントDBか）に影響する。詳しい根拠・設計論点・実装プロンプトは`../成果物/31_プロンプト_PhaseF_VectorDB-RAG.md`
+マルチテナントDBか）に影響する。詳しい根拠・設計論点・実装プロンプトは`../成果物/3_実装プロンプト/31_プロンプト_PhaseF_VectorDB-RAG.md`
 に記録した。同文書はStage 0（着手条件なしで今すぐ実行できる評価スパイク）とStage 1（本実装。閾値達成後）の
 2段構成にしてある。
 
@@ -637,7 +637,7 @@ EPUBの読み書きはJDK標準のImageIO・ZIPと導入済みのjsoupで足り�
 - 新しい最上位packageは作らず、既存の`pdfcontent`/`imagecontent`に配置。新しいArchUnitルールも不要
   （既存の`pdfcontent.service`から`imagecontent.logic`への横断利用許可がそのまま使えるため）。
 - 実Tesseract（日本語）での実データ確認、ピクセル単位の見た目比較（差分0px）、ブラウザでのUI・操作
-  確認まで完了済み。詳細は`docs/searchable-pdf-design.md`と`../成果物/33_実Tesseract確認結果_検索可能PDF.md`
+  確認まで完了済み。詳細は`docs/searchable-pdf-design.md`と`../成果物/4_確認記録/33_実Tesseract確認結果_検索可能PDF.md`
   を参照する。
 - PR #17（ブランチ`feature/searchable-pdf-ocr-sandwich`）でmainへマージ済み（2026-09-18）。
 

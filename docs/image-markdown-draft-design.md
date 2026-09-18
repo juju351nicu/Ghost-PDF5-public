@@ -1,7 +1,7 @@
 # 画像Markdown下書きAPI設計（vision）
 
 作成日: 2026-09-06
-状態: 実装完了（2026-09-06）。3 provider（anthropic / openai / tesseract）、画像PDFの `mode=AUTO` 補完、最小UI、外側フェンス除去まで実装済み。受け入れ確認（表スクショ → Markdown表 → プレビュー `<table>` → 印刷）も実測済み。実測の詳細は `../成果物/09_OCRエンジン評価結果.md` の実測節を参照。
+状態: 実装完了（2026-09-06）。3 provider（anthropic / openai / tesseract）、画像PDFの `mode=AUTO` 補完、最小UI、外側フェンス除去まで実装済み。受け入れ確認（表スクショ → Markdown表 → プレビュー `<table>` → 印刷）も実測済み。実測の詳細は `../成果物/2_調査と判断/09_OCRエンジン評価結果.md` の実測節を参照。
 
 ## 1. 目的
 
@@ -9,7 +9,7 @@
 利用者が確認・編集してから、既存の Markdown 保存・一覧・プレビュー・印刷の導線へ載せることを想定する。
 
 Excel の表・チャット・ソースコードのスクリーンショットをローカル OCR（Tesseract）で文字起こしする案を先に検証したが、
-日本語スクショに対する精度が実用ラインに達しなかった（`../成果物/09_OCRエンジン評価結果.md` 相当の評価）。
+日本語スクショに対する精度が実用ラインに達しなかった（`../成果物/2_調査と判断/09_OCRエンジン評価結果.md` 相当の評価）。
 同じ画像を vision モデルに直接読ませると、表構造も識別子も保持したまま読める。このため第1実装は vision（anthropic）とし、以降 openai / tesseract を同じ interface で追加した。
 
 ## 2. スコープと実装状況
@@ -161,7 +161,7 @@ com.clip.ghost.pdfcontent
 - `ImageMarkdownDraftControllerTest`（standalone MockMvc、Mockito）: token 一致/不一致(403)、未指定(400)、サイズ上限(413)、無効時(503)、Content-Type。
 - `ImageMarkdownDraftServiceTest`（converter を mock）: 有効性確認、正規化、DTO 組み立て、変換失敗(500)、無効(503)。
 - `OpenApiDocumentationTest` に `/markdownDraftImage` の path / multipart request / 200 schema / 400 / 403 / 413 / 500 / 503 を追加。
-- 実 API を叩く vision の自動テストは、コスト事故防止のため設けない（変換器を mock）。実 API 確認は手動運用（実測結果は `../成果物/09_OCRエンジン評価結果.md`）。
+- 実 API を叩く vision の自動テストは、コスト事故防止のため設けない（変換器を mock）。実 API 確認は手動運用（実測結果は `../成果物/2_調査と判断/09_OCRエンジン評価結果.md`）。
 - Tesseract は実行を伴う統合テストを `@Tag("ocr")` とし、未導入環境では `Assumptions` で skip。`fast-test` の `excludedGroups` に `ocr` を追加。
 - `MarkdownFenceUnwrapper` の除去ロジック（```` ```markdown ```` / ```` ```md ```` / 裸の ```` ``` ```` を剥がす、```` ```java ```` は残す、内側フェンス入りの扱い）を単体テスト。
 - `ProcessBuilder` は `ProcessCommandRunner` だけに限定し、`CodingConventionTest` のソーススキャンで検出。
@@ -175,7 +175,7 @@ com.clip.ghost.pdfcontent
 - 400 / 403 / 413 / 500 / 503 が OpenAPI に現れる。
 - `mvn test` が緑（tesseract 統合テストは未導入環境で skip）。
 
-すべて達成済み。受け入れ確認（表 → Markdown表 → プレビュー `<table>` → 印刷）の実測は `../成果物/09_OCRエンジン評価結果.md` の実測節に記録している。
+すべて達成済み。受け入れ確認（表 → Markdown表 → プレビュー `<table>` → 印刷）の実測は `../成果物/2_調査と判断/09_OCRエンジン評価結果.md` の実測節に記録している。
 
 ## 13. 画像PDF AUTOモードのページ上限とコストガード
 
@@ -318,4 +318,4 @@ VISION は総ページ数がそのまま外部APIの呼び出し回数になる�
 ### 実 API での確認
 
 未実施。文字レイヤーを持つ設計書PDFで `mode=AUTO` と `mode=VISION` を比較し、費用の実測とあわせて
-`../成果物/09_OCRエンジン評価結果.md` の第14節へ記録する。手順は `../成果物/23_手順_mode-VISION実API確認.md`。
+`../成果物/2_調査と判断/09_OCRエンジン評価結果.md` の第14節へ記録する。手順は `../成果物/4_確認記録/23_手順_mode-VISION実API確認.md`。

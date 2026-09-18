@@ -123,7 +123,7 @@ Tesseractが報告した幅に合わせる（`font.getStringWidth(text)`から�
 - ブラウザ（Chrome、Playwright経由）からも実際にファイルをアップロードし、「検索可能PDFにする」
   ボタンから新規タブでPDFが開くところまで一連の操作を確認した。
 
-詳細な実行手順・実測値は`../成果物/33_実Tesseract確認結果_検索可能PDF.md`を参照。
+詳細な実行手順・実測値は`../成果物/4_確認記録/33_実Tesseract確認結果_検索可能PDF.md`を参照。
 
 ## 8. 例外とHTTP status
 
