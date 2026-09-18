@@ -1,5 +1,6 @@
 package com.clip.ghost.aicontent.logic;
 
+import java.time.Duration;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -81,7 +82,7 @@ public class AnthropicMarkdownAiConverter implements MarkdownAiConverter {
 		}
 		LOGGER.info("AnthropicでMarkdown本文を変換します。model={}, task={}", properties.getModel(), taskType);
 		try {
-			AnthropicClient client = AnthropicOkHttpClient.builder().apiKey(apiKey).build();
+			AnthropicClient client = buildClient(apiKey);
 			MessageCreateParams params = buildParams(markdown, taskType);
 			Message response = client.messages().create(params);
 			if (isTruncated(response.stopReason())) {
@@ -99,6 +100,20 @@ public class AnthropicMarkdownAiConverter implements MarkdownAiConverter {
 			// SDKやネットワーク由来の例外を、APIキーやMarkdown本文を露出させずに包む。
 			throw new AiProcessingException("Anthropic Markdown変換に失敗しました。", e);
 		}
+	}
+
+	/**
+	 * 設定のタイムアウトを適用したクライアントを生成する。
+	 * <p>
+	 * タイムアウトを渡さないとSDKの既定値で待ち続ける。応答が返らないまま利用者のリクエストを
+	 * 占有し続けないよう、設定値で打ち切る。
+	 *
+	 * @param apiKey APIキー
+	 * @return Anthropicクライアント
+	 */
+	private AnthropicClient buildClient(String apiKey) {
+		return AnthropicOkHttpClient.builder().apiKey(apiKey)
+				.timeout(Duration.ofSeconds(properties.getTimeoutSeconds())).build();
 	}
 
 	/**

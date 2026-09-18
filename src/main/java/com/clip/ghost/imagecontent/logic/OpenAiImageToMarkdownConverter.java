@@ -1,5 +1,6 @@
 package com.clip.ghost.imagecontent.logic;
 
+import java.time.Duration;
 import java.util.Base64;
 import java.util.List;
 
@@ -32,8 +33,6 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class OpenAiImageToMarkdownConverter implements ImageToMarkdownConverter {
 	private static final Logger LOGGER = LoggerFactory.getLogger(OpenAiImageToMarkdownConverter.class);
-	private static final String SYSTEM_PROMPT = "あなたは画像内のテキストを忠実にMarkdownへ文字起こしします。表はMarkdownの表、コードはコードフェンスで囲みます。読み取れない箇所や推測で補った箇所は明示します。説明や前置きは書かず、文字起こし結果のMarkdownだけを返します。出力全体をコードフェンスで囲まないでください。コードフェンスは、画像内にソースコードが写っている部分にだけ使います。";
-	private static final String USER_PROMPT = "この画像を文字起こししてMarkdownで返してください。";
 
 	private final OpenAiProperties properties;
 
@@ -83,7 +82,7 @@ public class OpenAiImageToMarkdownConverter implements ImageToMarkdownConverter 
 		}
 		LOGGER.info("OpenAIで画像を文字起こしします。model={}", properties.getModel());
 		try {
-			OpenAIClient client = OpenAIOkHttpClient.builder().apiKey(apiKey).build();
+			OpenAIClient client = buildClient(apiKey);
 			ChatCompletion completion = client.chat().completions().create(buildParams(imageBytes, mediaType));
 			String markdown = MarkdownFenceUnwrapper.unwrap(completion.choices().stream().findFirst()
 					.flatMap(choice -> choice.message().content()).orElse(""));
@@ -100,6 +99,20 @@ public class OpenAiImageToMarkdownConverter implements ImageToMarkdownConverter 
 	}
 
 	/**
+	 * 設定のタイムアウトを適用したクライアントを生成する。
+	 * <p>
+	 * タイムアウトを渡さないとSDKの既定値で待ち続ける。画像1枚の文字起こしは数十秒で終わるため、
+	 * 応答が返らないまま利用者のリクエストを占有し続けないよう、設定値で打ち切る。
+	 *
+	 * @param apiKey APIキー
+	 * @return OpenAIクライアント
+	 */
+	private OpenAIClient buildClient(String apiKey) {
+		return OpenAIOkHttpClient.builder().apiKey(apiKey)
+				.timeout(Duration.ofSeconds(properties.getTimeoutSeconds())).build();
+	}
+
+	/**
 	 * 画像を含むchat completionリクエストを組み立てる。
 	 *
 	 * @param imageBytes 画像バイト列
@@ -109,12 +122,13 @@ public class OpenAiImageToMarkdownConverter implements ImageToMarkdownConverter 
 	private ChatCompletionCreateParams buildParams(byte[] imageBytes, String mediaType) {
 		String dataUri = "data:" + normalizeMediaType(mediaType) + ";base64,"
 				+ Base64.getEncoder().encodeToString(imageBytes);
-		ChatCompletionContentPart textPart = ChatCompletionContentPart
-				.ofText(ChatCompletionContentPartText.builder().text(USER_PROMPT).build());
+		ChatCompletionContentPart textPart = ChatCompletionContentPart.ofText(ChatCompletionContentPartText.builder()
+				.text(ImageMarkdownPromptBuilder.buildUserPrompt()).build());
 		ChatCompletionContentPart imagePart = ChatCompletionContentPart.ofImageUrl(ChatCompletionContentPartImage
 				.builder().imageUrl(ChatCompletionContentPartImage.ImageUrl.builder().url(dataUri).build()).build());
 		return ChatCompletionCreateParams.builder().model(properties.getModel())
-				.maxCompletionTokens((long) properties.getMaxOutputTokens()).addSystemMessage(SYSTEM_PROMPT)
+				.maxCompletionTokens((long) properties.getMaxOutputTokens())
+				.addSystemMessage(ImageMarkdownPromptBuilder.buildSystemPrompt())
 				.addUserMessageOfArrayOfContentParts(List.of(textPart, imagePart)).build();
 	}
 
