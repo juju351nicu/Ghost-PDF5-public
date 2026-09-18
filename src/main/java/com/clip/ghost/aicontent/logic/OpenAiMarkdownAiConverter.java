@@ -1,5 +1,7 @@
 package com.clip.ghost.aicontent.logic;
 
+import java.time.Duration;
+
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -76,7 +78,7 @@ public class OpenAiMarkdownAiConverter implements MarkdownAiConverter {
 		}
 		LOGGER.info("OpenAIでMarkdown本文を変換します。model={}, task={}", properties.getModel(), taskType);
 		try {
-			OpenAIClient client = OpenAIOkHttpClient.builder().apiKey(apiKey).build();
+			OpenAIClient client = buildClient(apiKey);
 			ChatCompletion completion = client.chat().completions().create(buildParams(markdown, taskType));
 			ChatCompletion.Choice choice = completion.choices().stream().findFirst()
 					.orElseThrow(() -> new AiProcessingException("OpenAIから空の応答が返りました。"));
@@ -94,6 +96,20 @@ public class OpenAiMarkdownAiConverter implements MarkdownAiConverter {
 			// SDKやネットワーク由来の例外を、APIキーやMarkdown本文を露出させずに包む。
 			throw new AiProcessingException("OpenAI Markdown変換に失敗しました。", e);
 		}
+	}
+
+	/**
+	 * 設定のタイムアウトを適用したクライアントを生成する。
+	 * <p>
+	 * タイムアウトを渡さないとSDKの既定値で待ち続ける。応答が返らないまま利用者のリクエストを
+	 * 占有し続けないよう、設定値で打ち切る。
+	 *
+	 * @param apiKey APIキー
+	 * @return OpenAIクライアント
+	 */
+	private OpenAIClient buildClient(String apiKey) {
+		return OpenAIOkHttpClient.builder().apiKey(apiKey)
+				.timeout(Duration.ofSeconds(properties.getTimeoutSeconds())).build();
 	}
 
 	/**

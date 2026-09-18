@@ -10,12 +10,12 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.ResponseBody;
-import org.springframework.web.multipart.MultipartException;
-import org.springframework.web.multipart.MultipartFile;
 
+import com.clip.ghost.common.constant.UploadConstants;
 import com.clip.ghost.common.exceptions.ErrorResponse;
 import com.clip.ghost.common.security.AccessTokenValidator;
 import com.clip.ghost.common.response.ApiResult;
+import com.clip.ghost.common.utils.UploadFileSizeValidator;
 import com.clip.ghost.imagecontent.dto.ImageMarkdownDraftRequest;
 import com.clip.ghost.imagecontent.dto.ImageMarkdownDraftResponse;
 import com.clip.ghost.imagecontent.service.ImageMarkdownDraftService;
@@ -45,6 +45,12 @@ public class ImageMarkdownDraftController {
 	private static final Logger LOGGER = LoggerFactory.getLogger(ImageMarkdownDraftController.class);
 	private static final String ACCESS_TOKEN_HEADER_NAME = "access-token";
 	private static final String ACCESS_TOKEN_HEADER_DESCRIPTION = "トップ画面表示時に発行された一時トークン。Cookieのtoken値と同じ値を送信します。";
+	/**
+	 * アップロードを許容する画像1ファイルの上限（byte）。
+	 * <p>
+	 * 共通のアップロード上限（{@link UploadConstants#MAX_UPLOAD_FILE_SIZE_BYTES}）とは別の値にする。
+	 * vision APIが受け付けるbase64後のサイズから逆算した上限で、これを超える画像は外部AIが受け取れない。
+	 */
 	private static final long MAX_IMAGE_FILE_SIZE_BYTES = 20_559_957L;
 
 	private final ImageMarkdownDraftService imageMarkdownDraftService;
@@ -73,19 +79,7 @@ public class ImageMarkdownDraftController {
 			@Valid @ModelAttribute ImageMarkdownDraftRequest form, HttpSession session) {
 		LOGGER.info("画像Markdown下書きを生成します。");
 		accessTokenValidator.validate(accessToken, session);
-		validateImageFileSize(form.getImageFile());
+		UploadFileSizeValidator.validate(form.getImageFile(), MAX_IMAGE_FILE_SIZE_BYTES);
 		return imageMarkdownDraftService.generateMarkdownDraft(form);
-	}
-
-	/**
-	 * アップロードされた画像ファイルサイズを既存PDF APIと同じ境界で検証する。
-	 *
-	 * @param imageFile アップロードされた画像
-	 * @throws MultipartException 許容サイズ以上の場合
-	 */
-	private void validateImageFileSize(MultipartFile imageFile) {
-		if (imageFile.getSize() >= MAX_IMAGE_FILE_SIZE_BYTES) {
-			throw new MultipartException("サイズの超過");
-		}
 	}
 }

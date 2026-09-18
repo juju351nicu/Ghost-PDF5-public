@@ -7,14 +7,16 @@ import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.Strings;
 
-import com.clip.ghost.pdfcontent.constant.PdfConstants;
-
 /**
  * パス文字列とファイル名を扱うユーティリティクラス。
  * <p>
  * ファイル実体へのアクセスを伴う処理は {@link FileOperationUtils} または {@link FileInfoUtils} に分ける。
  */
 public final class PathUtils {
+	/** PDFの拡張子。判定に使うだけなので、PDF機能のpackageへは依存しない。 */
+	private static final String FILE_PDF = "pdf";
+
+	/** Markdownの拡張子。 */
 	private static final String FILE_MARKDOWN = "md";
 	/** ファイル名として扱えない文字。パス区切り、ドライブ指定、Windowsで使えない記号、制御文字。 */
 	private static final Pattern UNSAFE_FILE_NAME_CHARS = Pattern.compile("[\\\\/:*?\"<>|\\p{Cntrl}]+");
@@ -94,7 +96,7 @@ public final class PathUtils {
 	 * @return PDF拡張子の場合true
 	 */
 	public static boolean isPdfFileName(String fileName) {
-		return Strings.CI.equals(PdfConstants.FILE_PDF, FilenameUtils.getExtension(fileName));
+		return Strings.CI.equals(FILE_PDF, FilenameUtils.getExtension(fileName));
 	}
 
 	/**

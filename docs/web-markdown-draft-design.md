@@ -122,7 +122,7 @@ POST /markdownDraftUrl    application/json      { "url": "...", "selector": "...
 切る位置が文字の途中（UTF-16のサロゲートペアの間）になる場合は1つ手前で切る。そのまま切ると、
 壊れた文字が末尾に残る。
 
-アップロードサイズの上限はPDFと同じ `PdfConstants.MAX_PDF_FILE_SIZE_BYTES`（20MB）で、超過は413。
+アップロードサイズの上限はPDFと同じ `UploadConstants.MAX_UPLOAD_FILE_SIZE_BYTES`（20MB）で、超過は413。
 種類ごとに上限を変えると、どの上限が適用されたのかを利用者が判断できなくなるため。
 
 ## 7. 例外とHTTP status

@@ -32,11 +32,11 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import com.clip.ghost.common.config.CodeEnumWebMvcConfig;
+import com.clip.ghost.common.constant.UploadConstants;
 import com.clip.ghost.common.exceptions.handler.ControllerValidationErrorHandler;
 import com.clip.ghost.common.exceptions.handler.GlobalExceptionErrorHandler;
 import com.clip.ghost.common.response.ApiResult;
 import com.clip.ghost.common.security.AccessTokenValidator;
-import com.clip.ghost.pdfcontent.constant.PdfConstants;
 import com.clip.ghost.pdfcontent.dto.PdfMarkdownDraftRequest;
 import com.clip.ghost.pdfcontent.dto.PdfMarkdownDraftResponse;
 import com.clip.ghost.pdfcontent.enums.PdfMarkdownDraftMode;
@@ -273,7 +273,7 @@ class PdfMarkdownDraftControllerTest {
 				new byte[] { 1 }) {
 			@Override
 			public long getSize() {
-				return PdfConstants.MAX_PDF_FILE_SIZE_BYTES;
+				return UploadConstants.MAX_UPLOAD_FILE_SIZE_BYTES;
 			}
 		};
 	}

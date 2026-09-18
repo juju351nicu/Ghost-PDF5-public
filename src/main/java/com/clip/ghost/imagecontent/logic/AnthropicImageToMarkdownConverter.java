@@ -1,5 +1,6 @@
 package com.clip.ghost.imagecontent.logic;
 
+import java.time.Duration;
 import java.util.Base64;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -34,8 +35,6 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class AnthropicImageToMarkdownConverter implements ImageToMarkdownConverter {
 	private static final Logger LOGGER = LoggerFactory.getLogger(AnthropicImageToMarkdownConverter.class);
-	private static final String SYSTEM_PROMPT = "あなたは画像内のテキストを忠実にMarkdownへ文字起こしします。表はMarkdownの表、コードはコードフェンスで囲みます。読み取れない箇所や推測で補った箇所は明示します。説明や前置きは書かず、文字起こし結果のMarkdownだけを返します。出力全体をコードフェンスで囲まないでください。コードフェンスは、画像内にソースコードが写っている部分にだけ使います。";
-	private static final String USER_PROMPT = "この画像を文字起こししてMarkdownで返してください。";
 
 	private final AnthropicProperties properties;
 
@@ -85,7 +84,7 @@ public class AnthropicImageToMarkdownConverter implements ImageToMarkdownConvert
 		}
 		LOGGER.info("Anthropicで画像を文字起こしします。model={}", properties.getModel());
 		try {
-			AnthropicClient client = AnthropicOkHttpClient.builder().apiKey(apiKey).build();
+			AnthropicClient client = buildClient(apiKey);
 			MessageCreateParams params = buildParams(imageBytes, mediaType);
 			Message response = client.messages().create(params);
 			String markdown = MarkdownFenceUnwrapper.unwrap(response.content().stream()
@@ -103,6 +102,20 @@ public class AnthropicImageToMarkdownConverter implements ImageToMarkdownConvert
 	}
 
 	/**
+	 * 設定のタイムアウトを適用したクライアントを生成する。
+	 * <p>
+	 * タイムアウトを渡さないとSDKの既定値で待ち続ける。画像1枚の文字起こしは数十秒で終わるため、
+	 * 応答が返らないまま利用者のリクエストを占有し続けないよう、設定値で打ち切る。
+	 *
+	 * @param apiKey APIキー
+	 * @return Anthropicクライアント
+	 */
+	private AnthropicClient buildClient(String apiKey) {
+		return AnthropicOkHttpClient.builder().apiKey(apiKey)
+				.timeout(Duration.ofSeconds(properties.getTimeoutSeconds())).build();
+	}
+
+	/**
 	 * 画像を含むリクエストを組み立てる。
 	 *
 	 * @param imageBytes 画像バイト列
@@ -113,10 +126,12 @@ public class AnthropicImageToMarkdownConverter implements ImageToMarkdownConvert
 		Base64ImageSource source = Base64ImageSource.builder().mediaType(toMediaType(mediaType))
 				.data(Base64.getEncoder().encodeToString(imageBytes)).build();
 		ImageBlockParam imageBlock = ImageBlockParam.builder().source(source).build();
+		TextBlockParam userPrompt = TextBlockParam.builder().text(ImageMarkdownPromptBuilder.buildUserPrompt()).build();
 		return MessageCreateParams.builder().model(properties.getModel())
-				.maxTokens((long) properties.getMaxOutputTokens()).system(SYSTEM_PROMPT)
-				.addUserMessageOfBlockParams(List.of(ContentBlockParam.ofImage(imageBlock),
-						ContentBlockParam.ofText(TextBlockParam.builder().text(USER_PROMPT).build())))
+				.maxTokens((long) properties.getMaxOutputTokens())
+				.system(ImageMarkdownPromptBuilder.buildSystemPrompt())
+				.addUserMessageOfBlockParams(
+						List.of(ContentBlockParam.ofImage(imageBlock), ContentBlockParam.ofText(userPrompt)))
 				.build();
 	}
 

@@ -22,8 +22,8 @@ import jakarta.servlet.http.HttpServletResponse;
 @Hidden
 @Controller
 public class CsvController {
-	private static final String RESULT_CSV_FILE_NAME = "result.csv";
-	private static final String PRINT_CSV_FILE_NAME = "result.csv";
+	/** ダウンロード時のファイル名。2つのサンプルAPIで同じ名前を返す。 */
+	private static final String CSV_FILE_NAME = "result.csv";
 	private static final MediaType TEXT_CSV_UTF8 = MediaType.parseMediaType("text/csv;charset=UTF-8");
 	private static final String SAMPLE_CSV_DATA = "\"サクランボ\",\"イチゴ\",\"ブドウ\",\"デコポン\",\"カキ\"\n"
 			+ "\"リンゴ\",\"ナシ\",\"パイナップル\",\"メロン\",\"スイカ\"";
@@ -40,7 +40,7 @@ public class CsvController {
 	@ResponseBody
 	public ResponseEntity<String> downloadSampleCsv() {
 		HttpHeaders headers = new HttpHeaders();
-		headers.add(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + RESULT_CSV_FILE_NAME);
+		headers.add(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + CSV_FILE_NAME);
 		headers.setCacheControl("must-revalidate, post-check=0, pre-check=0");
 		return ResponseEntity.ok().headers(headers).contentType(TEXT_CSV_UTF8).body(SAMPLE_CSV_DATA);
 	}
@@ -55,7 +55,7 @@ public class CsvController {
 	@ResponseBody
 	public void printSampleCsv(HttpServletResponse response) throws IOException {
 		response.setContentType("text/csv; charset=UTF-8");
-		response.setHeader(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + PRINT_CSV_FILE_NAME + "\"");
+		response.setHeader(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + CSV_FILE_NAME + "\"");
 
 		PrintWriter writer = response.getWriter();
 		writer.print(convertRowsToCsv(PRINT_CSV_ROWS));

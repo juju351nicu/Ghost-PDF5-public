@@ -27,6 +27,7 @@ import org.springframework.test.web.servlet.request.MockMultipartHttpServletRequ
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import com.clip.ghost.common.config.CodeEnumWebMvcConfig;
+import com.clip.ghost.common.constant.UploadConstants;
 import com.clip.ghost.common.exceptions.handler.ControllerValidationErrorHandler;
 import com.clip.ghost.common.exceptions.handler.GlobalExceptionErrorHandler;
 import com.clip.ghost.common.security.AccessTokenValidator;
@@ -46,7 +47,6 @@ class SearchablePdfControllerTest {
 	private static final String INVALID_ACCESS_TOKEN = "invalid-token";
 	private static final String ORIGINAL_FILE_PART_NAME = "originalFile";
 	private static final String MODE_PARAM_NAME = "mode";
-	private static final long MAX_PDF_FILE_SIZE_BYTES = 20_971_520L;
 
 	@Mock
 	private SearchablePdfService searchablePdfService;
@@ -191,7 +191,7 @@ class SearchablePdfControllerTest {
 				new byte[] { 1 }) {
 			@Override
 			public long getSize() {
-				return MAX_PDF_FILE_SIZE_BYTES;
+				return UploadConstants.MAX_UPLOAD_FILE_SIZE_BYTES;
 			}
 		};
 	}

@@ -29,6 +29,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import com.clip.ghost.common.constant.UploadConstants;
 import com.clip.ghost.common.exceptions.handler.ControllerValidationErrorHandler;
 import com.clip.ghost.common.exceptions.handler.GlobalExceptionErrorHandler;
 import com.clip.ghost.common.response.ApiResult;
@@ -184,7 +185,7 @@ class PdfThumbnailControllerTest {
 				new byte[] { 1 }) {
 			@Override
 			public long getSize() {
-				return PdfConstants.MAX_PDF_FILE_SIZE_BYTES;
+				return UploadConstants.MAX_UPLOAD_FILE_SIZE_BYTES;
 			}
 		};
 	}

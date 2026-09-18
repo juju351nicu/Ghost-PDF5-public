@@ -12,10 +12,15 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
 /**
- * PDFレスポンス用のHTTPヘッダーと {@link ResponseEntity} を作成するユーティリティクラス。
+ * ファイルレスポンス用のHTTPヘッダーと {@link ResponseEntity} を作成するユーティリティクラス。
  * <p>
  * inline表示とattachmentダウンロードで必要なContent-Type / Content-Dispositionをここに集約し、
- * ControllerやServiceでHTTPヘッダー生成が散らばらないようにする。
+ * ControllerやServiceでHTTPヘッダー生成が散らばらないようにする。PDFに限らず、ZIP / HTML /
+ * Office文書 / EPUB / CSVのダウンロードもここを通す。
+ * <p>
+ * 形式ごとのpublicメソッドはContent-Typeだけが異なるため、ヘッダー組み立ては
+ * {@link #download(MediaType, String, Resource)} の1箇所に寄せる。形式が増えるたびに
+ * ヘッダー生成を書き写すと、Cache-Controlやファイル名のエンコードが形式ごとにずれる。
  * <p>
  * ファイル本文は {@link Resource} として受け取り、byte配列へ読み込まない。出力サイズに比例した
  * ヒープ消費を避けるため。一時ファイルの削除タイミングはリソース側の責務とし、このクラスは知らない。
@@ -25,6 +30,9 @@ public final class ResponseUtils {
 	private static final MediaType TEXT_HTML_UTF8 = MediaType.valueOf("text/html;charset=UTF-8");
 	private static final MediaType APPLICATION_EPUB = MediaType.valueOf("application/epub+zip");
 	private static final MediaType TEXT_CSV_UTF8 = MediaType.valueOf("text/csv;charset=UTF-8");
+
+	/** 生成物を中間キャッシュへ残さないためのCache-Control。 */
+	private static final String CACHE_CONTROL_VALUE = "must-revalidate, post-check=0, pre-check=0";
 
 	private ResponseUtils() {
 	}
@@ -41,11 +49,8 @@ public final class ResponseUtils {
 	 */
 	public static ResponseEntity<Resource> inlinePdf(Resource contents) {
 		requireContents(contents);
-		HttpHeaders headers = new HttpHeaders();
-		headers.setContentType(MediaType.APPLICATION_PDF);
-		headers.setContentLength(resolveContentLength(contents));
+		HttpHeaders headers = buildCommonHeaders(MediaType.APPLICATION_PDF, contents);
 		headers.setContentDisposition(ContentDisposition.inline().build());
-		headers.setCacheControl("must-revalidate, post-check=0, pre-check=0");
 		return new ResponseEntity<>(contents, headers, HttpStatus.OK);
 	}
 
@@ -58,15 +63,7 @@ public final class ResponseUtils {
 	 * @throws IllegalArgumentException filenameが未指定、またはcontentsがnullの場合
 	 */
 	public static ResponseEntity<Resource> downloadZip(String filename, Resource contents) {
-		requireDownloadFileName(filename);
-		requireContents(contents);
-		HttpHeaders headers = new HttpHeaders();
-		headers.setContentType(APPLICATION_ZIP);
-		headers.setContentLength(resolveContentLength(contents));
-		headers.setContentDisposition(
-				ContentDisposition.attachment().filename(filename, StandardCharsets.UTF_8).build());
-		headers.setCacheControl("must-revalidate, post-check=0, pre-check=0");
-		return new ResponseEntity<>(contents, headers, HttpStatus.OK);
+		return download(APPLICATION_ZIP, filename, contents);
 	}
 
 	/**
@@ -80,15 +77,7 @@ public final class ResponseUtils {
 	 * @throws IllegalArgumentException filenameが未指定、またはcontentsがnullの場合
 	 */
 	public static ResponseEntity<Resource> downloadPdf(String filename, Resource contents) {
-		requireDownloadFileName(filename);
-		requireContents(contents);
-		HttpHeaders headers = new HttpHeaders();
-		headers.setContentType(MediaType.APPLICATION_PDF);
-		headers.setContentLength(resolveContentLength(contents));
-		headers.setContentDisposition(
-				ContentDisposition.attachment().filename(filename, StandardCharsets.UTF_8).build());
-		headers.setCacheControl("must-revalidate, post-check=0, pre-check=0");
-		return new ResponseEntity<>(contents, headers, HttpStatus.OK);
+		return download(MediaType.APPLICATION_PDF, filename, contents);
 	}
 
 	/**
@@ -103,15 +92,7 @@ public final class ResponseUtils {
 	 * @throws IllegalArgumentException filenameが未指定、またはcontentsがnullの場合
 	 */
 	public static ResponseEntity<Resource> downloadHtml(String filename, Resource contents) {
-		requireDownloadFileName(filename);
-		requireContents(contents);
-		HttpHeaders headers = new HttpHeaders();
-		headers.setContentType(TEXT_HTML_UTF8);
-		headers.setContentLength(resolveContentLength(contents));
-		headers.setContentDisposition(
-				ContentDisposition.attachment().filename(filename, StandardCharsets.UTF_8).build());
-		headers.setCacheControl("must-revalidate, post-check=0, pre-check=0");
-		return new ResponseEntity<>(contents, headers, HttpStatus.OK);
+		return download(TEXT_HTML_UTF8, filename, contents);
 	}
 
 	/**
@@ -126,15 +107,7 @@ public final class ResponseUtils {
 	 * @throws IllegalArgumentException filenameが未指定、またはcontentsがnullの場合
 	 */
 	public static ResponseEntity<Resource> downloadOffice(String filename, Resource contents) {
-		requireDownloadFileName(filename);
-		requireContents(contents);
-		HttpHeaders headers = new HttpHeaders();
-		headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
-		headers.setContentLength(resolveContentLength(contents));
-		headers.setContentDisposition(
-				ContentDisposition.attachment().filename(filename, StandardCharsets.UTF_8).build());
-		headers.setCacheControl("must-revalidate, post-check=0, pre-check=0");
-		return new ResponseEntity<>(contents, headers, HttpStatus.OK);
+		return download(MediaType.APPLICATION_OCTET_STREAM, filename, contents);
 	}
 
 	/**
@@ -146,15 +119,7 @@ public final class ResponseUtils {
 	 * @throws IllegalArgumentException filenameが未指定、またはcontentsがnullの場合
 	 */
 	public static ResponseEntity<Resource> downloadEpub(String filename, Resource contents) {
-		requireDownloadFileName(filename);
-		requireContents(contents);
-		HttpHeaders headers = new HttpHeaders();
-		headers.setContentType(APPLICATION_EPUB);
-		headers.setContentLength(resolveContentLength(contents));
-		headers.setContentDisposition(
-				ContentDisposition.attachment().filename(filename, StandardCharsets.UTF_8).build());
-		headers.setCacheControl("must-revalidate, post-check=0, pre-check=0");
-		return new ResponseEntity<>(contents, headers, HttpStatus.OK);
+		return download(APPLICATION_EPUB, filename, contents);
 	}
 
 	/**
@@ -166,15 +131,44 @@ public final class ResponseUtils {
 	 * @throws IllegalArgumentException filenameが未指定、またはcontentsがnullの場合
 	 */
 	public static ResponseEntity<Resource> downloadCsv(String filename, Resource contents) {
+		return download(TEXT_CSV_UTF8, filename, contents);
+	}
+
+	/**
+	 * attachmentダウンロード用のレスポンスを作成する。
+	 * <p>
+	 * ファイル名はUTF-8で符号化する。日本語ファイル名をそのままヘッダーへ置くと、
+	 * ブラウザによっては文字化けした名前で保存される。
+	 *
+	 * @param mediaType レスポンスのContent-Type
+	 * @param filename  ダウンロードファイル名
+	 * @param contents  レスポンス本文のリソース
+	 * @return attachmentダウンロード用レスポンス
+	 * @throws IllegalArgumentException filenameが未指定、またはcontentsがnullの場合
+	 */
+	private static ResponseEntity<Resource> download(MediaType mediaType, String filename, Resource contents) {
 		requireDownloadFileName(filename);
 		requireContents(contents);
-		HttpHeaders headers = new HttpHeaders();
-		headers.setContentType(TEXT_CSV_UTF8);
-		headers.setContentLength(resolveContentLength(contents));
+		HttpHeaders headers = buildCommonHeaders(mediaType, contents);
 		headers.setContentDisposition(
 				ContentDisposition.attachment().filename(filename, StandardCharsets.UTF_8).build());
-		headers.setCacheControl("must-revalidate, post-check=0, pre-check=0");
 		return new ResponseEntity<>(contents, headers, HttpStatus.OK);
+	}
+
+	/**
+	 * Content-Disposition以外の共通ヘッダーを組み立てる。
+	 *
+	 * @param mediaType レスポンスのContent-Type
+	 * @param contents  レスポンス本文のリソース
+	 * @return 共通ヘッダー
+	 * @throws IllegalArgumentException リソースのサイズを取得できない場合
+	 */
+	private static HttpHeaders buildCommonHeaders(MediaType mediaType, Resource contents) {
+		HttpHeaders headers = new HttpHeaders();
+		headers.setContentType(mediaType);
+		headers.setContentLength(resolveContentLength(contents));
+		headers.setCacheControl(CACHE_CONTROL_VALUE);
+		return headers;
 	}
 
 	/**

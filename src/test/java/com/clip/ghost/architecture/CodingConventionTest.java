@@ -52,6 +52,8 @@ class CodingConventionTest {
 	private static final Path TEST_SOURCE = Paths.get("src/test/java");
 	private static final Path TEST_RESOURCES = Paths.get("src/test/resources");
 	private static final String BASE_PACKAGE = "com.clip.ghost";
+	private static final String UPLOAD_FILE_SIZE_VALIDATOR_SOURCE = "com/clip/ghost/common/utils/UploadFileSizeValidator.java";
+	private static final String MARKDOWN_TEXT_NORMALIZER_SOURCE = "com/clip/ghost/common/utils/MarkdownTextNormalizer.java";
 	private static final String COMMONS_LANG3_PACKAGE = "org.apache.commons.lang3";
 	private static final JavaClasses PRODUCTION_CLASSES = new ClassFileImporter()
 			.withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS).importPackages(BASE_PACKAGE);
@@ -164,6 +166,27 @@ class CodingConventionTest {
 		noClasses().that().resideInAPackage(BASE_PACKAGE + "..").should(callDeprecatedCommonsLang3Method())
 				.because("非推奨APIは後継API（Strings.CS / Strings.CI など）へ寄せてください。")
 				.check(PRODUCTION_AND_TEST_CLASSES);
+	}
+
+	@Test
+	@DisplayName("アップロードサイズの上限判定をUploadFileSizeValidatorへ寄せる")
+	void productionCodeUsesUploadFileSizeValidatorForUploadSizeChecks() throws IOException {
+		// 上限判定を各Controllerへ書き写すと、「上限以上」と「上限超過」のような境界のずれが取り込み口ごとに入る。
+		// 判定はUploadFileSizeValidatorの1箇所に置き、Controllerは上限値を渡すだけにする。
+		List<Path> targetFiles = new ArrayList<>(javaFiles(MAIN_SOURCE));
+		targetFiles.remove(MAIN_SOURCE.resolve(UPLOAD_FILE_SIZE_VALIDATOR_SOURCE));
+
+		assertNoToken(targetFiles, List.of("new MultipartException("));
+	}
+
+	@Test
+	@DisplayName("改行の正規化をMarkdownTextNormalizerへ寄せる")
+	void productionCodeUsesMarkdownTextNormalizerForLineEndings() throws IOException {
+		// 取り込み元ごとに書き写すと、同じ本文でも経路によって末尾の空行や改行コードが変わる。
+		List<Path> targetFiles = new ArrayList<>(javaFiles(MAIN_SOURCE));
+		targetFiles.remove(MAIN_SOURCE.resolve(MARKDOWN_TEXT_NORMALIZER_SOURCE));
+
+		assertNoToken(targetFiles, List.of("replace(\"\\r\\n\", \"\\n\")"));
 	}
 
 	@Test

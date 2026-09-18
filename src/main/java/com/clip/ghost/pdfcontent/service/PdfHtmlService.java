@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
 import org.apache.commons.io.FilenameUtils;
+import org.jsoup.nodes.Entities;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,7 +38,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class PdfHtmlService {
 	private static final Logger LOGGER = LoggerFactory.getLogger(PdfHtmlService.class);
-	private static final String DEFAULT_HTML_BASE_NAME = "document";
+	private static final String DEFAULT_BASE_NAME = "document";
 	private static final String HTML_FILE_SUFFIX = ".html";
 	private static final String EPUB_FILE_SUFFIX = ".epub";
 	// ブラウザで直接開けるよう、文字コードとviewportだけを持つ最小の外枠を付ける。
@@ -69,9 +70,8 @@ public class PdfHtmlService {
 	public ResponseEntity<Resource> generateHtml(PdfMarkdownDraftRequest form) {
 		ApiResult<PdfMarkdownDraftResponse> draftResult = markdownDraftService.generateMarkdownDraft(form).getBody();
 		PdfMarkdownDraftResponse draft = Objects.requireNonNull(draftResult).getData();
-		String title = PathUtils.removeExtension(resolveBaseFileName(form));
-		String html = HTML_DOCUMENT_FORMAT.formatted(org.jsoup.nodes.Entities.escape(title),
-				htmlRenderer.render(draft.getMarkdown()));
+		String title = resolveTitle(form);
+		String html = HTML_DOCUMENT_FORMAT.formatted(Entities.escape(title), htmlRenderer.render(draft.getMarkdown()));
 		byte[] htmlBytes = html.getBytes(StandardCharsets.UTF_8);
 		// 本文の内容はログへ出さない。出力サイズだけで、生成できたかの確認には足りる。
 		LOGGER.info("PDFからHTMLを生成しました。byteSize={}", htmlBytes.length);
@@ -92,7 +92,7 @@ public class PdfHtmlService {
 	public ResponseEntity<Resource> generateEpub(PdfMarkdownDraftRequest form) {
 		ApiResult<PdfMarkdownDraftResponse> draftResult = markdownDraftService.generateMarkdownDraft(form).getBody();
 		PdfMarkdownDraftResponse draft = Objects.requireNonNull(draftResult).getData();
-		String title = PathUtils.removeExtension(resolveBaseFileName(form));
+		String title = resolveTitle(form);
 		byte[] epubBytes = epubWriter.write(title, htmlRenderer.render(draft.getMarkdown()));
 		// 本文の内容はログへ出さない。出力サイズだけで、生成できたかの確認には足りる。
 		LOGGER.info("PDFからEPUBを生成しました。byteSize={}", epubBytes.length);
@@ -100,7 +100,20 @@ public class PdfHtmlService {
 	}
 
 	/**
-	 * ダウンロードHTMLの基になるファイル名を1ファイル名に正規化する。
+	 * 出力ファイル名と文書タイトルに使う文字列を、変換元PDFのファイル名から決める。
+	 * <p>
+	 * HTMLとEPUBで同じ規則を使う。片方だけ別の決め方にすると、同じPDFから出した2つのファイルで
+	 * 名前とタイトルが食い違う。
+	 *
+	 * @param form 変換元PDFを含むフォーム
+	 * @return 拡張子を除いたタイトル
+	 */
+	private String resolveTitle(PdfMarkdownDraftRequest form) {
+		return PathUtils.removeExtension(resolveBaseFileName(form));
+	}
+
+	/**
+	 * 出力ファイル名の基になるファイル名を1ファイル名に正規化する。
 	 * <p>
 	 * ファイル名はレスポンスヘッダーへ出るため、ディレクトリ区切りや制御文字を残さない。
 	 * 正規化の規則はMarkdown保存・PDF出力と同じ {@link PathUtils#sanitizeFileName(String)} に寄せる。
@@ -110,7 +123,7 @@ public class PdfHtmlService {
 	 */
 	private String resolveBaseFileName(PdfMarkdownDraftRequest form) {
 		String originalFileName = FilenameUtils.getName(
-				StringUtils.defaultIfBlank(form.getOriginalFile().getOriginalFilename(), DEFAULT_HTML_BASE_NAME));
-		return StringUtils.defaultIfBlank(PathUtils.sanitizeFileName(originalFileName), DEFAULT_HTML_BASE_NAME);
+				StringUtils.defaultIfBlank(form.getOriginalFile().getOriginalFilename(), DEFAULT_BASE_NAME));
+		return StringUtils.defaultIfBlank(PathUtils.sanitizeFileName(originalFileName), DEFAULT_BASE_NAME);
 	}
 }

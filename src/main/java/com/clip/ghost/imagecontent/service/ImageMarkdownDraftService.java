@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.clip.ghost.common.response.ApiResult;
+import com.clip.ghost.common.utils.MarkdownTextNormalizer;
 import com.clip.ghost.imagecontent.dto.ImageMarkdownDraftRequest;
 import com.clip.ghost.imagecontent.dto.ImageMarkdownDraftResponse;
 import com.clip.ghost.imagecontent.exception.ImageInputException;
@@ -49,7 +50,8 @@ public class ImageMarkdownDraftService {
 		}
 		MultipartFile imageFile = form.getImageFile();
 		validateImageContentType(imageFile);
-		String markdown = normalizeMarkdown(converter.convert(readBytes(imageFile), imageFile.getContentType()));
+		String markdown = MarkdownTextNormalizer
+				.normalize(converter.convert(readBytes(imageFile), imageFile.getContentType()));
 		return ResponseEntity.ok(ApiResult.of(buildResponse(imageFile, markdown)));
 	}
 
@@ -79,16 +81,6 @@ public class ImageMarkdownDraftService {
 		} catch (IOException e) {
 			throw new ImageProcessingException("アップロード画像の読み込みに失敗しました。", e);
 		}
-	}
-
-	/**
-	 * 変換結果の改行を正規化する。CRLFとCRをLFへ統一し、末尾の空白文字を除去する。
-	 *
-	 * @param markdown 変換結果のMarkdown
-	 * @return 正規化済みMarkdown
-	 */
-	private String normalizeMarkdown(String markdown) {
-		return markdown.replace("\r\n", "\n").replace('\r', '\n').stripTrailing();
 	}
 
 	/**

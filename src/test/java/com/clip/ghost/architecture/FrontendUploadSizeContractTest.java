@@ -15,7 +15,7 @@ import java.util.regex.Pattern;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import com.clip.ghost.pdfcontent.constant.PdfConstants;
+import com.clip.ghost.common.constant.UploadConstants;
 
 /**
  * アップロードサイズ上限のBE / コンテナ / FEの整合を固定するテスト。
@@ -42,8 +42,8 @@ class FrontendUploadSizeContractTest {
 
 		Matcher matcher = MAX_PDF_BYTES_PATTERN.matcher(constants);
 		assertTrue(matcher.find(), "const.js should define FILE_SIZE.MAX_PDF_BYTES.");
-		assertEquals(PdfConstants.MAX_PDF_FILE_SIZE_BYTES, Long.parseLong(matcher.group(1)),
-				"const.js の MAX_PDF_BYTES は PdfConstants.MAX_PDF_FILE_SIZE_BYTES と同じ値にしてください。");
+		assertEquals(UploadConstants.MAX_UPLOAD_FILE_SIZE_BYTES, Long.parseLong(matcher.group(1)),
+				"const.js の MAX_PDF_BYTES は UploadConstants.MAX_UPLOAD_FILE_SIZE_BYTES と同じ値にしてください。");
 	}
 
 	/**
@@ -62,8 +62,8 @@ class FrontendUploadSizeContractTest {
 		assertTrue(matcher.find(), "application.yml should define spring.servlet.multipart.max-file-size in MB.");
 		long multipartLimitBytes = Long.parseLong(matcher.group(1)) * BYTES_PER_MEGABYTE;
 		assertAll(
-				() -> assertTrue(multipartLimitBytes > PdfConstants.MAX_PDF_FILE_SIZE_BYTES,
-						"max-file-size は PdfConstants.MAX_PDF_FILE_SIZE_BYTES より大きくしてください。"),
+				() -> assertTrue(multipartLimitBytes > UploadConstants.MAX_UPLOAD_FILE_SIZE_BYTES,
+						"max-file-size は UploadConstants.MAX_UPLOAD_FILE_SIZE_BYTES より大きくしてください。"),
 				() -> assertTrue(applicationYml.contains("max-swallow-size:"),
 						"上限超過時に413を返せるよう server.tomcat.max-swallow-size を設定してください。"));
 	}

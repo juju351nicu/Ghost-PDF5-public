@@ -11,17 +11,16 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.ResponseBody;
-import org.springframework.web.multipart.MultipartException;
-import org.springframework.web.multipart.MultipartFile;
 
+import com.clip.ghost.common.constant.UploadConstants;
 import com.clip.ghost.common.exceptions.ErrorResponse;
 import com.clip.ghost.common.response.ApiResult;
 import com.clip.ghost.common.security.AccessTokenValidator;
+import com.clip.ghost.common.utils.UploadFileSizeValidator;
 import com.clip.ghost.officecontent.dto.OfficeMarkdownRequest;
 import com.clip.ghost.officecontent.dto.OfficeMarkdownResponse;
 import com.clip.ghost.officecontent.service.OfficeMarkdownService;
 import com.clip.ghost.officecontent.service.OfficePdfService;
-import com.clip.ghost.pdfcontent.constant.PdfConstants;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -74,7 +73,7 @@ public class OfficeMarkdownController {
 			@Valid @ModelAttribute OfficeMarkdownRequest form, HttpSession session) {
 		LOGGER.info("Office文書からMarkdownを起こします。");
 		accessTokenValidator.validate(accessToken, session);
-		validateOfficeFileSize(form.getOfficeFile());
+		UploadFileSizeValidator.validate(form.getOfficeFile(), UploadConstants.MAX_UPLOAD_FILE_SIZE_BYTES);
 		return officeMarkdownService.generateMarkdown(form);
 	}
 
@@ -100,21 +99,7 @@ public class OfficeMarkdownController {
 			@Valid @ModelAttribute OfficeMarkdownRequest form, HttpSession session) {
 		LOGGER.info("Office文書からPDFを生成します。");
 		accessTokenValidator.validate(accessToken, session);
-		validateOfficeFileSize(form.getOfficeFile());
+		UploadFileSizeValidator.validate(form.getOfficeFile(), UploadConstants.MAX_UPLOAD_FILE_SIZE_BYTES);
 		return officePdfService.generatePdf(form);
-	}
-
-	/**
-	 * アップロードファイルのサイズを既存PDF APIと同じ境界で検証する。
-	 * <p>
-	 * Office文書にもPDFと同じ上限を使う。上限を種類ごとに分けると、どれが適用されたのか利用者が判断できなくなる。
-	 *
-	 * @param officeFile アップロードされたOffice文書
-	 * @throws MultipartException 許容サイズ以上の場合
-	 */
-	private void validateOfficeFileSize(MultipartFile officeFile) {
-		if (officeFile.getSize() >= PdfConstants.MAX_PDF_FILE_SIZE_BYTES) {
-			throw new MultipartException("サイズの超過");
-		}
 	}
 }
