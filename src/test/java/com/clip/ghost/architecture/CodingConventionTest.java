@@ -51,6 +51,8 @@ class CodingConventionTest {
 			.resolve("models/ui-preference-state.js");
 	private static final Path FRONTEND_FILE_RESPONSE_HANDLER_SCRIPT = FRONTEND_SOURCE
 			.resolve("api/file-response-handler.js");
+	private static final Path FRONTEND_PDFJS_RENDERER_SCRIPT = FRONTEND_SOURCE
+			.resolve("pdf/pdf-thumbnail-renderer.js");
 	private static final Path TEST_SOURCE = Paths.get("src/test/java");
 	private static final Path TEST_RESOURCES = Paths.get("src/test/resources");
 	private static final String BASE_PACKAGE = "com.clip.ghost";
@@ -361,6 +363,18 @@ class CodingConventionTest {
 		targetFiles.remove(FRONTEND_UI_PREFERENCE_STATE_SCRIPT);
 
 		assertNoToken(targetFiles, List.of("Util.setLocalStorage", "Util.getLocalStorageObject"));
+	}
+
+	@Test
+	@DisplayName("pdf.jsの読み込みをpdf-thumbnail-rendererへ閉じる")
+	void frontendCodeLoadsPdfjsOnlyInThumbnailRenderer() throws IOException {
+		// PDFの「加工」はサーバーのPDFBox、「表示」はブラウザのpdf.jsという担当分けを保つ。
+		// pdf.jsの読み込み口が増えると、workerとCMapの指定が箇所ごとにずれる。CMapの指定漏れは
+		// 例外を出さず、日本語PDFだけ文字が欠けた状態で描画されるため、後から気付けない。
+		List<Path> targetFiles = new ArrayList<>(frontendVueFiles());
+		targetFiles.remove(FRONTEND_PDFJS_RENDERER_SCRIPT);
+
+		assertNoToken(targetFiles, List.of("/vendor/pdfjs", "pdfjsLib", "GlobalWorkerOptions"));
 	}
 
 	@Test

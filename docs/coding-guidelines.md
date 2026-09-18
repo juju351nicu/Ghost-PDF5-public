@@ -449,7 +449,8 @@ Utils整理:
 - 文字列: `commons-lang3`
 - コレクション: `commons-collections4`
 - ファイル操作: `java.nio.file` / `commons-io`
-- PDF処理: PDFBox
+- PDF処理（加工）: PDFBox
+- PDF描画（画面表示）: pdf.js。担当の線引きは「PDFの担当分け（PDFBox / pdf.js）」を参照する。
 - テスト: `spring-boot-starter-test` に含まれる JUnit / Mockito / AssertJ
   - Java 25ではMockito inline mock makerを自己attachさせず、Surefireの `argLine` で `mockito-core` をjavaagentとして指定する。
 - Lombokを使う場合は、Java 25コンパイルでgetter/setter生成が抜けないよう、Maven Compiler Pluginの `annotationProcessorPaths` へ `lombok` を明示する。
@@ -457,6 +458,17 @@ Utils整理:
   - Ghost-PDF5はJava 25 / Spring Boot 4.0.8 / Spring Framework 7.0.x / Springdoc 3.0.3 の組み合わせで検証する。
   - Spring Boot 4.xではSpringdoc 3.xを使い、`OpenApiDocumentationTest` で公開API契約を確認する。
   - `LiteWebJarsResourceResolver` の `NoClassDefFoundError` が出る場合は、SpringdocとSpring Frameworkの互換性を疑う。
+
+フロントエンドのライブラリ:
+
+- CDNから読まず、アプリ内から配信する（Vueは `webjars`、pdf.jsは `static/vendor/`）。
+  ローカルのファイルを扱うアプリで、外部CDNが落ちると画面が使えなくなる状態を作らない。
+- vendor配置するときは、実行に必要な資産を**まとめて**置く。pdf.jsは `build/` だけでは足りず、
+  `cmaps/`（CIDフォントのCMap）と `standard_fonts/`（未埋め込みフォントの代替）が要る。
+- バージョンと取得元、更新手順をvendorディレクトリのREADMEへ残す。実装側にもバージョン定数を
+  持たせ、両者の一致をテストで固定する（`FrontendThumbnailContractTest`）。
+- Markdownの描画ライブラリ（`marked` など）は追加しない。Markdown→HTMLは `MarkdownHtmlRenderer`
+  （commonmark + jsoup）へ一本化しており、画面プレビューとPDF出力で変換規則を分けないため。
 
 Jackson利用ルール:
 
@@ -601,6 +613,39 @@ public record ApiMessage(String code, String message) {
 - OpenPDF / `com.lowagie` 系 import は追加しない。
 - 結合、挿入、置換、末尾挿入、ページ削除の既存仕様を変更しない。
 
+## PDFの担当分け（PDFBox / pdf.js）
+
+**「加工」はサーバーのPDFBox、「表示」はブラウザのpdf.js。** 置き換えの関係ではなく、担当が違う。
+
+| | PDFBox（サーバー） | pdf.js（ブラウザ） |
+| --- | --- | --- |
+| 出自 | Apache。PDFの生成・加工ライブラリ | Mozilla。Firefox内蔵のPDFビューア |
+| 担当 | ページ抽出・削除・結合・分割・回転、差し込み、暗号化PDFの復号、テキスト抽出、検索可能PDF生成、Markdown→PDF | ページ選択用サムネイルの描画 |
+| 入力の扱い | multipartでアップロードされたPDF | 利用者が選んだローカルのFile。**送信しない** |
+
+判断の基準は「PDFの中身を作り変えるか、見せるだけか」。
+
+- 成果物としてPDFやファイルを返す処理は、必ずサーバー側（PDFBox）へ置く。ブラウザ側で
+  PDFを組み立てない。加工ロジックが2箇所に分かれると、同じ操作の結果が経路で変わる。
+- 画面で見せるだけの処理は、pdf.jsでブラウザ内に閉じる。見るためだけにPDFをアップロードしない。
+  パスワード付きPDFのパスワードも、表示のためにブラウザの外へ出さない。
+- pdf.jsの用途を表示以外へ広げない。テキストレイヤーや注釈表示が必要になった時点で、
+  あらためて範囲を決める。
+- pdf.jsの読み込み口は `pdf/pdf-thumbnail-renderer.js` の1箇所に保つ。worker（`workerSrc`）と
+  CMap（`cMapUrl`）の指定が箇所ごとにずれるため。**CMapの指定漏れは例外を出さず、日本語PDFだけ
+  文字が欠けた状態で描画される。**再混入は `CodingConventionTest.frontendCodeLoadsPdfjsOnlyInThumbnailRenderer`
+  が検知する。
+
+### 承知しているトレードオフ
+
+サムネイル（pdf.js）と画像化 `POST /imagesPdf`（PDFBox）は描画実装が違うため、同じページでも
+絵が完全一致しない。サムネイルは「どのページか見分ける」ための目印、画像化は利用者が
+ダウンロードして使う成果物で、両者を並べて比べる場面が無いため許容している。
+
+「サムネイルで見たとおりに画像化したい」という要求が出た時点で、この判断は無効になる。
+そのときは画像化をpdf.js側へ寄せるか、サムネイルをPDFBoxへ戻すかを選び直す。片方だけ直して
+両方が中途半端に残る形にしない。
+
 ## PDF分割範囲の入力形式
 
 - 範囲ごとの分割（`POST /splitPdf` の `splitRanges`）は `List<String>`（`["1-5", "6-12", "13"]`）で受け取る。
@@ -633,16 +678,14 @@ public record ApiMessage(String code, String message) {
 
 ## サムネイルからのページ選択
 
-- サムネイルは **pdf.jsでブラウザ内に描く**。サーバーへは送らない。
+- サムネイルは **pdf.jsでブラウザ内に描く**。サーバーへは送らない（「PDFの担当分け（PDFBox / pdf.js）」の具体例）。
   - 以前は `POST /thumbnailsPdf` でPDFBoxが画像化していたが、サーバー側に文書セッションが無いため、見るたびにPDF全体（最大20 MB）をアップロードし直す必要があった。この経路とAPIは削除済みで、同じ処理をサーバー側へ戻さない。
-  - PDFを画面で見るためだけにアップロードしない。パスワード付きPDFのパスワードも、サムネイル描画のためにブラウザの外へ出さない。
 - 描画のパラメータは `pdf-thumbnail-renderer.js` の定数として持つ。倍率は40dpi相当（`40/72`）、ページ数上限は100ページ。
   - サーバーの設定（`application.yml`）へ戻さない。ブラウザ内で完結する処理で、運用時に変える値ではない。
   - ページ数上限の超過は `ApiErrorUtils.ERROR_CODE.PDF_PAGE_LIMIT_EXCEEDED` を載せたエラーで返す。BEのエラーと同じコードにそろえ、画面の振り分け（`failProcess`）を1本に保つ。
 - 画像はdata URI（`data:image/png;base64,...`）で持ち、画面は `img` の `:src` バインディングで表示する。`innerHTML` は使わない。
 - ページは1ページずつ順に描き、canvasは都度捨てる。全ページを同時に描くとページ数分のcanvasを一度に抱える。
-- pdf.jsはCDNから読まず、`static/vendor/pdfjs/` へバージョン固定で置く。
-  - `build/` だけ差し替えない。日本語PDFの表示には `cmaps/` と `standard_fonts/` が要る。更新手順は同ディレクトリの `README.md`。
+- pdf.jsの配置と同梱物は「ライブラリ追加判断」のフロントエンドのライブラリに従う。更新手順は `static/vendor/pdfjs/README.md`。
   - 本体は動的importで読む。458 KBあるため、PDFを触らない利用（Markdownメモなど）の初期表示を重くしない。
 - 描画は **ファイル選択と同時に自動で走らせる**。アップロードを伴わないため、押させる理由が無い。
   - ただし自動描画ではパスワード入力欄を割り込ませない。利用者はPDFを選んだだけで、まだ何をするか決めていない。サムネイル欄へ案内を出し、「サムネイル表示」を押したときに入力欄を出す。
