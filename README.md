@@ -5,6 +5,9 @@
 Ghost-PDF5は、Spring Boot 4、Java 25、Apache PDFBoxを使用したlocal-firstのPDF・Markdown文書ツールです。
 PDFの結合、分割、ページ操作、テキスト抽出、Markdown下書き作成を、既存`main.html`から利用できます。
 
+PDFの**加工**はサーバー側のPDFBox、画面の**表示**（ページ選択用サムネイル）はブラウザ側のpdf.jsが担当します。
+線引きは[コーディング規約](docs/coding-guidelines.md)の「PDFの担当分け（PDFBox / pdf.js）」にあります。
+
 ## ドキュメント
 
 - [コーディング規約](docs/coding-guidelines.md)
