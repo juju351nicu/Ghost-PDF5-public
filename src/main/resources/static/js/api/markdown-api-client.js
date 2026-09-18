@@ -189,6 +189,41 @@ const transformMarkdownAi = (content, task) => {
 };
 
 /**
+ * HTMLファイルからMarkdown下書きを起こす。
+ *
+ * multipart送信のため、JSON APIの requestJson ではなく multipartRequest を使う。
+ * 結果はMarkdown編集欄へ反映する前提で、サーバー側では保存されない。
+ *
+ * @param {File} htmlFile 取り込むHTMLファイル
+ * @param {string} selector 本文を絞り込むCSSセレクタ。空なら送信しない
+ * @returns {Promise<{data: Object|null, messages: Object[], errorMessages: string[], errorCodes: string[]}>} 取り込み結果
+ */
+const requestHtmlMarkdownDraft = async (htmlFile, selector) => {
+  const params = [{ key: "htmlFile", value: htmlFile }];
+  if (selector) {
+    params.push({ key: "selector", value: selector });
+  }
+  const response = await FetchClient.multipartRequest(
+    CONST.REST_PATH.MARKDOWN_DRAFT_HTML,
+    params
+  );
+  if (!response.ok) {
+    return {
+      data: null,
+      messages: [],
+      ...(await toErrorResult(response)),
+    };
+  }
+  const apiResult = await ApiResultUtils.readApiResult(response);
+  return {
+    data: apiResult.data,
+    messages: apiResult.messages,
+    errorMessages: [],
+    errorCodes: [],
+  };
+};
+
+/**
  * Markdown本文を新規保存する。
  *
  * @param {string} fileName 保存Markdownファイル名
@@ -242,6 +277,7 @@ export default {
   previewMarkdownFile,
   previewMarkdownContent,
   transformMarkdownAi,
+  requestHtmlMarkdownDraft,
   saveMarkdown,
   updateMarkdownFile,
   deleteMarkdownFile,

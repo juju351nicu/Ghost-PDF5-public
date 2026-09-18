@@ -137,6 +137,14 @@
 					@request-image-draft="requestImageDraft"
 					@clear-image="clearImageDraft">
 				</image-ocr-form>
+				<web-markdown-form
+					:web-state="webMarkdown"
+					:is-processing="isProcessing"
+					@html-selected="handleWebHtmlSelected"
+					@update-selector="updateWebSelector"
+					@request-web-markdown="requestWebMarkdownDraft"
+					@clear-web-html="clearWebMarkdown">
+				</web-markdown-form>
 			</section>
 
 			<section class="tab-panel" v-show="activeTab === 'memo'">

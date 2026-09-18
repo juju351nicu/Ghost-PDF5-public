@@ -547,6 +547,28 @@ class CodingConventionTest {
 	}
 
 	@Test
+	@DisplayName("Webページ取り込みの依存方向をController → Service → Logicに保つ")
+	void webControllerServiceLogicDependenciesKeepDirection() {
+		// 表の組み立てとブロック連結(MarkdownTableBuilder / MarkdownBlockJoiner)はOffice側と共有するため
+		// common.utilsへ出してある。そのためWeb取り込みは横断利用のoptionalLayerを持たず、3層のみで固定できる。
+		Architectures.layeredArchitecture().consideringAllDependencies().layer("Controller")
+				.definedBy("..webcontent.controller..").layer("Service").definedBy("..webcontent.service..")
+				.layer("Logic").definedBy("..webcontent.logic..").whereLayer("Controller")
+				.mayNotBeAccessedByAnyLayer().whereLayer("Service").mayOnlyBeAccessedByLayers("Controller")
+				.whereLayer("Logic").mayOnlyBeAccessedByLayers("Service")
+				.because("Webページ取り込みもController -> Service -> Logicの順に依存させます。").check(PRODUCTION_CLASSES);
+	}
+
+	@Test
+	@DisplayName("本番コードでJsoup.connectを使わない")
+	void jsoupConnectIsNotUsedInProductionCode() throws IOException {
+		// Jsoup.connectは名前解決・リダイレクト追跡・取得をライブラリの内側でまとめて行うため、
+		// 接続先IPを検査する隙間が無い。取得はSSRF検査を挟めるHTTPクライアントに限り、
+		// jsoupはHTMLの解析(Jsoup.parse)だけに使う。
+		assertNoToken(javaFiles(MAIN_SOURCE), List.of("Jsoup.connect"));
+	}
+
+	@Test
 	@DisplayName("Markdown処理の依存方向を保ち、共有HTMLレンダラーだけ横断利用を許す")
 	void markdownControllerServiceLogicDependenciesKeepDirection() {
 		// Markdown -> HTML変換(markdowncontent.logic)は共有機能として、PDFからHTMLを起こす

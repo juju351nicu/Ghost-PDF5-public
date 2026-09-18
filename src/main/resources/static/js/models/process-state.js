@@ -50,6 +50,7 @@ const PROCESS_LABEL = {
   MARKDOWN_FILE: "Markdownファイルを操作しています",
   MARKDOWN_PDF: "MarkdownからPDFを生成しています",
   OFFICE_MARKDOWN: "Office文書をMarkdownへ変換しています",
+  WEB_MARKDOWN: "WebページをMarkdownへ変換しています",
   AI_TRANSFORM: "Markdown本文をAIで変換しています",
 };
 

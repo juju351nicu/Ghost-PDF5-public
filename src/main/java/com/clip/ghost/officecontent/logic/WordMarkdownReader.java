@@ -14,6 +14,9 @@ import org.apache.poi.xwpf.usermodel.XWPFTable;
 import org.apache.poi.xwpf.usermodel.XWPFTableCell;
 import org.apache.poi.xwpf.usermodel.XWPFTableRow;
 
+import com.clip.ghost.common.utils.MarkdownBlockJoiner;
+import com.clip.ghost.common.utils.MarkdownTableBuilder;
+
 import lombok.NoArgsConstructor;
 
 /**

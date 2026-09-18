@@ -71,6 +71,13 @@ ghost:
       psm: 6
       preserve-interword-spaces: true
       timeout-seconds: 60
+  web:
+    # Webページ取り込み（POST /markdownDraftHtml）。アップロードされたHTMLを解析するだけで、
+    # サーバーは外部へ接続しない。URL取得（Stage 2）を追加する際に ghost.web.fetch.* を足す。
+    markdown:
+      # 取り込み結果の出力文字数上限。超過分は切り落とし、切ったことをmessageListで通知する。
+      # 上限が無いと、コメント欄まで含む長いページがそのままMarkdown欄へ入り、編集も後続のAI整形も通らなくなる。
+      max-output-characters: ${GHOST_WEB_MARKDOWN_MAX_OUTPUT_CHARACTERS:100000}
   ai:
     # Markdown本文のAI整形・要約（POST /markdownAiTransform）。既定は無効で、有効化した場合のみ
     # 外部AIへMarkdown本文を送信する。APIキー用の環境変数は画像Markdown下書き（ghost.ocr.*）と共用できる。

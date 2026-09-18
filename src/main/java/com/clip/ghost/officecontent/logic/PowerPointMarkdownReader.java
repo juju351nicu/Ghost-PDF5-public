@@ -15,6 +15,9 @@ import org.apache.poi.xslf.usermodel.XSLFTableCell;
 import org.apache.poi.xslf.usermodel.XSLFTableRow;
 import org.apache.poi.xslf.usermodel.XSLFTextShape;
 
+import com.clip.ghost.common.utils.MarkdownBlockJoiner;
+import com.clip.ghost.common.utils.MarkdownTableBuilder;
+
 import lombok.NoArgsConstructor;
 
 /**

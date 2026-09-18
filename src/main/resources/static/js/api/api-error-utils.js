@@ -37,6 +37,8 @@ const ERROR_CODE = {
   AI_PROCESSING: "aiProcessingError",
   AI_UNAVAILABLE: "aiUnavailable",
   SEARCHABLE_PDF_UNAVAILABLE: "searchablePdfUnavailable",
+  WEB_INPUT: "webInputError",
+  WEB_PROCESSING: "webProcessingError",
 };
 
 /**
@@ -60,6 +62,8 @@ const RECOVERABLE_ERROR_CODES = [
   ERROR_CODE.AI_INPUT,
   ERROR_CODE.AI_UNAVAILABLE,
   ERROR_CODE.SEARCHABLE_PDF_UNAVAILABLE,
+  // 拡張子違い・セレクタの指定ミス・本文が取れないHTMLは、入力を変えれば通る。
+  ERROR_CODE.WEB_INPUT,
 ];
 
 /**

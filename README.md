@@ -14,6 +14,7 @@ PDFの結合、分割、ページ操作、テキスト抽出、Markdown下書き
 - [将来拡張メモ: Markdown / AI / CSV / Utils 利用方針](docs/future-document-ai-roadmap.md)
 - [ページ単位Markdown下書きAPI設計](docs/page-markdown-draft-api-design.md)
 - [画像Markdown下書きAPI設計（vision）](docs/image-markdown-draft-design.md)
+- [Webページ取り込み設計（HTML → Markdown下書き）](docs/web-markdown-draft-design.md)
 - [MarkdownからのPDF出力API設計](docs/markdown-to-pdf-design.md)
 - [パスワード保護PDFの取り扱い設計](docs/pdf-password-design.md)
 - [画面の処理状態設計](docs/process-state-design.md)
@@ -400,6 +401,11 @@ Markdown保存を含むJava 25の全286テストが成功しています。
 
 ### 今後の候補
 
+- Webページ取り込み `POST /markdownDraftHtml`（HTMLファイル → Markdown下書き）を追加済み。
+  - アップロードされたHTMLから本文を取り出し、見出し・段落・リスト・表・コードブロック・引用・リンク・画像参照をMarkdownへ写す。冒頭に出典（取得元・取得日時）を付ける。
+  - ネットワークへは出ない。URLを受け取ってサーバーが取得する `POST /markdownDraftUrl` は、SSRF対策込みの別段階として未実装。
+  - 整形・要約は専用APIを作らず、既存の `POST /markdownAiTransform` へ渡す。
+  - 設計は [Webページ取り込み設計](docs/web-markdown-draft-design.md) を参照。
 - 画像Markdown下書き `POST /markdownDraftImage`（vision / OpenAI provider、既定無効）を追加済み。
   - `POST /markdownDraftPdf` に `mode=AUTO` を追加済み。文字レイヤーが無いページを画像化し、共有の画像変換器（OCR/vision）で補完する。`mode` 省略時は従来動作。
   - `mode=AUTO` のコストガードとして `ghost.ocr.pdf.max-pages`（既定20）と `ghost.ocr.pdf.render-dpi`（既定200）を追加済み。上限超過は1ページも変換せず400で拒否し、画像はページ単位で処理して溜めない。
