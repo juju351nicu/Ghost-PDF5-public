@@ -8,7 +8,7 @@ import lombok.Setter;
 /**
  * Markdown本文AI整形・要約で使用する変換providerの選択設定。
  * <p>
- * provider別の詳細設定は {@link AnthropicAiProperties}（anthropic）や {@link OpenAiAiProperties}（openai）が持ち、
+ * provider別の詳細設定は {@link AiAnthropicProperties}（anthropic）や {@link AiOpenAiProperties}（openai）が持ち、
  * このクラスはどのproviderを使うかだけを保持する。{@code imagecontent.config.ImageOcrProperties} と同じ形にする。
  */
 @ConfigurationProperties(prefix = "ghost.ai")

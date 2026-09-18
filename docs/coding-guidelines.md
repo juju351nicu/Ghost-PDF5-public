@@ -123,6 +123,11 @@ temporaryDirectory から Paths.get(temporaryDirectory) で生成する。
   - 利用がある場合は正しい名前のメソッドを追加し、typoメソッドは `@Deprecated` を付けて新メソッドへ委譲する。
   - 利用がなく、正しい名前の代替が既にある場合は削除する。
 - boolean を返すメソッドは `is`, `has`, `can` などで始める。
+- `@ConfigurationProperties` のクラス名は、設定prefixの階層をそのまま接頭辞にする。
+  - 例: `ghost.ocr.anthropic` → `OcrAnthropicProperties`、`ghost.ai.anthropic` → `AiAnthropicProperties`
+  - 同じprovider（Anthropic / OpenAI）を画像文字起こしとMarkdown本文AI変換の両方で使うため、接頭辞が無いと
+    クラス名からどちらの設定か読めない。モデルも出力トークン上限も別に設定する。
+  - `AiOpenAiProperties` のように重なって見える名前も、prefixとの対応を優先してそろえる。
 - 一時変数も意味が分かる名前にする。
   - 悪い例: `list`, `map`, `data`
   - 良い例: `mergeSegments`, `remainingPages`, `insertPdfDtos`

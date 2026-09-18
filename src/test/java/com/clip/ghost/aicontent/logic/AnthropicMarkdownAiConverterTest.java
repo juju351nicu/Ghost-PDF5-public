@@ -10,7 +10,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import com.anthropic.models.messages.StopReason;
-import com.clip.ghost.aicontent.config.AnthropicAiProperties;
+import com.clip.ghost.aicontent.config.AiAnthropicProperties;
 
 /**
  * {@link AnthropicMarkdownAiConverter} の外部呼び出しを伴わない挙動を検証するテスト。
@@ -23,7 +23,7 @@ class AnthropicMarkdownAiConverterTest {
 	@Test
 	@DisplayName("機能無効時はisEnabledがfalseになり、キー参照や外部呼び出しをしない")
 	void isEnabledIsFalseWhenDisabled() {
-		AnthropicAiProperties properties = new AnthropicAiProperties();
+		AiAnthropicProperties properties = new AiAnthropicProperties();
 		properties.setEnabled(false);
 		AnthropicMarkdownAiConverter converter = new AnthropicMarkdownAiConverter(properties);
 
@@ -33,7 +33,7 @@ class AnthropicMarkdownAiConverterTest {
 	@Test
 	@DisplayName("describeはモデル名を含み、APIキーを含まない")
 	void describeContainsModelWithoutApiKey() {
-		AnthropicAiProperties properties = new AnthropicAiProperties();
+		AiAnthropicProperties properties = new AiAnthropicProperties();
 		properties.setModel("claude-opus-5");
 		AnthropicMarkdownAiConverter converter = new AnthropicMarkdownAiConverter(properties);
 
@@ -45,7 +45,7 @@ class AnthropicMarkdownAiConverterTest {
 	@Test
 	@DisplayName("providerはanthropic")
 	void providerIsAnthropic() {
-		AnthropicMarkdownAiConverter converter = new AnthropicMarkdownAiConverter(new AnthropicAiProperties());
+		AnthropicMarkdownAiConverter converter = new AnthropicMarkdownAiConverter(new AiAnthropicProperties());
 
 		assertEquals("anthropic", converter.provider());
 	}
@@ -56,7 +56,7 @@ class AnthropicMarkdownAiConverterTest {
 		// Anthropicは出力上限に達してもエラーを返さず正常応答として終了する（stopReason=MAX_TOKENS）。
 		// REFINEは出力が入力とほぼ同じ長さになり得るため、この検出漏れは原文の後半が消えたMarkdownを
 		// 正しい結果として扱ってしまう事故につながる。
-		AnthropicMarkdownAiConverter converter = new AnthropicMarkdownAiConverter(new AnthropicAiProperties());
+		AnthropicMarkdownAiConverter converter = new AnthropicMarkdownAiConverter(new AiAnthropicProperties());
 
 		assertTrue(converter.isTruncated(Optional.of(StopReason.MAX_TOKENS)));
 	}
@@ -64,7 +64,7 @@ class AnthropicMarkdownAiConverterTest {
 	@Test
 	@DisplayName("stopReasonが正常終了（END_TURN）の場合は打ち切りと判定しない")
 	void isTruncatedIgnoresNormalCompletion() {
-		AnthropicMarkdownAiConverter converter = new AnthropicMarkdownAiConverter(new AnthropicAiProperties());
+		AnthropicMarkdownAiConverter converter = new AnthropicMarkdownAiConverter(new AiAnthropicProperties());
 
 		assertFalse(converter.isTruncated(Optional.of(StopReason.END_TURN)));
 		assertFalse(converter.isTruncated(Optional.empty()));

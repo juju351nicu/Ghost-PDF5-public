@@ -171,7 +171,7 @@ com.clip.ghost.aicontent
   dto.MarkdownAiTransformRequest / MarkdownAiTransformResponse
   enums.AiTaskType                       -> SUMMARIZE / REFINE（CodeEnum<String>）
   exception.AiInputException(400) / AiProcessingException(500) / AiUnavailableException(503)
-  config.AiProperties(provider) / AiMarkdownProperties(max-input-characters) / AnthropicAiProperties / OpenAiAiProperties
+  config.AiProperties(provider) / AiMarkdownProperties(max-input-characters) / AiAnthropicProperties / AiOpenAiProperties
 ```
 
 依存方向はController → Service → Logic。既存の `imageControllerServiceLogicDependenciesKeepDirection` は

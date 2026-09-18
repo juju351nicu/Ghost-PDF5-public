@@ -10,11 +10,15 @@ import lombok.Setter;
  * <p>
  * 既定は無効で、有効化した場合のみ外部AIへ画像を送信する。APIキーはこのクラスには持たず、
  * {@code apiKeyEnv} で指定した環境変数から実行時に読み取る。
+ * <p>
+ * 接頭辞の {@code Ocr} は設定prefixの {@code ghost.ocr} に対応する。同じAnthropicでも、Markdown本文の
+ * 整形・要約は {@code aicontent.config.AiAnthropicProperties}（{@code ghost.ai.anthropic}）が持つ別の設定で、
+ * モデルも出力トークン上限も違う。クラス名にprefixを表す接頭辞が無いと、どちらの設定を変えるべきか読めない。
  */
 @ConfigurationProperties(prefix = "ghost.ocr.anthropic")
 @Getter
 @Setter
-public class AnthropicProperties {
+public class OcrAnthropicProperties {
 	/** Anthropic providerの有効化フラグ。falseの間は選択時に画像Markdown下書きAPIが503を返す。 */
 	private boolean enabled = false;
 

@@ -7,7 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import com.clip.ghost.imagecontent.config.AnthropicProperties;
+import com.clip.ghost.imagecontent.config.OcrAnthropicProperties;
 
 /**
  * {@link AnthropicImageToMarkdownConverter} の外部呼び出しを伴わない挙動を検証するテスト。
@@ -20,7 +20,7 @@ class AnthropicImageToMarkdownConverterTest {
 	@Test
 	@DisplayName("機能無効時はisEnabledがfalseになり、キー参照や外部呼び出しをしない")
 	void isEnabledIsFalseWhenDisabled() {
-		AnthropicProperties properties = new AnthropicProperties();
+		OcrAnthropicProperties properties = new OcrAnthropicProperties();
 		properties.setEnabled(false);
 		AnthropicImageToMarkdownConverter converter = new AnthropicImageToMarkdownConverter(properties);
 
@@ -30,7 +30,7 @@ class AnthropicImageToMarkdownConverterTest {
 	@Test
 	@DisplayName("describeはモデル名を含み、APIキーを含まない")
 	void describeContainsModelWithoutApiKey() {
-		AnthropicProperties properties = new AnthropicProperties();
+		OcrAnthropicProperties properties = new OcrAnthropicProperties();
 		properties.setModel("claude-opus-5");
 		AnthropicImageToMarkdownConverter converter = new AnthropicImageToMarkdownConverter(properties);
 
@@ -42,7 +42,7 @@ class AnthropicImageToMarkdownConverterTest {
 	@Test
 	@DisplayName("providerはanthropic")
 	void providerIsAnthropic() {
-		AnthropicImageToMarkdownConverter converter = new AnthropicImageToMarkdownConverter(new AnthropicProperties());
+		AnthropicImageToMarkdownConverter converter = new AnthropicImageToMarkdownConverter(new OcrAnthropicProperties());
 
 		assertEquals("anthropic", converter.provider());
 	}

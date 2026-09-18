@@ -15,7 +15,7 @@ import com.anthropic.models.messages.Message;
 import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.StopReason;
 import com.anthropic.models.messages.TextBlock;
-import com.clip.ghost.aicontent.config.AnthropicAiProperties;
+import com.clip.ghost.aicontent.config.AiAnthropicProperties;
 import com.clip.ghost.aicontent.enums.AiTaskType;
 import com.clip.ghost.aicontent.exception.AiProcessingException;
 import com.clip.ghost.common.utils.MarkdownFenceUnwrapper;
@@ -34,7 +34,7 @@ import lombok.RequiredArgsConstructor;
 public class AnthropicMarkdownAiConverter implements MarkdownAiConverter {
 	private static final Logger LOGGER = LoggerFactory.getLogger(AnthropicMarkdownAiConverter.class);
 
-	private final AnthropicAiProperties properties;
+	private final AiAnthropicProperties properties;
 
 	/**
 	 * 機能が有効かつAPIキーが設定されている場合に利用可能と判定する。

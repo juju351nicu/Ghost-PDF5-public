@@ -131,7 +131,7 @@ com.clip.ghost.imagecontent
   logic.MarkdownFenceUnwrapper             -> 出力全体を包む外側フェンスの除去
   dto.ImageMarkdownDraftRequest / ImageMarkdownDraftResponse
   exception.ImageInputException(400) / ImageProcessingException(500) / OcrUnavailableException(503)
-  config.ImageOcrProperties(provider) / AnthropicProperties / OpenAiProperties / TesseractProperties
+  config.ImageOcrProperties(provider) / OcrAnthropicProperties / OcrOpenAiProperties / TesseractProperties
 ```
 
 依存方向は既存と同じ Controller → Service → Logic。外部 AI SDK やOCRエンジンの詳細は各 provider の変換器に閉じ込める。

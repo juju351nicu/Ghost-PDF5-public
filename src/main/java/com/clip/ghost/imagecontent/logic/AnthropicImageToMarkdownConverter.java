@@ -20,7 +20,7 @@ import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.TextBlock;
 import com.anthropic.models.messages.TextBlockParam;
 import com.clip.ghost.common.utils.MarkdownFenceUnwrapper;
-import com.clip.ghost.imagecontent.config.AnthropicProperties;
+import com.clip.ghost.imagecontent.config.OcrAnthropicProperties;
 import com.clip.ghost.imagecontent.exception.ImageProcessingException;
 
 import lombok.RequiredArgsConstructor;
@@ -36,7 +36,7 @@ import lombok.RequiredArgsConstructor;
 public class AnthropicImageToMarkdownConverter implements ImageToMarkdownConverter {
 	private static final Logger LOGGER = LoggerFactory.getLogger(AnthropicImageToMarkdownConverter.class);
 
-	private final AnthropicProperties properties;
+	private final OcrAnthropicProperties properties;
 
 	/**
 	 * 機能が有効かつAPIキーが設定されている場合に利用可能と判定する。
