@@ -560,6 +560,19 @@ class CodingConventionTest {
 	}
 
 	@Test
+	@DisplayName("任意の宛先へのHTTP接続をWebPageFetcherへ閉じる")
+	void httpClientIsLimitedToWebPageFetcher() throws IOException {
+		// 利用者が指定した宛先へ接続できる経路はWebPageFetcherだけにする。入口が増えると、
+		// どの経路がSSRF検査(WebAddressValidator)を通っているのかを追えなくなる。
+		// AI provider向けのSDK(OpenAI/Anthropic)は接続先が固定のため、この規約の対象外。
+		List<Path> targetFiles = new ArrayList<>(javaFiles(MAIN_SOURCE));
+		targetFiles.remove(MAIN_SOURCE.resolve("com/clip/ghost/webcontent/logic/WebPageFetcher.java"));
+
+		assertNoToken(targetFiles,
+				List.of("java.net.http.HttpClient", "HttpClient.newBuilder", "HttpClient.newHttpClient"));
+	}
+
+	@Test
 	@DisplayName("本番コードでJsoup.connectを使わない")
 	void jsoupConnectIsNotUsedInProductionCode() throws IOException {
 		// Jsoup.connectは名前解決・リダイレクト追跡・取得をライブラリの内側でまとめて行うため、

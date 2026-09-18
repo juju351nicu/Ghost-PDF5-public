@@ -72,8 +72,22 @@ ghost:
       preserve-interword-spaces: true
       timeout-seconds: 60
   web:
-    # Webページ取り込み（POST /markdownDraftHtml）。アップロードされたHTMLを解析するだけで、
-    # サーバーは外部へ接続しない。URL取得（Stage 2）を追加する際に ghost.web.fetch.* を足す。
+    # Webページ取り込み。HTMLファイルのアップロード（POST /markdownDraftHtml）は外部へ接続しない。
+    # URLからの取得（POST /markdownDraftUrl）はサーバーが利用者指定の宛先へ接続するため、既定は無効。
+    fetch:
+      enabled: ${GHOST_WEB_FETCH_ENABLED:false}
+      timeout-seconds: ${GHOST_WEB_FETCH_TIMEOUT_SECONDS:10}
+      # Content-Lengthの宣言値ではなく実読み取りバイト数で判定する。詐称とchunkedを素通りさせないため。
+      max-bytes: ${GHOST_WEB_FETCH_MAX_BYTES:2097152}
+      max-redirects: ${GHOST_WEB_FETCH_MAX_REDIRECTS:3}
+      # 連打や繰り返し実行で取得先へ負荷を掛けないための最小限の抑制。
+      min-interval-millis: ${GHOST_WEB_FETCH_MIN_INTERVAL_MILLIS:1000}
+      # ブラウザを偽装しない。取得先のログに、何が取りに来たのかが正しく残るようにする。
+      user-agent: ${GHOST_WEB_FETCH_USER_AGENT:Ghost-PDF5}
+      # ループバック宛の接続はSSRF対策で既定拒否。テストのローカルHTTPサーバー用にだけ有効化する。
+      allow-loopback: ${GHOST_WEB_FETCH_ALLOW_LOOPBACK:false}
+      # 標準ポート以外を許すと、Webページ取得という用途を超えて内部サービスを叩く経路になる。
+      allowed-ports: ${GHOST_WEB_FETCH_ALLOWED_PORTS:80,443}
     markdown:
       # 取り込み結果の出力文字数上限。超過分は切り落とし、切ったことをmessageListで通知する。
       # 上限が無いと、コメント欄まで含む長いページがそのままMarkdown欄へ入り、編集も後続のAI整形も通らなくなる。

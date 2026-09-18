@@ -6,7 +6,8 @@ import FileDropZone from "./file-drop-zone.js";
  * ファイル選択とドロップでHTMLを受け取り、選択中ファイル名とセレクタ入力の表示、
  * 実行・クリアのイベント通知に責務を限定する。API呼び出しは親のpdf-app.jsに残す。
  *
- * URL入力欄は持たない。サーバーが任意の宛先へ接続する機能は別段階で追加する。
+ * URL入力からの取り込みは、サーバーが利用者指定の宛先へ接続する機能のため既定で無効。
+ * 無効のまま実行すると503が返り、共通のエラー表示で「機能が無効」と分かる。
  */
 export default {
   name: "WebMarkdownForm",
@@ -17,10 +18,17 @@ export default {
     webState: { type: Object, required: true },
     isProcessing: { type: Boolean, required: true },
   },
-  emits: ["html-selected", "request-web-markdown", "clear-web-html", "update-selector"],
+  emits: [
+    "html-selected",
+    "request-web-markdown",
+    "request-web-markdown-url",
+    "clear-web-html",
+    "update-selector",
+    "update-url",
+  ],
   template: `
     <article class="pdf-card web-markdown-card">
-      <header>WebページからMarkdown（HTMLファイル）</header>
+      <header>WebページからMarkdown</header>
       <div class="pdf-card__body web-markdown-card__body">
         <file-drop-zone accept=".html,.htm" label="ここにHTMLをドロップ、またはファイルを選択"
           @files-dropped="handleFilesDropped">
@@ -31,6 +39,11 @@ export default {
         <p class="web-markdown-card__selected" v-if="webState.fileObject">
           {{ webState.fileName }}
         </p>
+        <label class="web-markdown-card__selector">
+          URLから取り込む（既定では無効）
+          <input type="url" placeholder="https://example.com/article"
+            :value="webState.url" @input="updateUrl($event)" />
+        </label>
         <label class="web-markdown-card__selector">
           本文の絞り込み（任意）
           <input type="text" placeholder="article / main / #content など" maxlength="200"
@@ -46,7 +59,9 @@ export default {
         </p>
         <div class="web-markdown-card__actions">
           <button type="button" :disabled="isProcessing || !webState.fileObject"
-            @click="requestWebMarkdown">Markdownにする</button>
+            @click="requestWebMarkdown">HTMLをMarkdownにする</button>
+          <button type="button" :disabled="isProcessing || !webState.url"
+            @click="requestWebMarkdownUrl">URLから取り込む</button>
           <button type="button" class="secondary" :disabled="isProcessing" @click="clearWebHtml">クリア</button>
         </div>
       </div>
@@ -83,10 +98,24 @@ export default {
       this.$emit("update-selector", event.target.value);
     },
     /**
-     * Markdown下書きの生成を親コンポーネントへ通知する。
+     * 入力されたURLを親コンポーネントへ通知する。
+     *
+     * @param {Event} event 入力イベント
+     */
+    updateUrl(event) {
+      this.$emit("update-url", event.target.value);
+    },
+    /**
+     * HTMLファイルからのMarkdown下書き生成を親コンポーネントへ通知する。
      */
     requestWebMarkdown() {
       this.$emit("request-web-markdown");
+    },
+    /**
+     * URLからのMarkdown下書き生成を親コンポーネントへ通知する。
+     */
+    requestWebMarkdownUrl() {
+      this.$emit("request-web-markdown-url");
     },
     /**
      * 選択HTMLのクリアを親コンポーネントへ通知する。

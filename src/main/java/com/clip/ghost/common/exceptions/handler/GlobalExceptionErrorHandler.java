@@ -33,8 +33,11 @@ import com.clip.ghost.pdfcontent.exception.PdfImageInputException;
 import com.clip.ghost.pdfcontent.exception.PdfProcessingException;
 import com.clip.ghost.pdfcontent.exception.PdfRenderDpiException;
 import com.clip.ghost.pdfcontent.exception.PdfSplitRangeException;
+import com.clip.ghost.webcontent.exception.WebFetchBlockedException;
+import com.clip.ghost.webcontent.exception.WebFetchException;
 import com.clip.ghost.webcontent.exception.WebInputException;
 import com.clip.ghost.webcontent.exception.WebProcessingException;
+import com.clip.ghost.webcontent.exception.WebUnavailableException;
 
 /**
  * アプリケーション共通の例外をHTTPレスポンスへ変換するREST用例外ハンドラー。
@@ -83,6 +86,11 @@ public class GlobalExceptionErrorHandler extends ResponseEntityExceptionHandler 
 	private static final String WEB_INPUT_ERROR_CODE = "webInputError";
 	private static final String WEB_PROCESSING_ERROR_CODE = "webProcessingError";
 	private static final String WEB_PROCESSING_ERROR_MESSAGE = "Webページ取り込みに失敗しました。";
+	private static final String WEB_FETCH_ERROR_CODE = "webFetchError";
+	private static final String WEB_FETCH_BLOCKED_ERROR_CODE = "webFetchBlocked";
+	private static final String WEB_FETCH_BLOCKED_ERROR_MESSAGE = "このURLへは接続できません。社内ネットワークや自分のPC上のアドレスは取得対象にできません。";
+	private static final String WEB_UNAVAILABLE_ERROR_CODE = "webUnavailable";
+	private static final String WEB_UNAVAILABLE_ERROR_MESSAGE = "URLからのWebページ取得機能は無効です。";
 	private static final String SEARCHABLE_PDF_UNAVAILABLE_ERROR_CODE = "searchablePdfUnavailable";
 	private static final String SEARCHABLE_PDF_UNAVAILABLE_ERROR_MESSAGE = "検索可能PDF生成機能は無効です。";
 
@@ -414,6 +422,57 @@ public class GlobalExceptionErrorHandler extends ResponseEntityExceptionHandler 
 		LOGGER.debug("Webページ取り込み例外の詳細です。", ex);
 		return createErrorResponse(WEB_PROCESSING_ERROR_CODE, WEB_PROCESSING_ERROR_MESSAGE,
 				HttpStatus.INTERNAL_SERVER_ERROR);
+	}
+
+	/**
+	 * URLからのWebページ取得に失敗した場合、レスポンスステータスを502にする。
+	 * <p>
+	 * 取得先が応答しない、タイムアウト、想定外のstatus、HTML以外の応答、サイズ超過、リダイレクト過多、
+	 * 取得間隔の制限がここへ来る。原因が取得先または通信の側にあるため、アプリの障害（500）とは分ける。
+	 * <p>
+	 * メッセージは例外が持つ文言をそのまま返す。何が起きたかで次の一手が変わる（URLを変える、時間を置く、
+	 * 別ページを選ぶ）ため。解決済みIPと取得したHTML本文は含まれない。
+	 *
+	 * @param ex Webページ取得例外
+	 * @return Web取得エラーのレスポンス
+	 */
+	@ResponseStatus(HttpStatus.BAD_GATEWAY)
+	@ExceptionHandler(WebFetchException.class)
+	protected ResponseEntity<ErrorResponse> handleWebFetch(WebFetchException ex) {
+		LOGGER.warn("Webページの取得に失敗しました。message={}", ex.getMessage());
+		return createErrorResponse(WEB_FETCH_ERROR_CODE, ex.getMessage(), HttpStatus.BAD_GATEWAY);
+	}
+
+	/**
+	 * 接続を許さない宛先が指定された場合、レスポンスステータスを400にする。
+	 * <p>
+	 * レスポンスにもログにも、解決済みIPアドレスは出さない。「どのホスト名がどのIPへ解決されたか」を
+	 * 返すと、この機能が内部ネットワークの構成を読み出す道具になってしまう。
+	 * どの範囲だったか（ループバックかプライベートか）も返さない。同じ理由による。
+	 *
+	 * @param ex 宛先拒否例外
+	 * @return 宛先拒否エラーのレスポンス
+	 */
+	@ResponseStatus(HttpStatus.BAD_REQUEST)
+	@ExceptionHandler(WebFetchBlockedException.class)
+	protected ResponseEntity<ErrorResponse> handleWebFetchBlocked(WebFetchBlockedException ex) {
+		LOGGER.warn("接続が許可されていない宛先が指定されました。host={}", ex.getHost());
+		return createErrorResponse(WEB_FETCH_BLOCKED_ERROR_CODE, WEB_FETCH_BLOCKED_ERROR_MESSAGE,
+				HttpStatus.BAD_REQUEST);
+	}
+
+	/**
+	 * URLからのWebページ取得機能が無効な場合、レスポンスステータスを503にする。
+	 *
+	 * @param ex 機能無効例外
+	 * @return 機能無効エラーのレスポンス
+	 */
+	@ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)
+	@ExceptionHandler(WebUnavailableException.class)
+	protected ResponseEntity<ErrorResponse> handleWebUnavailable(WebUnavailableException ex) {
+		LOGGER.warn("URLからのWebページ取得機能が無効です。message={}", ex.getMessage());
+		return createErrorResponse(WEB_UNAVAILABLE_ERROR_CODE, WEB_UNAVAILABLE_ERROR_MESSAGE,
+				HttpStatus.SERVICE_UNAVAILABLE);
 	}
 
 	/**

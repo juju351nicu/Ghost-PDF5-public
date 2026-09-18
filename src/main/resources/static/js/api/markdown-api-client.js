@@ -224,6 +224,22 @@ const requestHtmlMarkdownDraft = async (htmlFile, selector) => {
 };
 
 /**
+ * 指定されたURLのWebページからMarkdown下書きを起こす。
+ *
+ * サーバー側の取得機能が無効な場合は503が返るため、呼び出し元は共通のエラー表示で扱う。
+ *
+ * @param {string} url 取得先URL
+ * @param {string} selector 本文を絞り込むCSSセレクタ。空なら送信しない
+ * @returns {Promise<{data: Object|null, messages: Object[], errorMessages: string[], errorCodes: string[]}>} 取り込み結果
+ */
+const requestUrlMarkdownDraft = (url, selector) => {
+  const payload = selector ? { url, selector } : { url };
+  return requestJson(() =>
+    FetchClient.postRequest(CONST.REST_PATH.MARKDOWN_DRAFT_URL, payload)
+  );
+};
+
+/**
  * Markdown本文を新規保存する。
  *
  * @param {string} fileName 保存Markdownファイル名
@@ -278,6 +294,7 @@ export default {
   previewMarkdownContent,
   transformMarkdownAi,
   requestHtmlMarkdownDraft,
+  requestUrlMarkdownDraft,
   saveMarkdown,
   updateMarkdownFile,
   deleteMarkdownFile,

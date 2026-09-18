@@ -123,6 +123,27 @@ class WebMarkdownBuilderTest {
 	}
 
 	@Test
+	@DisplayName("コード全体がリンクの場合はコードを包む形にし、リンクを失わない")
+	void buildWrapsInlineCodeWithLink() {
+		String html = "<p><code><a href=\"api.html\">Element.select()</a></code> を使う</p>";
+
+		String markdown = build(html, TITLE, StringUtils.EMPTY);
+
+		assertTrue(Strings.CS.contains(markdown, "[`Element.select()`](https://example.test/docs/api.html) を使う"));
+	}
+
+	@Test
+	@DisplayName("コードの一部だけがリンクの場合はコード記法だけを残し、記法を入れ子にしない")
+	void buildKeepsInlineCodeWithoutNestedLinkNotation() {
+		String html = "<p><code>doc.<a href=\"api.html\">select</a>(query)</code></p>";
+
+		String markdown = build(html, TITLE, StringUtils.EMPTY);
+
+		assertTrue(Strings.CS.contains(markdown, "`doc.select(query)`"));
+		assertFalse(Strings.CS.contains(markdown, "](https://example.test/docs/api.html)"));
+	}
+
+	@Test
 	@DisplayName("引用は中の段落ごと引用記号を付けて残す")
 	void buildConvertsBlockQuote() {
 		String markdown = build("<blockquote><p>引用した一文。</p></blockquote>", TITLE, StringUtils.EMPTY);

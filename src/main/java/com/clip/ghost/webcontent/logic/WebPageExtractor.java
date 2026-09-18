@@ -67,7 +67,25 @@ public class WebPageExtractor {
 	 * @throws WebProcessingException HTMLを読み取れなかった場合
 	 */
 	public WebPageContent extract(InputStream htmlStream, String baseUri, String selector) {
-		Document document = parseDocument(htmlStream, baseUri);
+		return extract(htmlStream, baseUri, selector, null);
+	}
+
+	/**
+	 * 文字コードを指定してHTMLを解析し、Markdownへ写す対象を取り出す。
+	 * <p>
+	 * URL取得では応答の {@code Content-Type} が文字コードを示すことがある。HTTPヘッダーの指定は
+	 * HTML内の {@code <meta charset>} より優先されるため、指定があればそれを渡す。
+	 *
+	 * @param htmlStream  HTMLの入力ストリーム
+	 * @param baseUri     相対URLを絶対化する基準URL。アップロードで基準が無い場合は空文字
+	 * @param selector    本文を絞り込むCSSセレクタ。空なら {@code <body>} 全体
+	 * @param charsetName 文字コード名。nullならBOMと {@code <meta charset>} から判定する
+	 * @return Markdownへ写す対象
+	 * @throws WebInputException      セレクタの書式が不正、一致する要素が無い、または本文が空の場合
+	 * @throws WebProcessingException HTMLを読み取れなかった場合
+	 */
+	public WebPageContent extract(InputStream htmlStream, String baseUri, String selector, String charsetName) {
+		Document document = parseDocument(htmlStream, baseUri, charsetName);
 		// 除去はセレクタでの絞り込みより先に行う。絞り込み先の内側にもナビゲーションや広告枠は入り得る。
 		NOISE_TAG_NAMES.forEach(tagName -> document.select(tagName).remove());
 		Element root = resolveRoot(document, selector);
@@ -78,14 +96,15 @@ public class WebPageExtractor {
 	/**
 	 * HTMLを解析してDOMを組み立てる。
 	 *
-	 * @param htmlStream HTMLの入力ストリーム
-	 * @param baseUri    相対URLを絶対化する基準URL
+	 * @param htmlStream  HTMLの入力ストリーム
+	 * @param baseUri     相対URLを絶対化する基準URL
+	 * @param charsetName 文字コード名。nullならjsoupの判定に任せる
 	 * @return 解析済みのDOM
 	 * @throws WebProcessingException HTMLを読み取れなかった場合
 	 */
-	private Document parseDocument(InputStream htmlStream, String baseUri) {
+	private Document parseDocument(InputStream htmlStream, String baseUri, String charsetName) {
 		try {
-			return Jsoup.parse(htmlStream, null, StringUtils.defaultString(baseUri));
+			return Jsoup.parse(htmlStream, StringUtils.trimToNull(charsetName), StringUtils.defaultString(baseUri));
 		} catch (IOException e) {
 			throw new WebProcessingException(READ_FAILURE_MESSAGE, e);
 		}

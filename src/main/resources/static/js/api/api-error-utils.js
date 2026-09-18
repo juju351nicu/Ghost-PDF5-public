@@ -39,6 +39,9 @@ const ERROR_CODE = {
   SEARCHABLE_PDF_UNAVAILABLE: "searchablePdfUnavailable",
   WEB_INPUT: "webInputError",
   WEB_PROCESSING: "webProcessingError",
+  WEB_FETCH: "webFetchError",
+  WEB_FETCH_BLOCKED: "webFetchBlocked",
+  WEB_UNAVAILABLE: "webUnavailable",
 };
 
 /**
@@ -64,6 +67,10 @@ const RECOVERABLE_ERROR_CODES = [
   ERROR_CODE.SEARCHABLE_PDF_UNAVAILABLE,
   // 拡張子違い・セレクタの指定ミス・本文が取れないHTMLは、入力を変えれば通る。
   ERROR_CODE.WEB_INPUT,
+  // 取得先の応答・宛先・機能無効は、URLを変える／設定を有効にすることで通る。
+  ERROR_CODE.WEB_FETCH,
+  ERROR_CODE.WEB_FETCH_BLOCKED,
+  ERROR_CODE.WEB_UNAVAILABLE,
 ];
 
 /**

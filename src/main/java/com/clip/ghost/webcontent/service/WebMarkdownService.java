@@ -1,5 +1,6 @@
 package com.clip.ghost.webcontent.service;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.LocalDateTime;
@@ -17,22 +18,31 @@ import org.springframework.web.multipart.MultipartFile;
 import com.clip.ghost.common.response.ApiMessage;
 import com.clip.ghost.common.response.ApiResult;
 import com.clip.ghost.common.utils.PathUtils;
+import com.clip.ghost.webcontent.config.WebFetchProperties;
 import com.clip.ghost.webcontent.config.WebMarkdownProperties;
 import com.clip.ghost.webcontent.dto.WebMarkdownDraftRequest;
 import com.clip.ghost.webcontent.dto.WebMarkdownDraftResponse;
+import com.clip.ghost.webcontent.dto.WebUrlMarkdownDraftRequest;
 import com.clip.ghost.webcontent.exception.WebInputException;
 import com.clip.ghost.webcontent.exception.WebProcessingException;
+import com.clip.ghost.webcontent.exception.WebUnavailableException;
+import com.clip.ghost.webcontent.logic.FetchedWebPage;
 import com.clip.ghost.webcontent.logic.WebMarkdownBuilder;
 import com.clip.ghost.webcontent.logic.WebPageContent;
 import com.clip.ghost.webcontent.logic.WebPageExtractor;
+import com.clip.ghost.webcontent.logic.WebPageFetcher;
 
 import lombok.RequiredArgsConstructor;
 
 /**
- * HTMLファイルからMarkdown下書きを起こすサービス。
+ * WebページからMarkdown下書きを起こすサービス。
  * <p>
- * 解析と組み立てはLogicへ委譲し、このクラスは入力ファイルの検証、出力文字数の上限、
- * レスポンスDTOの組み立てを担当する。ネットワークへは出ない。
+ * 入口は2つある。HTMLファイルのアップロード（ネットワークへ出ない）と、URLからの取得
+ * （{@code ghost.web.fetch.enabled} が有効なときだけ）。取得・解析・組み立てはLogicへ委譲し、
+ * このクラスは入力の検証、機能の有効判定、出力文字数の上限、レスポンスDTOの組み立てを担当する。
+ * <p>
+ * 抽出とMarkdown組み立ては2つの入口で共有する。取得元がファイルかURLかで結果が変わると、
+ * 「ブラウザで保存して取り込んだ場合」と「URLを渡した場合」で出力の説明が二重になる。
  * <p>
  * 結果は自動保存しない。取り込んだ内容をそのまま保存すると、利用者が中身を確認する前に
  * 他者のページの複製が手元へ残ることになる。保存は利用者が明示的に実行したときだけ行う。
@@ -51,7 +61,9 @@ public class WebMarkdownService {
 
 	private final WebPageExtractor webPageExtractor;
 	private final WebMarkdownBuilder webMarkdownBuilder;
+	private final WebPageFetcher webPageFetcher;
 	private final WebMarkdownProperties webMarkdownProperties;
+	private final WebFetchProperties webFetchProperties;
 
 	/**
 	 * アップロードされたHTMLファイルからMarkdown下書きを起こす。
@@ -71,7 +83,49 @@ public class WebMarkdownService {
 		// 取得日時は「いつ時点のページか」を示す出典情報のため、変換のたびに実時刻を入れる。
 		String markdown = webMarkdownBuilder.build(content, fileName, LocalDateTime.now());
 		LOGGER.info("HTMLからMarkdown下書きを起こしました。markdownLength={}", StringUtils.length(markdown));
-		return buildResult(content.title(), markdown);
+		return buildResult(content.title(), markdown, null);
+	}
+
+	/**
+	 * 指定されたURLのWebページからMarkdown下書きを起こす。
+	 * <p>
+	 * 取得は {@link WebPageFetcher} だけが行い、抽出と組み立てはHTMLアップロード経路と同じものを使う。
+	 * 同じページなら、ファイルから読んでもURLから取っても同じMarkdownになる。
+	 *
+	 * @param request 取得先URLとセレクタを含むリクエスト
+	 * @return 起こしたMarkdown下書きを含むレスポンス
+	 * @throws WebUnavailableException URL取得機能が無効な場合
+	 */
+	public ResponseEntity<ApiResult<WebMarkdownDraftResponse>> generateMarkdownFromUrl(
+			WebUrlMarkdownDraftRequest request) {
+		Objects.requireNonNull(request, "request must not be null.");
+		if (!webFetchProperties.isEnabled()) {
+			throw new WebUnavailableException("URLからのWebページ取得機能は無効です。");
+		}
+		FetchedWebPage page = webPageFetcher.fetch(request.getUrl());
+		WebPageContent content = extractFetchedContent(page, request.getSelector());
+		String markdown = webMarkdownBuilder.build(content, page.finalUrl(), LocalDateTime.now());
+		LOGGER.info("URLからMarkdown下書きを起こしました。markdownLength={}", StringUtils.length(markdown));
+		return buildResult(content.title(), markdown, page.finalUrl());
+	}
+
+	/**
+	 * 取得したページを解析し、Markdownへ写す対象を取り出す。
+	 * <p>
+	 * 基準URLにはリダイレクトを追い終えた最終URLを使う。転送前のURLを基準にすると、
+	 * 転送先のページに書かれた相対リンクが別のパスへ向いてしまう。
+	 *
+	 * @param page     取得したページ
+	 * @param selector 本文を絞り込むCSSセレクタ
+	 * @return Markdownへ写す対象
+	 */
+	private WebPageContent extractFetchedContent(FetchedWebPage page, String selector) {
+		try (InputStream inputStream = new ByteArrayInputStream(page.content())) {
+			return webPageExtractor.extract(inputStream, page.finalUrl(), StringUtils.trim(selector),
+					page.charsetName());
+		} catch (IOException e) {
+			throw new WebProcessingException(READ_FAILURE_MESSAGE, e);
+		}
 	}
 
 	/**
@@ -119,15 +173,17 @@ public class WebMarkdownService {
 	 * 上限で切った場合はWARNINGとして通知する。黙って切ると、利用者は「ページの後半が無い」ことに
 	 * 気付かないままMarkdownメモを完成品として扱ってしまう。
 	 *
-	 * @param title    取り込んだページのタイトル
-	 * @param markdown 起こしたMarkdown本文
+	 * @param title     取り込んだページのタイトル
+	 * @param markdown  起こしたMarkdown本文
+	 * @param sourceUrl 取得元URL。アップロードからの変換ではnull
 	 * @return 共通ラッパーで包んだレスポンス
 	 */
-	private ResponseEntity<ApiResult<WebMarkdownDraftResponse>> buildResult(String title, String markdown) {
+	private ResponseEntity<ApiResult<WebMarkdownDraftResponse>> buildResult(String title, String markdown,
+			String sourceUrl) {
 		int maxCharacters = webMarkdownProperties.getMaxOutputCharacters();
 		boolean truncated = StringUtils.length(markdown) > maxCharacters;
 		String outputMarkdown = truncated ? StringUtils.substring(markdown, 0, maxCharacters) : markdown;
-		WebMarkdownDraftResponse response = buildResponse(title, outputMarkdown, truncated);
+		WebMarkdownDraftResponse response = buildResponse(title, outputMarkdown, truncated, sourceUrl);
 		if (truncated) {
 			LOGGER.info("取り込み結果を上限で切り落としました。maxCharacters={}", maxCharacters);
 			return ResponseEntity.ok(ApiResult.warning(response,
@@ -142,13 +198,16 @@ public class WebMarkdownService {
 	 * @param title     取り込んだページのタイトル
 	 * @param markdown  起こしたMarkdown本文
 	 * @param truncated 上限で切り落としたか
+	 * @param sourceUrl 取得元URL。アップロードからの変換ではnull
 	 * @return レスポンスDTO
 	 */
-	private WebMarkdownDraftResponse buildResponse(String title, String markdown, boolean truncated) {
+	private WebMarkdownDraftResponse buildResponse(String title, String markdown, boolean truncated,
+			String sourceUrl) {
 		WebMarkdownDraftResponse response = new WebMarkdownDraftResponse();
 		response.setMarkdown(markdown);
 		response.setTitle(title);
 		response.setTruncated(truncated);
+		response.setSourceUrl(sourceUrl);
 		return response;
 	}
 }

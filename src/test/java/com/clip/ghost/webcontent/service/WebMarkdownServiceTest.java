@@ -30,13 +30,18 @@ import org.springframework.mock.web.MockMultipartFile;
 
 import com.clip.ghost.common.response.ApiResult;
 import com.clip.ghost.common.response.ApiResultType;
+import com.clip.ghost.webcontent.config.WebFetchProperties;
 import com.clip.ghost.webcontent.config.WebMarkdownProperties;
 import com.clip.ghost.webcontent.dto.WebMarkdownDraftRequest;
 import com.clip.ghost.webcontent.dto.WebMarkdownDraftResponse;
+import com.clip.ghost.webcontent.dto.WebUrlMarkdownDraftRequest;
 import com.clip.ghost.webcontent.exception.WebInputException;
+import com.clip.ghost.webcontent.exception.WebUnavailableException;
+import com.clip.ghost.webcontent.logic.FetchedWebPage;
 import com.clip.ghost.webcontent.logic.WebMarkdownBuilder;
 import com.clip.ghost.webcontent.logic.WebPageContent;
 import com.clip.ghost.webcontent.logic.WebPageExtractor;
+import com.clip.ghost.webcontent.logic.WebPageFetcher;
 
 /**
  * {@link WebMarkdownService} の入力検証、出力上限、レスポンス組み立てを検証するテスト。
@@ -52,7 +57,12 @@ class WebMarkdownServiceTest {
 	@Mock
 	private WebMarkdownBuilder webMarkdownBuilder;
 
+	@Mock
+	private WebPageFetcher webPageFetcher;
+
 	private final WebMarkdownProperties webMarkdownProperties = new WebMarkdownProperties();
+
+	private final WebFetchProperties webFetchProperties = new WebFetchProperties();
 
 	/**
 	 * テスト対象を生成する。
@@ -62,7 +72,8 @@ class WebMarkdownServiceTest {
 	 * @return テスト対象
 	 */
 	private WebMarkdownService createService() {
-		return new WebMarkdownService(webPageExtractor, webMarkdownBuilder, webMarkdownProperties);
+		return new WebMarkdownService(webPageExtractor, webMarkdownBuilder, webPageFetcher, webMarkdownProperties,
+				webFetchProperties);
 	}
 
 	@ParameterizedTest
@@ -148,6 +159,62 @@ class WebMarkdownServiceTest {
 		assertTrue(apiResult.getData().getTruncated());
 		assertEquals(ApiResultType.WARNING, apiResult.getResultType());
 		assertEquals("webMarkdownTruncated", apiResult.getMessageList().get(0).code());
+	}
+
+	@Test
+	@DisplayName("URL取得が無効な場合は取得を試みずWebUnavailableExceptionになる")
+	void generateMarkdownFromUrlThrowsWhenFetchIsDisabled() {
+		WebUrlMarkdownDraftRequest request = createUrlRequest("https://example.test/article", StringUtils.EMPTY);
+		WebMarkdownService service = createService();
+
+		assertThrows(WebUnavailableException.class, () -> service.generateMarkdownFromUrl(request));
+
+		verify(webPageFetcher, never()).fetch(any());
+	}
+
+	@Test
+	@DisplayName("URL取得が有効な場合は取得結果を解析し、最終URLをsourceUrlと出典に使う")
+	void generateMarkdownFromUrlUsesFinalUrl() {
+		webFetchProperties.setEnabled(true);
+		doReturn(new FetchedWebPage("https://example.test/final", "UTF-8", HTML_CONTENT.getBytes(StandardCharsets.UTF_8)))
+				.when(webPageFetcher).fetch("https://example.test/article");
+		doReturn(createContent()).when(webPageExtractor).extract(any(), eq("https://example.test/final"), any(), any());
+		doReturn("# 設計メモ").when(webMarkdownBuilder).build(any(), eq("https://example.test/final"), any());
+
+		ResponseEntity<ApiResult<WebMarkdownDraftResponse>> result = createService()
+				.generateMarkdownFromUrl(createUrlRequest("https://example.test/article", StringUtils.EMPTY));
+
+		assertEquals(HttpStatus.OK, result.getStatusCode());
+		assertEquals("https://example.test/final", result.getBody().getData().getSourceUrl());
+		assertEquals("# 設計メモ", result.getBody().getData().getMarkdown());
+	}
+
+	@Test
+	@DisplayName("URL取得では応答の文字コードとセレクタをそのまま解析へ渡す")
+	void generateMarkdownFromUrlPassesCharsetAndSelector() {
+		webFetchProperties.setEnabled(true);
+		doReturn(new FetchedWebPage("https://example.test/article", "Shift_JIS",
+				HTML_CONTENT.getBytes(StandardCharsets.UTF_8))).when(webPageFetcher).fetch(any());
+		doReturn(createContent()).when(webPageExtractor).extract(any(), any(), eq("article"), eq("Shift_JIS"));
+		doReturn("# 設計メモ").when(webMarkdownBuilder).build(any(), any(), any());
+
+		createService().generateMarkdownFromUrl(createUrlRequest("https://example.test/article", " article "));
+
+		verify(webPageExtractor, times(1)).extract(any(), any(), eq("article"), eq("Shift_JIS"));
+	}
+
+	/**
+	 * URLからのMarkdown下書きリクエストを生成する。
+	 *
+	 * @param url      取得先URL
+	 * @param selector 本文を絞り込むCSSセレクタ
+	 * @return Markdown下書きリクエスト
+	 */
+	private WebUrlMarkdownDraftRequest createUrlRequest(String url, String selector) {
+		WebUrlMarkdownDraftRequest request = new WebUrlMarkdownDraftRequest();
+		request.setUrl(url);
+		request.setSelector(selector);
+		return request;
 	}
 
 	/**

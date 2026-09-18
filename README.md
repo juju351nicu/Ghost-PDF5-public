@@ -403,9 +403,14 @@ Markdown保存を含むJava 25の全286テストが成功しています。
 
 - Webページ取り込み `POST /markdownDraftHtml`（HTMLファイル → Markdown下書き）を追加済み。
   - アップロードされたHTMLから本文を取り出し、見出し・段落・リスト・表・コードブロック・引用・リンク・画像参照をMarkdownへ写す。冒頭に出典（取得元・取得日時）を付ける。
-  - ネットワークへは出ない。URLを受け取ってサーバーが取得する `POST /markdownDraftUrl` は、SSRF対策込みの別段階として未実装。
+  - この経路はネットワークへ出ない。
   - 整形・要約は専用APIを作らず、既存の `POST /markdownAiTransform` へ渡す。
   - 設計は [Webページ取り込み設計](docs/web-markdown-draft-design.md) を参照。
+- URLからのWebページ取り込み `POST /markdownDraftUrl` を追加済み。**既定は無効**（`ghost.web.fetch.enabled`）。
+  - サーバーが利用者指定の宛先へ接続するため、SSRF対策を必須にしている。スキーム・ポート・ユーザー情報・名前解決結果のIP範囲を検査し、リダイレクトは自前で追って毎ホップ検査し直す。Content-Typeはhtml系のみ、本文サイズは実読み取りバイト数で打ち切る。
+  - 1回の実行で1URLのみを取得し、ページ内のリンクは自動でたどらない。User-Agentは `Ghost-PDF5` を明示し、ブラウザを偽装しない。
+  - 取得は `java.net.http.HttpClient` を使い、`WebPageFetcher` 以外から任意の宛先へ接続できないことをArchUnitで固定している（`jsoup` は解析専用）。
+  - 取り扱いの注意は [SECURITY.md](SECURITY.md) の `External Network Access (Optional)` を参照。
 - 画像Markdown下書き `POST /markdownDraftImage`（vision / OpenAI provider、既定無効）を追加済み。
   - `POST /markdownDraftPdf` に `mode=AUTO` を追加済み。文字レイヤーが無いページを画像化し、共有の画像変換器（OCR/vision）で補完する。`mode` 省略時は従来動作。
   - `mode=AUTO` のコストガードとして `ghost.ocr.pdf.max-pages`（既定20）と `ghost.ocr.pdf.render-dpi`（既定200）を追加済み。上限超過は1ページも変換せず400で拒否し、画像はページ単位で処理して溜めない。

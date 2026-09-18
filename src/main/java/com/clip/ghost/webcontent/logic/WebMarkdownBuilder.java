@@ -60,6 +60,7 @@ public class WebMarkdownBuilder {
 	private static final String ALT_ATTRIBUTE = "alt";
 	private static final String TABLE_TAG = "table";
 	private static final String CODE_TAG = "code";
+	private static final String LINK_SELECTOR = "a[href]";
 	private static final int MAX_HEADING_LEVEL = 6;
 
 	/** 入れ子の可能性があるブロック要素。これらを含む要素は、段落ではなく入れ物として扱う。 */
@@ -375,11 +376,39 @@ public class WebMarkdownBuilder {
 		case "a" -> renderLink(element);
 		case "img" -> renderImage(element);
 		case "br" -> LINE_SEPARATOR;
-		case "code" -> wrapIfNotBlank(renderInline(element), INLINE_CODE_MARKER);
+		case "code" -> renderInlineCode(element);
 		case "strong", "b" -> wrapIfNotBlank(renderInline(element), BOLD_MARKER);
 		case "em", "i" -> wrapIfNotBlank(renderInline(element), ITALIC_MARKER);
 		default -> renderInline(element);
 		};
+	}
+
+	/**
+	 * インラインコードをMarkdownへ整形する。
+	 * <p>
+	 * コード記法の中では他の記法が働かない。中身を通常のインライン整形に掛けると、
+	 * APIリファレンスのように {@code <code><a>…</a></code>} と書かれたページで
+	 * リンク記法がコード記法の内側へ入り、どちらとしても描画されない文字列になる。
+	 * そのため中身は素のテキストだけを使う。
+	 * <p>
+	 * ただし、コード全体が1つのリンクになっている場合は、コードを包む形
+	 * （{@code [`text`](url)}）へ入れ替える。この形ならリンクとコードが両立し、
+	 * 参照先を失わずに済む。部分的にリンクを含む場合は入れ替えられないため、コードとしてだけ残す。
+	 *
+	 * @param element {@code code} 要素
+	 * @return インラインコードのMarkdown
+	 */
+	private String renderInlineCode(Element element) {
+		String code = wrapIfNotBlank(StringUtils.normalizeSpace(element.text()), INLINE_CODE_MARKER);
+		if (StringUtils.isBlank(code)) {
+			return StringUtils.EMPTY;
+		}
+		Element link = element.selectFirst(LINK_SELECTOR);
+		if (Objects.isNull(link) || !Strings.CS.equals(link.text(), element.text())) {
+			return code;
+		}
+		String url = resolveUrl(link, HREF_ATTRIBUTE);
+		return StringUtils.isBlank(url) ? code : LINK_FORMAT.formatted(code, url);
 	}
 
 	/**
