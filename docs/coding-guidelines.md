@@ -123,11 +123,16 @@ temporaryDirectory から Paths.get(temporaryDirectory) で生成する。
   - 利用がある場合は正しい名前のメソッドを追加し、typoメソッドは `@Deprecated` を付けて新メソッドへ委譲する。
   - 利用がなく、正しい名前の代替が既にある場合は削除する。
 - boolean を返すメソッドは `is`, `has`, `can` などで始める。
-- `@ConfigurationProperties` のクラス名は、設定prefixの階層をそのまま接頭辞にする。
+- `@ConfigurationProperties` のクラス名は、同じ名前が複数の設定階層に現れて取り違えが起きる場合に、
+  設定prefixの階層を接頭辞にして区別する。
   - 例: `ghost.ocr.anthropic` → `OcrAnthropicProperties`、`ghost.ai.anthropic` → `AiAnthropicProperties`
   - 同じprovider（Anthropic / OpenAI）を画像文字起こしとMarkdown本文AI変換の両方で使うため、接頭辞が無いと
     クラス名からどちらの設定か読めない。モデルも出力トークン上限も別に設定する。
-  - `AiOpenAiProperties` のように重なって見える名前も、prefixとの対応を優先してそろえる。
+  - `AiOpenAiProperties` のように重なって見える名前も、取り違え防止を優先してそろえる。
+  - 取り違える相手がいない設定には接頭辞を付けない。`TesseractProperties`（`ghost.ocr.tesseract`）は
+    同名の設定が他に無く、`Ocr` を足しても区別できる情報が増えないため現状のままにする。
+  - prefixの語順へ機械的にそろえることは目的ではない。`PdfOcrProperties`（`ghost.ocr.pdf`）を
+    `OcrPdfProperties` にすると、`pdfcontent` が持つPDF固有の設定であることがかえって読みにくくなる。
 - 一時変数も意味が分かる名前にする。
   - 悪い例: `list`, `map`, `data`
   - 良い例: `mergeSegments`, `remainingPages`, `insertPdfDtos`
