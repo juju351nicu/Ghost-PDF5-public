@@ -70,6 +70,7 @@ commons-lang3 3.19 で `StringUtils` の比較・検索・置換系は非推奨�
 - `codeDoesNotCallDeprecatedCommonsLang3Apis`（本番・テスト両方が対象）
 - `productionCodeUsesUploadFileSizeValidatorForUploadSizeChecks`
 - `productionCodeUsesMarkdownTextNormalizerForLineEndings`
+- `frontendButtonsUseRoleBasedStyleClasses`（操作ボタンは `btn-primary` / `btn-secondary` / `btn-neutral` / `btn-danger` のいずれかを付ける）
 
 `CodingConventionTest` には他にも `@Autowired` field injection禁止、`System.out` / `printStackTrace` 禁止、
 public宣言へのJavadoc必須などの規約が入っている。新しい規約を足す場合もここへ追加し、ドキュメントだけで終わらせない。

@@ -1,19 +1,31 @@
 @charset "UTF-8";
 
 :root {
-	--pico-primary: #1B85FB;
-	--pico-primary-hover: #489dfb;
-	--pico-primary-focus: rgba(27, 133, 251, .25);
+	/* 実行系ボタンとヘッダーの基準色。作業画面として落ち着かせるため、以前の明るい青(#1B85FB)より暗いトーンにする。
+	   Pico既定のリンク色などもこの色へそろえたいので、--pico-*へも同じ値を渡す。 */
+	--ghost-color-primary: #015d9a;
+	--ghost-color-primary-hover: #0b4875;
+	--pico-primary: var(--ghost-color-primary);
+	--pico-primary-hover: var(--ghost-color-primary-hover);
+	--pico-primary-focus: rgba(1, 93, 154, .25);
 	--ghost-color-page-bg: rgb(225, 228, 233);
 	--ghost-color-surface: #ffffff;
 	--ghost-color-text: #333333;
+	/* 本文より一段弱い文字色。補足説明やファイル情報など、読み飛ばしてよい情報に使う。 */
+	--ghost-color-muted: #59636e;
 	--ghost-color-border: #d0d7de;
 	--ghost-color-error: #a5272a;
 	--ghost-color-warning-text: #7a4b00;
 	--ghost-color-warning-bg: #fff8c5;
 	--ghost-color-warning-border: #e3b341;
+	/* 淡い青の面。カード見出し、補助ボタンのhover、選択中サムネイルで共有する。 */
 	--ghost-color-section-bg: #dceff8;
-	--ghost-content-width: 980px;
+	/* クリア・取り消しなど、何も生み出さない操作のボタン色。 */
+	--ghost-color-neutral: #56647a;
+	--ghost-color-neutral-hover: #445064;
+	/* 押せないボタンの色。青系のまま彩度を落とし、押せる青との違いが一目で分かるようにする。 */
+	--ghost-color-disabled: #9ec9dd;
+	--ghost-content-width: 1120px;
 	--ghost-control-width: 22rem;
 }
 
@@ -41,6 +53,9 @@ body > #app {
 .tab-nav {
 	display: flex;
 	flex-wrap: wrap;
+	/* Picoは<nav>へjustify-content: space-betweenを当てる。効かせたままだと画面幅に応じてタブ間隔が広がり、
+	   押す位置が幅ごとに変わるため、左詰めへ戻す。 */
+	justify-content: flex-start;
 	gap: 4px;
 	margin-bottom: 20px;
 	border-bottom: 2px solid var(--ghost-color-border);
@@ -60,12 +75,12 @@ body > #app {
 }
 
 .tab-nav__item:hover {
-	color: var(--pico-primary);
+	color: var(--ghost-color-primary);
 }
 
 .tab-nav__item--active {
-	border-bottom-color: var(--pico-primary);
-	color: var(--pico-primary);
+	border-bottom-color: var(--ghost-color-primary);
+	color: var(--ghost-color-primary);
 }
 
 .tab-panel {
@@ -76,7 +91,7 @@ body > #app {
 /* ファイル未選択時のプレースホルダ。操作ボタンの代わりに次にすることだけを示す。 */
 .pdf-card__hint {
 	margin: 0;
-	color: #59636e;
+	color: var(--ghost-color-muted);
 	font-size: .9375rem;
 }
 
@@ -88,26 +103,89 @@ body > #app {
 	color: var(--ghost-color-text);
 }
 
-/* 取り消せない操作（保存済みMarkdownの削除など）だけに使う。クリアや補助操作の
-   secondary/outlineより目立たせ、押す前に立ち止まれるようにする。 */
+/*
+ * 操作ボタンの種別。押す前に何が起きるかを色で見分けられるよう、画面全体で次の4種類に絞る。
+ * Picoの.outline / .secondaryは「見た目の指定」で役割が読み取れないため、役割名のクラスへ寄せる。
+ *   btn-primary   … そのカードの主目的を実行する（PDF出力・保存・OCRなど）
+ *   btn-secondary … 結果を見る・読み込む・コピーするなど、元に戻せる補助操作
+ *   btn-neutral   … 入力のクリアや閉じるなど、何も生み出さない操作
+ *   btn-danger    … 取り消せない操作（保存済みMarkdownの削除など）
+ * 種別を増やす前に、既存4種のどれかで表せないかを先に確かめる。
+ */
+.btn-primary,
+.btn-secondary,
+.btn-neutral,
 .btn-danger {
-	color: var(--ghost-color-error);
+	border-width: 1px;
+	border-style: solid;
+	border-radius: 8px;
+	padding: .55rem 1rem;
+	font-weight: 600;
+	transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+
+.btn-primary {
+	background-color: var(--ghost-color-primary);
+	border-color: var(--ghost-color-primary);
+	color: #fff;
+}
+
+.btn-primary:is(:hover, :focus) {
+	background-color: var(--ghost-color-primary-hover);
+	border-color: var(--ghost-color-primary-hover);
+	color: #fff;
+}
+
+.btn-secondary {
+	background-color: var(--ghost-color-surface);
+	border-color: var(--ghost-color-primary);
+	color: var(--ghost-color-primary);
+}
+
+.btn-secondary:is(:hover, :focus) {
+	background-color: var(--ghost-color-section-bg);
+	border-color: var(--ghost-color-primary-hover);
+	color: var(--ghost-color-primary-hover);
+}
+
+.btn-neutral {
+	background-color: var(--ghost-color-neutral);
+	border-color: var(--ghost-color-neutral);
+	color: #fff;
+}
+
+.btn-neutral:is(:hover, :focus) {
+	background-color: var(--ghost-color-neutral-hover);
+	border-color: var(--ghost-color-neutral-hover);
+	color: #fff;
+}
+
+.btn-danger {
+	background-color: var(--ghost-color-surface);
 	border-color: var(--ghost-color-error);
-	background-color: transparent;
+	color: var(--ghost-color-error);
 }
 
 .btn-danger:is(:hover, :focus) {
-	color: #fff;
 	background-color: var(--ghost-color-error);
 	border-color: var(--ghost-color-error);
+	color: #fff;
 }
 
-/* PDF差し込み・結合は初期状態で閉じ、必要なときだけ開く。 */
-.insert-merge-panel {
-	margin: 0 0 28px;
+/* 押せない理由（ファイル未選択・本文が空・処理中）は、押した後のエラー文ではなく見た目で先に示す。 */
+.btn-primary:disabled,
+.btn-secondary:disabled,
+.btn-neutral:disabled,
+.btn-danger:disabled {
+	background-color: var(--ghost-color-disabled);
+	border-color: var(--ghost-color-disabled);
+	color: #fff;
+	cursor: not-allowed;
 }
 
-.insert-merge-panel > summary {
+/* 毎回は使わない操作をしまう折りたたみパネル（PDF差し込み・結合、MarkdownメモのAI機能）。
+   常時表示すると、よく使う操作が探しにくくなるものだけをここへ入れる。 */
+.collapse-panel > summary {
 	padding: 10px 14px;
 	border: 1px solid var(--ghost-color-border);
 	border-radius: 6px;
@@ -116,17 +194,21 @@ body > #app {
 	cursor: pointer;
 }
 
-.insert-merge-panel[open] > summary {
+.collapse-panel[open] > summary {
 	border-radius: 6px 6px 0 0;
 	border-bottom: none;
 }
 
-.insert-merge-panel__body {
+.collapse-panel__body {
 	padding: 16px;
 	border: 1px solid var(--ghost-color-border);
 	border-top: none;
 	border-radius: 0 0 6px 6px;
 	background: var(--ghost-color-surface);
+}
+
+.insert-merge-panel {
+	margin: 0 0 28px;
 }
 
 /* PDF差し込み・結合パネル内の見出しテキストと実行ボタン。以前は.mainの直接の子だったが、
@@ -232,11 +314,11 @@ body > #app {
 }
 
 .process-panel--processing {
-	border-left-color: var(--pico-primary);
+	border-left-color: var(--ghost-color-primary);
 }
 
 .process-panel--done {
-	border-left-color: var(--pico-primary);
+	border-left-color: var(--ghost-color-primary);
 	background-color: var(--ghost-color-section-bg);
 }
 
@@ -260,7 +342,7 @@ body > #app {
 }
 
 .file-drop-zone--over {
-	border-color: var(--pico-primary);
+	border-color: var(--ghost-color-primary);
 	background-color: var(--ghost-color-section-bg);
 }
 
@@ -319,6 +401,7 @@ body > #app {
 	font-size: 0.85rem;
 }
 
+.image-ocr-card__notice,
 .epub-card__selected,
 .epub-card__notice,
 .office-card__selected,
@@ -407,7 +490,7 @@ body > #app {
 	align-items: center;
 	gap: 10px;
 	font-size: .875rem;
-	color: #59636e;
+	color: var(--ghost-color-muted);
 	overflow-wrap: anywhere;
 }
 
@@ -498,7 +581,7 @@ body > #app {
 }
 
 .pdf-thumbnail-list__item--selected {
-	border-color: var(--pico-primary);
+	border-color: var(--ghost-color-primary);
 	background: var(--ghost-color-section-bg);
 }
 
@@ -543,7 +626,7 @@ body > #app {
 
 .markdown-panel__message {
 	margin: 0;
-	color: var(--pico-primary);
+	color: var(--ghost-color-primary);
 }
 
 /* 成功レスポンスの通知（ApiResultのmessageList）はモーダルで止めず、操作の近くへ控えめに出す。 */
@@ -582,6 +665,7 @@ body > #app {
 	resize: vertical;
 }
 
+/* AI整形・AI要約は毎回使う操作ではないため折りたたみに入れる。開いた中身の並びだけをここで決める。 */
 .markdown-panel__ai {
 	display: flex;
 	flex-direction: column;
@@ -644,7 +728,7 @@ body > #app {
 
 .markdown-panel__file-list span {
 	font-size: .875rem;
-	color: #59636e;
+	color: var(--ghost-color-muted);
 }
 
 .markdown-panel__preview > :last-child {
@@ -665,7 +749,7 @@ body > #app {
 }
 
 .header {
-	background-color: var(--pico-primary);
+	background-color: var(--ghost-color-primary);
 }
 
 .header-inner {
@@ -683,11 +767,14 @@ body > #app {
 	color: #fff;
 }
 
+/* フッターは操作対象ではないため、ヘッダーと同じ青では置かない。面は白のまま、上の罫線だけで本文と区切る。
+   画面下に濃い色の帯があると、作業中に視線がそちらへ引かれる。 */
 .footer {
 	display: flex;
 	align-items: center;
 	flex-direction: column;
-	background-color: var(--pico-primary);
+	background-color: var(--ghost-color-surface);
+	border-top: 1px solid var(--ghost-color-border);
 	padding: .75rem;
 }
 
@@ -696,21 +783,25 @@ body > #app {
 	justify-content: center;
 	align-items: center;
 	gap: 0 1.5em;
-	list-style-type: none;
 	margin: 0 0 .5em;
 	padding: 0;
 }
 
+/* Picoはli側へlist-style: squareを当てるため、ul側の指定だけでは行頭記号が消えない。 */
+.footer__list li {
+	list-style: none;
+}
+
 .footer__link {
-	color: #fff;
-	font-weight: 200;
+	color: var(--ghost-color-primary);
+	font-weight: 400;
 	text-decoration: none;
 }
 
 .footer__copyright {
 	margin: 0;
-	color: #ffffffb3;
-	font-weight: 200;
+	color: var(--ghost-color-muted);
+	font-weight: 400;
 	font-size: .8em;
 }
 
@@ -857,13 +948,13 @@ body > #app {
 	border: 2px dashed var(--ghost-color-border);
 	border-radius: 6px;
 	background: var(--ghost-color-surface);
-	color: #59636e;
+	color: var(--ghost-color-muted);
 	text-align: center;
 	cursor: pointer;
 }
 
 .image-ocr-card__paste:focus {
-	outline: 2px solid var(--pico-primary);
+	outline: 2px solid var(--ghost-color-primary);
 	outline-offset: 2px;
 }
 
@@ -883,7 +974,7 @@ body > #app {
 
 .image-ocr-card__preview span {
 	font-size: .875rem;
-	color: #59636e;
+	color: var(--ghost-color-muted);
 	overflow-wrap: anywhere;
 }
 

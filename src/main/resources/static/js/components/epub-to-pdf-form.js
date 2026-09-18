@@ -34,9 +34,9 @@ export default {
           リーダーで開いたときの見た目とは一致しません。
         </p>
         <div class="epub-card__actions">
-          <button type="button" :disabled="isProcessing || !epubState.fileObject"
+          <button type="button" class="btn-primary" :disabled="isProcessing || !epubState.fileObject"
             @click="requestPdfFromEpub">PDFにする</button>
-          <button type="button" class="secondary" :disabled="isProcessing" @click="clearEpub">クリア</button>
+          <button type="button" class="btn-neutral" :disabled="isProcessing" @click="clearEpub">クリア</button>
         </div>
       </div>
     </article>

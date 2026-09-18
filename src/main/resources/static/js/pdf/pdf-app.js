@@ -167,6 +167,60 @@ const pdfApp = {
       return ProcessState.isBusyState(this.processPanel.state);
     },
     /**
+     * Markdown編集欄に本文が入っているか判定する。
+     *
+     * 保存・プレビュー・PDF出力・コピー・AI変換は、本文が空だと実行しても意味がない。
+     * 押した後に「対象がありません」と返すより、押せない状態を先に見せる。
+     *
+     * @returns {boolean} 本文が入っている場合はtrue
+     */
+    hasMarkdownContent() {
+      return !Util.isEmpty(this.markdownContent);
+    },
+    /**
+     * Markdownファイル名が入力されているか判定する。
+     *
+     * 読込・更新・削除は保存済みファイルを名前で特定するため、空欄では実行できない。
+     *
+     * @returns {boolean} ファイル名が入力されている場合はtrue
+     */
+    hasMarkdownFileName() {
+      return !Util.isEmpty(this.markdownFileName.trim());
+    },
+    /**
+     * PDF差込みを実行できるか判定する。
+     *
+     * 差し込み先の編集元PDFと、差し込む側のPDFが1件以上そろっている必要がある。
+     *
+     * @returns {boolean} 差込みを実行できる場合はtrue
+     */
+    canInsertPdf() {
+      return (
+        !Util.isEmpty(this.originalFile.fileObject) &&
+        this.selectedInsertFileCount >= 1
+      );
+    },
+    /**
+     * PDF結合を実行できるか判定する。
+     *
+     * 結合は差し込み行のPDFだけを対象とするため、2件以上選ばれている必要がある。
+     *
+     * @returns {boolean} 結合を実行できる場合はtrue
+     */
+    canMergePdf() {
+      return this.selectedInsertFileCount >= 2;
+    },
+    /**
+     * 差し込み行でPDFが選択されている件数。
+     *
+     * @returns {number} PDFが選択されている差し込み行の件数
+     */
+    selectedInsertFileCount() {
+      return this.insertFiles.filter(
+        (insertData) => !Util.isEmpty(insertData.fileObject)
+      ).length;
+    },
+    /**
      * ホームタブへ出す、最近保存したMarkdownの上位5件。
      *
      * Markdownメモタブの一覧は既存仕様どおりファイル名順のまま保ち、ホーム向けにここだけ

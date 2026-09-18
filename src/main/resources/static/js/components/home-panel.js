@@ -18,19 +18,22 @@ export default {
       <div class="pdf-card__body home-panel__body">
         <section aria-label="よく使う操作">
           <p class="pdf-card__section-title">よく使う操作</p>
+          <p class="pdf-card__hint">押すと該当タブへ移動します。ファイル選択と実行は移動先で行います。</p>
+          <!-- ここのボタンはタブを開くだけで、まだ何も実行しない。塗りつぶしの青(btn-primary)は
+               実際に変換・保存を走らせるボタンに取っておき、導線はbtn-secondaryでそろえる。 -->
           <div class="home-panel__actions">
-            <button type="button" @click="navigateTab('edit')">PDFをMarkdown下書き化</button>
-            <button type="button" @click="navigateTab('ocr')">画像をOCRしてMarkdownへ</button>
-            <button type="button" @click="navigateTab('memo')">MarkdownをPDF出力</button>
-            <button type="button" class="outline" @click="navigateTab('merge')">PDFを結合</button>
-            <button type="button" class="outline" @click="navigateTab('edit')">PDFをページ抽出</button>
+            <button type="button" class="btn-secondary" @click="navigateTab('edit')">PDFをMarkdown下書き化</button>
+            <button type="button" class="btn-secondary" @click="navigateTab('ocr')">画像をOCRしてMarkdownへ</button>
+            <button type="button" class="btn-secondary" @click="navigateTab('memo')">MarkdownをPDF出力</button>
+            <button type="button" class="btn-secondary" @click="navigateTab('merge')">PDFを結合</button>
+            <button type="button" class="btn-secondary" @click="navigateTab('edit')">PDFをページ抽出</button>
           </div>
         </section>
         <section aria-label="最近保存したMarkdown">
           <p class="pdf-card__section-title">最近保存したMarkdown</p>
           <ul class="home-panel__recent-list" v-if="recentMarkdownFiles.length > 0">
             <li v-for="fileInfo in recentMarkdownFiles" :key="fileInfo.fileName">
-              <button type="button" class="outline" :disabled="isProcessing"
+              <button type="button" class="btn-secondary" :disabled="isProcessing"
                 @click="openRecentMarkdown(fileInfo.fileName)">
                 {{ fileInfo.fileName }}
               </button>

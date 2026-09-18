@@ -14,7 +14,7 @@ export default {
           <p>{{ message }}</p>
         </template>
         <footer>
-          <button type="button" @click="handleCloseModal()">閉じる</button>
+          <button type="button" class="btn-neutral" @click="handleCloseModal()">閉じる</button>
         </footer>
       </article>
     </dialog>

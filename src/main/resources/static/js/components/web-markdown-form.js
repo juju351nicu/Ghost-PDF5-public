@@ -67,11 +67,11 @@ export default {
           構造レポートは、メタ情報・見出しアウトライン・ランドマーク構成を事実のまま書き出します（評価は書きません）。
         </p>
         <div class="web-markdown-card__actions">
-          <button type="button" :disabled="isProcessing || !webState.fileObject"
+          <button type="button" class="btn-primary" :disabled="isProcessing || !webState.fileObject"
             @click="requestWebMarkdown">HTMLをMarkdownにする</button>
-          <button type="button" :disabled="isProcessing || !webState.url"
+          <button type="button" class="btn-primary" :disabled="isProcessing || !webState.url"
             @click="requestWebMarkdownUrl">URLから取り込む</button>
-          <button type="button" class="secondary" :disabled="isProcessing" @click="clearWebHtml">クリア</button>
+          <button type="button" class="btn-neutral" :disabled="isProcessing" @click="clearWebHtml">クリア</button>
         </div>
       </div>
     </article>

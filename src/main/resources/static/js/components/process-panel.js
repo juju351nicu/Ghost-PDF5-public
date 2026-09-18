@@ -28,18 +28,18 @@ export default {
           <input type="password" v-model="panelState.password" autocomplete="off"
             aria-label="PDFを開くパスワード" placeholder="PDFを開くパスワード"
             @keyup.enter="submitPassword" />
-          <button type="button" :disabled="!panelState.password" @click="submitPassword">
+          <button type="button" class="btn-primary" :disabled="!panelState.password" @click="submitPassword">
             PDFを開く
           </button>
         </div>
         <div class="process-panel__actions" v-if="isDoneState">
-          <button type="button" @click="startOver">やり直す</button>
+          <button type="button" class="btn-primary" @click="startOver">やり直す</button>
         </div>
         <div class="process-panel__actions" v-if="isDismissibleState">
-          <button type="button" class="secondary" @click="dismiss">閉じる</button>
+          <button type="button" class="btn-neutral" @click="dismiss">閉じる</button>
         </div>
         <div class="process-panel__actions" v-if="isPasswordRequiredState">
-          <button type="button" class="secondary" @click="dismiss">別のファイルを選ぶ</button>
+          <button type="button" class="btn-neutral" @click="dismiss">別のファイルを選ぶ</button>
         </div>
       </div>
     </article>

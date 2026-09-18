@@ -111,6 +111,28 @@ temporaryDirectory から Paths.get(temporaryDirectory) で生成する。
 一時確認ログを入れる場合は System.out.println ではなく LOGGER.debug(...) を使用する。
 ```
 
+## 画面のボタン種別と配色
+
+業務ツールとして「押す前に何が起きるか」を色で見分けられるようにする。見た目を増やすのではなく、役割を4種類へ絞る。
+
+- 操作ボタンには次のいずれか1つを必ず付ける。`main.css` の `:root` にある色トークンだけで表現し、個別に色を書かない。
+
+| クラス | 使う操作 | 見た目 |
+| --- | --- | --- |
+| `btn-primary` | そのカードの主目的を実行する（PDF出力・保存・OCR・変換の実行） | 塗りつぶしの青 |
+| `btn-secondary` | 結果を見る・読み込む・コピーするなど、元に戻せる補助操作 | 白背景＋青枠 |
+| `btn-neutral` | クリア・閉じる・破棄など、何も生み出さない操作 | 塗りつぶしのグレー |
+| `btn-danger` | 取り消せない操作（保存済みMarkdownの削除など） | 白背景＋赤枠 |
+
+- Picoの `.outline` / `.secondary` / `.contrast` は使わない。「見た目の指定」で役割が読み取れず、同じ操作が画面ごとに別の色になる。
+  - `CodingConventionTest.frontendButtonsUseRoleBasedStyleClasses` がファイル名と行番号付きで落とす。
+- タブ移動だけのボタンは `btn-secondary` にする。塗りつぶしの青は、実際に変換・保存を走らせるボタンに取っておく。
+- 実行できない条件（ファイル未選択、本文が空、処理中）は `:disabled` で先に示す。押させてからエラー文で伝えない。
+  - 判定は `pdf-app.js` のcomputed（`hasMarkdownContent` / `canMergePdf` など）に置き、templateへ式を書き散らさない。
+- ヘッダーだけを濃い青にし、フッターは白＋上罫線に留める。画面下に濃い帯があると、作業中に視線がそちらへ引かれる。
+- 毎回は使わない操作（PDF差し込み・結合、MarkdownメモのAI機能）は `collapse-panel` の `<details>` へ入れ、既定で閉じる。
+  - 特に外部AIへ送信する操作は、注意書きを畳んだ中ではなく `<summary>` にも出す。開く前に外部送信だと分かるようにする。
+
 ## 命名ルール
 
 - クラス名は責務が分かる名詞にする。

@@ -431,6 +431,14 @@ class CodingConventionTest {
 	}
 
 	@Test
+	@DisplayName("操作ボタンはPicoの見た目クラスではなく役割別のbtn-*クラスを使う")
+	void frontendButtonsUseRoleBasedStyleClasses() throws IOException {
+		assertNoToken(frontendVueFiles(),
+				List.of("class=\"outline\"", "class=\"outline ", "class=\"secondary\"", "class=\"secondary ",
+						"class=\"contrast\"", "class=\"contrast "));
+	}
+
+	@Test
 	@DisplayName("buttonにtype属性を明示する")
 	void frontendButtonsDeclareTypeAttribute() throws IOException {
 		assertNoPattern(frontendVueFiles(), BUTTON_WITHOUT_TYPE, "type属性なしbutton");
