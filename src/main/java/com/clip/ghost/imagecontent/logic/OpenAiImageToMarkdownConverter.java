@@ -11,7 +11,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import com.clip.ghost.common.utils.MarkdownFenceUnwrapper;
-import com.clip.ghost.imagecontent.config.OpenAiProperties;
+import com.clip.ghost.imagecontent.config.OcrOpenAiProperties;
 import com.clip.ghost.imagecontent.exception.ImageProcessingException;
 import com.openai.client.OpenAIClient;
 import com.openai.client.okhttp.OpenAIOkHttpClient;
@@ -34,7 +34,7 @@ import lombok.RequiredArgsConstructor;
 public class OpenAiImageToMarkdownConverter implements ImageToMarkdownConverter {
 	private static final Logger LOGGER = LoggerFactory.getLogger(OpenAiImageToMarkdownConverter.class);
 
-	private final OpenAiProperties properties;
+	private final OcrOpenAiProperties properties;
 
 	/**
 	 * 機能が有効かつAPIキーが設定されている場合に利用可能と判定する。

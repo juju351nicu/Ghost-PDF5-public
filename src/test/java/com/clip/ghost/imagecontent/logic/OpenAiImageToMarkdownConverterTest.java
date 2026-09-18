@@ -7,7 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import com.clip.ghost.imagecontent.config.OpenAiProperties;
+import com.clip.ghost.imagecontent.config.OcrOpenAiProperties;
 
 /**
  * {@link OpenAiImageToMarkdownConverter} の外部呼び出しを伴わない挙動を検証するテスト。
@@ -19,7 +19,7 @@ class OpenAiImageToMarkdownConverterTest {
 	@Test
 	@DisplayName("機能無効時はisEnabledがfalseになり、providerはopenai")
 	void isEnabledIsFalseWhenDisabled() {
-		OpenAiProperties properties = new OpenAiProperties();
+		OcrOpenAiProperties properties = new OcrOpenAiProperties();
 		properties.setEnabled(false);
 		OpenAiImageToMarkdownConverter converter = new OpenAiImageToMarkdownConverter(properties);
 
@@ -30,7 +30,7 @@ class OpenAiImageToMarkdownConverterTest {
 	@Test
 	@DisplayName("describeはモデル名を含み、APIキーを含まない")
 	void describeContainsModelWithoutApiKey() {
-		OpenAiProperties properties = new OpenAiProperties();
+		OcrOpenAiProperties properties = new OcrOpenAiProperties();
 		properties.setModel("gpt-4o");
 		OpenAiImageToMarkdownConverter converter = new OpenAiImageToMarkdownConverter(properties);
 

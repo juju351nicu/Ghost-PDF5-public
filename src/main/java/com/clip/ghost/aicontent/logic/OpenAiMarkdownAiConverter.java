@@ -7,7 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-import com.clip.ghost.aicontent.config.OpenAiAiProperties;
+import com.clip.ghost.aicontent.config.AiOpenAiProperties;
 import com.clip.ghost.aicontent.enums.AiTaskType;
 import com.clip.ghost.aicontent.exception.AiProcessingException;
 import com.clip.ghost.common.utils.MarkdownFenceUnwrapper;
@@ -30,7 +30,7 @@ import lombok.RequiredArgsConstructor;
 public class OpenAiMarkdownAiConverter implements MarkdownAiConverter {
 	private static final Logger LOGGER = LoggerFactory.getLogger(OpenAiMarkdownAiConverter.class);
 
-	private final OpenAiAiProperties properties;
+	private final AiOpenAiProperties properties;
 
 	/**
 	 * 機能が有効かつAPIキーが設定されている場合に利用可能と判定する。

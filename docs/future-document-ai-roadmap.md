@@ -514,8 +514,8 @@ export
 Anthropicでの実API確認は未実施。詳細は `docs/markdown-ai-transform-design.md`（第12節）と
 `../成果物/30_実API確認結果_PhaseE_AI整形要約.md` を参照する。
 
-- `imagecontent` の provider抽象（`ImageToMarkdownConverter` / `ImageConverterResolver` / `AnthropicProperties` /
-  `OpenAiProperties`）と同じ構造を、テキスト入出力専用の `aicontent` package（`controller` / `service` /
+- `imagecontent` の provider抽象（`ImageToMarkdownConverter` / `ImageConverterResolver` / `OcrAnthropicProperties` /
+  `OcrOpenAiProperties`）と同じ構造を、テキスト入出力専用の `aicontent` package（`controller` / `service` /
   `logic` / `dto` / `enums` / `exception` / `config`）へ独立して作った。画像専用の
   `imageControllerServiceLogicDependenciesKeepDirection` は汚していない。
 - `MarkdownAiConverter` interface（`transform(String markdown, AiTaskType taskType)`）と

@@ -7,7 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import com.clip.ghost.aicontent.config.OpenAiAiProperties;
+import com.clip.ghost.aicontent.config.AiOpenAiProperties;
 import com.openai.models.chat.completions.ChatCompletion;
 
 /**
@@ -21,7 +21,7 @@ class OpenAiMarkdownAiConverterTest {
 	@Test
 	@DisplayName("機能無効時はisEnabledがfalseになり、キー参照や外部呼び出しをしない")
 	void isEnabledIsFalseWhenDisabled() {
-		OpenAiAiProperties properties = new OpenAiAiProperties();
+		AiOpenAiProperties properties = new AiOpenAiProperties();
 		properties.setEnabled(false);
 		OpenAiMarkdownAiConverter converter = new OpenAiMarkdownAiConverter(properties);
 
@@ -31,7 +31,7 @@ class OpenAiMarkdownAiConverterTest {
 	@Test
 	@DisplayName("describeはモデル名を含み、APIキーを含まない")
 	void describeContainsModelWithoutApiKey() {
-		OpenAiAiProperties properties = new OpenAiAiProperties();
+		AiOpenAiProperties properties = new AiOpenAiProperties();
 		properties.setModel("gpt-4o");
 		OpenAiMarkdownAiConverter converter = new OpenAiMarkdownAiConverter(properties);
 
@@ -43,7 +43,7 @@ class OpenAiMarkdownAiConverterTest {
 	@Test
 	@DisplayName("providerはopenai")
 	void providerIsOpenAi() {
-		OpenAiMarkdownAiConverter converter = new OpenAiMarkdownAiConverter(new OpenAiAiProperties());
+		OpenAiMarkdownAiConverter converter = new OpenAiMarkdownAiConverter(new AiOpenAiProperties());
 
 		assertEquals("openai", converter.provider());
 	}
@@ -54,7 +54,7 @@ class OpenAiMarkdownAiConverterTest {
 		// OpenAIは出力上限に達してもエラーを返さず正常応答として終了する（finish_reason=length）。
 		// REFINEは出力が入力とほぼ同じ長さになり得るため、この検出漏れは原文の後半が消えたMarkdownを
 		// 正しい結果として扱ってしまう事故につながる。
-		OpenAiMarkdownAiConverter converter = new OpenAiMarkdownAiConverter(new OpenAiAiProperties());
+		OpenAiMarkdownAiConverter converter = new OpenAiMarkdownAiConverter(new AiOpenAiProperties());
 
 		assertTrue(converter.isTruncated(ChatCompletion.Choice.FinishReason.LENGTH));
 	}
@@ -62,7 +62,7 @@ class OpenAiMarkdownAiConverterTest {
 	@Test
 	@DisplayName("finishReasonが正常終了（stop）の場合は打ち切りと判定しない")
 	void isTruncatedIgnoresNormalCompletion() {
-		OpenAiMarkdownAiConverter converter = new OpenAiMarkdownAiConverter(new OpenAiAiProperties());
+		OpenAiMarkdownAiConverter converter = new OpenAiMarkdownAiConverter(new AiOpenAiProperties());
 
 		assertFalse(converter.isTruncated(ChatCompletion.Choice.FinishReason.STOP));
 	}

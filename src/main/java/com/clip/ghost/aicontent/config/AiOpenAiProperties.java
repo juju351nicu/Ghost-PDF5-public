@@ -11,11 +11,14 @@ import lombok.Setter;
  * 既定は無効で、有効化した場合のみ外部AIへMarkdown本文を送信する。APIキーはこのクラスには持たず、
  * {@code apiKeyEnv} で指定した環境変数から実行時に読み取る。画像Markdown下書き（{@code ghost.ocr.openai}）と
  * 同じOpenAIアカウントを想定し、APIキー用の環境変数名は共用してよい。
+ * <p>
+ * 接頭辞の {@code Ai} は設定prefixの {@code ghost.ai} に対応する。画像文字起こし側の
+ * {@code imagecontent.config.OcrOpenAiProperties}（{@code ghost.ocr.openai}）とは別の設定になる。
  */
 @ConfigurationProperties(prefix = "ghost.ai.openai")
 @Getter
 @Setter
-public class OpenAiAiProperties {
+public class AiOpenAiProperties {
 	/** OpenAI providerの有効化フラグ。 */
 	private boolean enabled = false;
 
