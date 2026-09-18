@@ -467,6 +467,10 @@ Utils整理:
   `cmaps/`（CIDフォントのCMap）と `standard_fonts/`（未埋め込みフォントの代替）が要る。
 - バージョンと取得元、更新手順をvendorディレクトリのREADMEへ残す。実装側にもバージョン定数を
   持たせ、両者の一致をテストで固定する（`FrontendThumbnailContractTest`）。
+- APIの確認に使う型定義は、配信対象（`static/`）ではなく `docs/reference/<ライブラリ>-<バージョン>/`
+  へ置く。実行に使わないものをWebへ配らないため。**ディレクトリ名にバージョンを入れ、実装側の定数と
+  一致することをテストで固定する。** 古い型定義は「型定義が無い」よりたちが悪い。置いてあるものは
+  正しいと見なして読まれるため、本体だけ更新すると誤ったAPIが確信をもって使われる。
 - Markdownの描画ライブラリ（`marked` など）は追加しない。Markdown→HTMLは `MarkdownHtmlRenderer`
   （commonmark + jsoup）へ一本化しており、画面プレビューとPDF出力で変換規則を分けないため。
 

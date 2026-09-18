@@ -30,6 +30,9 @@
 sourcemap（`*.mjs.map`）と非minify版、`pdf.sandbox.mjs`（PDFフォームのJavaScript実行用）は収録しない。
 サムネイル描画では使わず、リポジトリサイズだけが増えるため。
 
+型定義（`types/`）もここへは置かない。実行に使わないものを配信対象へ混ぜないため。APIを確認するための
+`api.d.ts` / `pdf.d.ts` は `docs/reference/pdfjs-6.3.289/` にある。
+
 ## 更新手順
 
 バージョンを上げるときは `build/` だけを差し替えない。`cmaps/` と `standard_fonts/` の中身もバージョンに
@@ -41,5 +44,6 @@ tar -xzf pdfjs-dist-<新バージョン>.tgz
 # build/pdf.min.mjs, build/pdf.worker.min.mjs, cmaps/, standard_fonts/, LICENSE を上書き
 ```
 
-入れ替えたら、このREADMEのバージョンと `PdfThumbnailRenderer` の `PDFJS_VERSION` を同じ値へ直す。
-`FrontendThumbnailContractTest` が両者の一致を検証しているため、片方だけ直すとテストで落ちる。
+入れ替えたら、このREADMEのバージョンと `pdf-thumbnail-renderer.js` の `PDFJS_VERSION` を同じ値へ直す。
+**参照用の型定義 `docs/reference/pdfjs-<バージョン>/` も作り直し、古い版のディレクトリを消す。**
+`FrontendThumbnailContractTest` が3者の一致を検証しているため、どれか1つでも直し忘れるとテストで落ちる。
