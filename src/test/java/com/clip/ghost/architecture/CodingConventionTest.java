@@ -47,6 +47,8 @@ class CodingConventionTest {
 	private static final Path FRONTEND_FETCH_CLIENT_SCRIPT = FRONTEND_SOURCE.resolve("api/fetch-client.js");
 	private static final Path FRONTEND_API_ERROR_UTILS_SCRIPT = FRONTEND_SOURCE.resolve("api/api-error-utils.js");
 	private static final Path FRONTEND_API_RESULT_UTILS_SCRIPT = FRONTEND_SOURCE.resolve("api/api-result-utils.js");
+	private static final Path FRONTEND_UI_PREFERENCE_STATE_SCRIPT = FRONTEND_SOURCE
+			.resolve("models/ui-preference-state.js");
 	private static final Path FRONTEND_FILE_RESPONSE_HANDLER_SCRIPT = FRONTEND_SOURCE
 			.resolve("api/file-response-handler.js");
 	private static final Path TEST_SOURCE = Paths.get("src/test/java");
@@ -347,6 +349,18 @@ class CodingConventionTest {
 
 		assertNoToken(targetFiles,
 				List.of("showSaveFilePicker", "showOpenFilePicker", "showDirectoryPicker", "createWritable"));
+	}
+
+	@Test
+	@DisplayName("ブラウザ内保存への書き込みをui-preference-stateへ閉じる")
+	void frontendCodeDoesNotWriteBrowserStorageOutsideUiPreferenceState() throws IOException {
+		// pdf-app.jsはPDFパスワードなど機密の画面状態も持つ。書き込み口が増えると、
+		// 覚えておきたい表示設定のつもりで機密まで残す経路ができる。
+		List<Path> targetFiles = new ArrayList<>(scriptFiles(FRONTEND_SOURCE));
+		targetFiles.remove(FRONTEND_UTIL_SCRIPT);
+		targetFiles.remove(FRONTEND_UI_PREFERENCE_STATE_SCRIPT);
+
+		assertNoToken(targetFiles, List.of("Util.setLocalStorage", "Util.getLocalStorageObject"));
 	}
 
 	@Test

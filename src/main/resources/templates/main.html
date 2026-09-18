@@ -39,10 +39,15 @@
 
 			<section class="tab-panel" v-show="activeTab === 'home'">
 				<home-panel
+					:quick-start-state="quickStart"
 					:recent-markdown-files="recentMarkdownFiles"
+					:recent-pdf-files="recentPdfFiles"
 					:is-processing="isProcessing"
 					@navigate-tab="handleHomeNavigate"
-					@open-recent-markdown="openRecentMarkdownFile">
+					@open-recent-markdown="openRecentMarkdownFile"
+					@quick-file-selected="handleQuickFileSelected"
+					@quick-action="handleQuickAction"
+					@clear-quick-start="clearQuickStart">
 				</home-panel>
 			</section>
 
@@ -115,20 +120,26 @@
 					@request-pdf-from-office="requestPdfFromOffice"
 					@clear-office="clearOffice">
 				</office-form>
-				<epub-to-pdf-form
-					:epub-state="epubDocument"
-					:is-processing="isProcessing"
-					@epub-selected="handleEpubSelected"
-					@request-pdf-from-epub="requestPdfFromEpub"
-					@clear-epub="clearEpub">
-				</epub-to-pdf-form>
-				<html-to-pdf-form
-					:html-pdf-state="htmlPdf"
-					:is-processing="isProcessing"
-					@html-selected="handleHtmlPdfSelected"
-					@request-pdf-from-html="requestPdfFromHtml"
-					@clear-html="clearHtmlPdf">
-				</html-to-pdf-form>
+				<!-- EPUB・HTMLからのPDF化は画像・Officeほど使わない。常時出すと、よく使う2枚が下へ押し下がる。 -->
+				<details class="collapse-panel convert-detail-panel">
+					<summary>EPUB・HTMLからPDF</summary>
+					<div class="collapse-panel__body">
+						<epub-to-pdf-form
+							:epub-state="epubDocument"
+							:is-processing="isProcessing"
+							@epub-selected="handleEpubSelected"
+							@request-pdf-from-epub="requestPdfFromEpub"
+							@clear-epub="clearEpub">
+						</epub-to-pdf-form>
+						<html-to-pdf-form
+							:html-pdf-state="htmlPdf"
+							:is-processing="isProcessing"
+							@html-selected="handleHtmlPdfSelected"
+							@request-pdf-from-html="requestPdfFromHtml"
+							@clear-html="clearHtmlPdf">
+						</html-to-pdf-form>
+					</div>
+				</details>
 			</section>
 
 			<section class="tab-panel" v-show="activeTab === 'ocr'">

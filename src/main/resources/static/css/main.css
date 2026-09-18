@@ -207,8 +207,19 @@ body > #app {
 	background: var(--ghost-color-surface);
 }
 
-.insert-merge-panel {
+.insert-merge-panel,
+.convert-detail-panel {
 	margin: 0 0 28px;
+}
+
+/* カード内へ入れる折りたたみ。カードの余白(.pdf-card__body の gap)に収まるよう外側の余白は持たない。 */
+.pdf-card__detail-panel {
+	margin: 0;
+}
+
+/* 折りたたみの中へカードを入れる場合、最後のカードの下余白は折りたたみの内側余白と二重になる。 */
+.convert-detail-panel .pdf-card:last-child {
+	margin-bottom: 0;
 }
 
 /* PDF差し込み・結合パネル内の見出しテキストと実行ボタン。以前は.mainの直接の子だったが、
@@ -240,6 +251,14 @@ body > #app {
 .pdf-card__body {
 	display: grid;
 	gap: 12px;
+}
+
+/* カード本文はgridのため、直下のボタンは行幅いっぱいに伸びる。全クリアのような補助操作が
+   カードで一番大きい要素になるのを避け、内容幅へ戻す。 */
+.pdf-card__body > button {
+	width: auto;
+	justify-self: start;
+	margin-bottom: 0;
 }
 
 /* 実行中の操作と結果を1箇所へ出すパネル。状態ごとに左の色帯だけを変え、レイアウトは共通にする。 */
@@ -1011,6 +1030,48 @@ body > #app {
 	width: auto;
 	margin-bottom: 0;
 	white-space: nowrap;
+}
+
+/* ホームで受け取ったファイルと、その拡張子から出した操作候補。 */
+.home-panel__quick-result {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	margin-top: 12px;
+}
+
+.home-panel__quick-file {
+	margin: 0;
+	font-weight: 700;
+	overflow-wrap: anywhere;
+}
+
+/* 最近使ったPDFは開き直せないため、押せるボタンではなく文字のまま出す。 */
+.home-panel__recent-pdf-list {
+	margin: 8px 0 0;
+	padding: 0;
+	list-style: none;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.home-panel__recent-pdf-list li {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 4px 12px;
+	list-style: none;
+}
+
+.home-panel__recent-pdf-name {
+	overflow-wrap: anywhere;
+}
+
+.home-panel__recent-pdf-info {
+	color: var(--ghost-color-muted);
+	font-size: .875rem;
+	font-variant-numeric: tabular-nums;
 }
 
 .home-panel__recent-list {

@@ -4,6 +4,9 @@ const ACTIVE_TAB_STORAGE_KEY = "ghostPdf5.activeTab";
 const VALID_TAB_NAMES = ["home", "edit", "convert", "ocr", "memo"];
 const MARKDOWN_DRAFT_STORAGE_KEY = "ghostPdf5.markdownDraft";
 const OPERATION_SETTINGS_STORAGE_KEY = "ghostPdf5.operationSettings";
+const RECENT_PDF_FILES_STORAGE_KEY = "ghostPdf5.recentPdfFiles";
+// 古い履歴まで並べると、探すつもりの直近数件が埋もれる。
+const RECENT_PDF_FILES_MAX_COUNT = 5;
 // 自分専用ツールとして使う前提で、毎回選び直させない項目だけをここへ置く。
 // 値の意味は各項目の生成元（pdf-form-state.js）のJSDocを参照。
 const DEFAULT_OPERATION_SETTINGS = {
@@ -120,6 +123,54 @@ const saveOperationSetting = (key, value) => {
   );
 };
 
+/**
+ * 最近読み込んだPDFの履歴を読み出す。
+ *
+ * @returns {{fileName: string, fileSize: number, lastUsedTime: string}[]} 新しい順の履歴。未保存・破損時は空配列
+ */
+const loadRecentPdfFiles = () => {
+  const rawFiles = Util.getLocalStorage(RECENT_PDF_FILES_STORAGE_KEY);
+  if (Util.isEmpty(rawFiles)) {
+    return [];
+  }
+  try {
+    const recentFiles = JSON.parse(rawFiles);
+    return Array.isArray(recentFiles) ? recentFiles : [];
+  } catch (error) {
+    return [];
+  }
+};
+
+/**
+ * 読み込んだPDFを履歴の先頭へ記録する。
+ *
+ * ブラウザはセキュリティ上Fileにパスを持たせないため、履歴からクリックで開き直すことはできない。
+ * 「さっき触っていたのはどれか」を思い出すための記録に用途を限定し、名前・サイズ・利用日時だけを残す。
+ * 中身は保存しない。
+ *
+ * @param {string} fileName 読み込んだPDFのファイル名
+ * @param {number} fileSize 読み込んだPDFのファイルサイズ（byte）
+ * @returns {{fileName: string, fileSize: number, lastUsedTime: string}[]} 更新後の履歴
+ */
+const addRecentPdfFile = (fileName, fileSize) => {
+  const currentFiles = loadRecentPdfFiles().filter(
+    (recentFile) => recentFile.fileName !== fileName
+  );
+  const recentFiles = [
+    {
+      fileName: fileName,
+      fileSize: fileSize,
+      lastUsedTime: new Date().toISOString(),
+    },
+    ...currentFiles,
+  ].slice(0, RECENT_PDF_FILES_MAX_COUNT);
+  Util.setLocalStorage(
+    RECENT_PDF_FILES_STORAGE_KEY,
+    JSON.stringify(recentFiles)
+  );
+  return recentFiles;
+};
+
 export default {
   loadActiveTab,
   saveActiveTab,
@@ -128,4 +179,6 @@ export default {
   clearMarkdownDraft,
   loadOperationSettings,
   saveOperationSetting,
+  loadRecentPdfFiles,
+  addRecentPdfFile,
 };

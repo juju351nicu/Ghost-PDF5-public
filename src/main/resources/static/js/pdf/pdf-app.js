@@ -23,6 +23,7 @@ import ImagePayload from "../api/image-payload.js";
 import PdfFormState from "../models/pdf-form-state.js";
 import ProcessState from "../models/process-state.js";
 import UiPreferenceState from "../models/ui-preference-state.js";
+import QuickStartActions from "../models/quick-start-actions.js";
 import PageNumberValidator from "../validation/page-number-validator.js";
 import FileSizeValidator from "../validation/file-size-validator.js";
 import FileTypeValidator from "../validation/file-type-validator.js";
@@ -98,6 +99,10 @@ const pdfApp = {
       // このコンポーネントの状態としてそのまま残るため、切り替え時に読み直す必要はない。
       // 前回開いていたタブを復元し、毎回「OCR・Markdown化」タブを探す手間を省く。
       activeTab: UiPreferenceState.loadActiveTab(),
+      // ホームで先に受け取ったファイルと、その拡張子から出した操作候補。
+      quickStart: QuickStartActions.createQuickStartState(),
+      // 読み込んだPDFの名前・サイズ・利用日時だけの履歴。中身は保存しない。
+      recentPdfFiles: UiPreferenceState.loadRecentPdfFiles(),
       originalFile: buildOriginalFileState(),
       pdfMetadata: PdfFormState.createPdfMetadataState(),
       pdfThumbnails: PdfFormState.createThumbnailState(),
@@ -690,6 +695,10 @@ const pdfApp = {
       this.resetProcess();
       // 別のPDFには前のパスワードが通らない。持ち越すと「違う」とだけ言われて理由が分からなくなる。
       this.clearPdfPassword();
+      this.recentPdfFiles = UiPreferenceState.addRecentPdfFile(
+        fileObject.name,
+        fileObject.size
+      );
       const index = this.findInsertFileIndex(fileNo);
       if (index !== -1) {
         this.insertFiles[index].fileObject = fileObject;
@@ -1661,6 +1670,154 @@ const pdfApp = {
      */
     clearMarkdownPreview() {
       this.markdownPreviewHtml = "";
+    },
+    /**
+     * ホームで受け取ったファイルの種別を判定し、操作候補を出す。
+     *
+     * ここでは種別の判定だけを行い、サイズ・拡張子の検証は移動先と同じ既存経路（applyPdfFileなど）へ任せる。
+     * ホームだけ検証が緩い、あるいは二重に出る状態を作らないため。
+     *
+     * @param {File} fileObject 受け取ったファイル
+     */
+    handleQuickFileSelected(fileObject) {
+      this.quickStart = QuickStartActions.buildQuickStartState(fileObject);
+    },
+    /**
+     * ホームで受け取ったファイルを取り消す。
+     */
+    clearQuickStart() {
+      this.quickStart = QuickStartActions.createQuickStartState();
+    },
+    /**
+     * ホームで選ばれた操作候補に応じて、担当タブへファイルを渡して移動する。
+     *
+     * 移動するだけで実行はしない。変換モードの選択や費用の発生する操作が、
+     * ホームでのワンクリックで走ってしまうのを避けるため。
+     *
+     * @param {string} actionId 操作候補の識別子
+     * @returns {Promise<void>} 反映処理の完了Promise
+     */
+    async handleQuickAction(actionId) {
+      const fileObject = this.quickStart.fileObject;
+      if (Util.isEmpty(fileObject)) {
+        return;
+      }
+      const quickActions = QuickStartActions.QUICK_ACTION;
+      if (actionId === quickActions.PDF_EDIT) {
+        this.applyQuickStartTab(this.applyPdfFile(fileObject, -1), "edit");
+        return;
+      }
+      if (actionId === quickActions.PDF_MERGE) {
+        this.addQuickStartPdfToMerge(fileObject);
+        return;
+      }
+      if (actionId === quickActions.IMAGE_OCR) {
+        this.handleImageSelected(fileObject);
+        this.applyQuickStartTab(true, "ocr");
+        return;
+      }
+      if (actionId === quickActions.IMAGE_TO_PDF) {
+        this.handleImagesPdfSelected([fileObject]);
+        this.applyQuickStartTab(true, "convert");
+        return;
+      }
+      if (actionId === quickActions.MARKDOWN_OPEN) {
+        await this.openMarkdownFromLocalFile(fileObject);
+        return;
+      }
+      if (actionId === quickActions.OFFICE_CONVERT) {
+        this.handleOfficeSelected(fileObject);
+        this.applyQuickStartTab(true, "convert");
+        return;
+      }
+      if (actionId === quickActions.HTML_TO_PDF) {
+        this.handleHtmlPdfSelected(fileObject);
+        this.applyQuickStartTab(true, "convert");
+        return;
+      }
+      if (actionId === quickActions.HTML_TO_MARKDOWN) {
+        this.handleWebHtmlSelected(fileObject);
+        this.applyQuickStartTab(true, "ocr");
+        return;
+      }
+      if (actionId === quickActions.EPUB_TO_PDF) {
+        this.handleEpubSelected(fileObject);
+        this.applyQuickStartTab(true, "convert");
+      }
+    },
+    /**
+     * 受け渡しに成功した場合だけタブを移動し、ホームの受け取り欄を空にする。
+     *
+     * 失敗（サイズ超過など）でタブを移動すると、移動先にファイルが無い理由が分からなくなる。
+     * ホームに留めて、そこへ出ているエラーを読める状態にする。
+     *
+     * @param {boolean} accepted 移動先がファイルを受け付けたか
+     * @param {string} tabName 移動先タブ名
+     */
+    applyQuickStartTab(accepted, tabName) {
+      if (!accepted) {
+        return;
+      }
+      this.clearQuickStart();
+      this.activeTab = tabName;
+    },
+    /**
+     * ホームで受け取ったPDFを、空いている差し込み行へ追加して結合パネルを開く。
+     *
+     * 空き行が無い場合は行を追加してから入れる。10件上限に達した場合はaddInsertFileRowが
+     * その旨を出して行を増やさないため、ここでは追加できなかったこととして扱う。
+     *
+     * @param {File} fileObject 受け取ったPDF
+     */
+    addQuickStartPdfToMerge(fileObject) {
+      let emptyRow = this.insertFiles.find((insertData) =>
+        Util.isEmpty(insertData.fileObject)
+      );
+      if (Util.isEmpty(emptyRow)) {
+        const beforeCount = this.insertFiles.length;
+        this.addInsertFileRow();
+        if (this.insertFiles.length === beforeCount) {
+          return;
+        }
+        emptyRow = this.insertFiles[this.insertFiles.length - 1];
+      }
+      if (!this.applyPdfFile(fileObject, emptyRow.fileNo)) {
+        return;
+      }
+      this.clearQuickStart();
+      this.activeTab = "edit";
+      this.insertMergePanelOpen = true;
+    },
+    /**
+     * ホームで受け取ったMarkdownファイルを読み込み、Markdownメモの編集欄へ入れる。
+     *
+     * 保存済みMarkdownの読込と違いサーバーを経由しないため、上限判定だけはここで行う。
+     * 大きなファイルをそのまま読むと、ブラウザ側が固まって理由が分からなくなる。
+     *
+     * @param {File} fileObject 受け取ったMarkdownファイル
+     * @returns {Promise<void>} 読み込み処理の完了Promise
+     */
+    async openMarkdownFromLocalFile(fileObject) {
+      if (!FileSizeValidator.isWithinUploadSizeLimit(fileObject)) {
+        this.blockProcess(
+          FileSizeValidator.buildUploadSizeLimitMessage(fileObject),
+          "小さいファイルを指定してください。"
+        );
+        return;
+      }
+      try {
+        const content = await fileObject.text();
+        this.markdownFileName = fileObject.name;
+        this.markdownContent = content;
+        this.clearMarkdownPreview();
+        this.markdownMessage = fileObject.name + " を読み込みました。";
+        this.clearQuickStart();
+        this.activeTab = "memo";
+      } catch (error) {
+        this.failUnexpectedProcess(
+          "「" + fileObject.name + "」を読み込めませんでした。"
+        );
+      }
     },
     /**
      * ホームの「よく使う操作」から、目的の機能タブへ移動する。

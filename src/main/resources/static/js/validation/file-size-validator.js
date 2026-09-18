@@ -3,18 +3,29 @@ import CONST from "../const.js";
 const BYTES_PER_MEGABYTE = 1024 * 1024;
 
 /**
- * PDFのアップロード上限を超えていないか判定する。
+ * 共通のアップロード上限を超えていないか判定する。
  *
  * BE側は上限値以上を413で拒否するため、判定条件もBEと同じ「上限未満なら許容」にそろえる。
+ * 上限はPDF・Office・HTMLで共通のため、種別ごとに判定を書き分けない。
+ *
+ * @param {File|null} fileObject 選択されたファイル
+ * @returns {boolean} 上限内、またはファイル未選択の場合true
+ */
+const isWithinUploadSizeLimit = (fileObject) => {
+  if (!fileObject) {
+    return true;
+  }
+  return fileObject.size < CONST.FILE_SIZE.MAX_PDF_BYTES;
+};
+
+/**
+ * PDFのアップロード上限を超えていないか判定する。
  *
  * @param {File|null} fileObject 選択されたファイル
  * @returns {boolean} 上限内、またはファイル未選択の場合true
  */
 const isWithinPdfSizeLimit = (fileObject) => {
-  if (!fileObject) {
-    return true;
-  }
-  return fileObject.size < CONST.FILE_SIZE.MAX_PDF_BYTES;
+  return isWithinUploadSizeLimit(fileObject);
 };
 
 /**
@@ -53,6 +64,26 @@ const buildPdfSizeLimitHint = () => {
 };
 
 /**
+ * 種別を問わない上限超過メッセージを組み立てる。
+ *
+ * PDF以外（Markdownの読み込みなど）でも上限の説明が要るため、PDF専用の文言とは別に用意する。
+ *
+ * @param {File} fileObject 選択されたファイル
+ * @returns {string} 画面表示用メッセージ
+ */
+const buildUploadSizeLimitMessage = (fileObject) => {
+  return (
+    "「" +
+    fileObject.name +
+    "」は " +
+    formatExceededMegabytes(fileObject.size) +
+    "MB です。この画面で扱えるファイルは1件 " +
+    formatLimitMegabytes(CONST.FILE_SIZE.MAX_PDF_BYTES) +
+    "MB 未満です。"
+  );
+};
+
+/**
  * 超過したファイルサイズをMB表記へ整形する。
  *
  * 上限をわずかに超えた場合に上限と同じ表記になると矛盾して見えるため、小数第1位へ切り上げる。
@@ -75,7 +106,9 @@ const formatLimitMegabytes = (bytes) => {
 };
 
 export default {
+  isWithinUploadSizeLimit,
   isWithinPdfSizeLimit,
+  buildUploadSizeLimitMessage,
   buildPdfSizeLimitMessage,
   buildPdfSizeLimitHint,
 };

@@ -112,19 +112,29 @@ export default {
             <input type="number" class="dpi-input" v-model="originalFile.imageDpi" min="1"
               aria-label="画像化の解像度（DPI）" placeholder="dpi（空欄で既定値）" />
             <button type="button" class="btn-primary" :disabled="isProcessing" @click="requestImagesPdf">画像化する</button>
-            <button type="button" class="btn-primary" :disabled="isProcessing" @click="requestHtmlPdf">HTML出力</button>
-            <select class="office-format-select" v-model="originalFile.officeFormat"
-              aria-label="出力するOffice形式">
-              <option v-for="item in officeFormatItems" :key="item.id" :value="item.id">
-                {{ item.name }}
-              </option>
-            </select>
-            <button type="button" class="btn-primary" :disabled="isProcessing" @click="requestOfficeFromPdf">Office出力</button>
-            <button type="button" class="btn-primary" :disabled="isProcessing" @click="requestEpubPdf">EPUB出力</button>
             <p class="markdown-draft-mode__notice" v-if="isVisionModeSelected">
               VISIONは全ページを外部AIへ送るため、ページ数分の費用が発生します。
             </p>
           </div>
+
+          <!-- HTML / Office / EPUB出力はMarkdown下書き・画像化ほど使わない。常時並べると、
+               よく使う操作がボタンの列に埋もれる。 -->
+          <details class="collapse-panel pdf-card__detail-panel">
+            <summary>他形式へ出力（HTML / Office / EPUB）</summary>
+            <div class="collapse-panel__body">
+              <div class="pdf-action-row">
+                <button type="button" class="btn-primary" :disabled="isProcessing" @click="requestHtmlPdf">HTML出力</button>
+                <select class="office-format-select" v-model="originalFile.officeFormat"
+                  aria-label="出力するOffice形式">
+                  <option v-for="item in officeFormatItems" :key="item.id" :value="item.id">
+                    {{ item.name }}
+                  </option>
+                </select>
+                <button type="button" class="btn-primary" :disabled="isProcessing" @click="requestOfficeFromPdf">Office出力</button>
+                <button type="button" class="btn-primary" :disabled="isProcessing" @click="requestEpubPdf">EPUB出力</button>
+              </div>
+            </div>
+          </details>
 
           <h3 class="pdf-card__section-title">検索可能PDF（OCRサンドイッチ）</h3>
           <div class="pdf-action-row">
