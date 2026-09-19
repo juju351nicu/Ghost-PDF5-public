@@ -461,8 +461,9 @@ Utils整理:
 
 フロントエンドのライブラリ:
 
-- CDNから読まず、アプリ内から配信する（Vueは `webjars`、pdf.jsは `static/vendor/`）。
-  ローカルのファイルを扱うアプリで、外部CDNが落ちると画面が使えなくなる状態を作らない。
+- CDNから読まず、アプリ内から配信する（Vueは `webjars`、pdf.js / Pico CSS / SortableJS / vuedraggable /
+  Font Awesomeは `static/vendor/`）。ローカルのファイルを扱うアプリで、外部CDNが落ちると画面が使えなく
+  なる状態を作らない。
 - vendor配置するときは、実行に必要な資産を**まとめて**置く。pdf.jsは `build/` だけでは足りず、
   `cmaps/`（CIDフォントのCMap）と `standard_fonts/`（未埋め込みフォントの代替）が要る。
 - バージョンと取得元、更新手順をvendorディレクトリのREADMEへ残す。実装側にもバージョン定数を

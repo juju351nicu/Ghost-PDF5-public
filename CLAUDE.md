@@ -70,7 +70,8 @@ commons-lang3 3.19 で `StringUtils` の比較・検索・置換系は非推奨�
 - 画面で見せるだけの処理（ページ選択用サムネイル）はpdf.jsでブラウザ内に閉じる。
   見るためだけにPDFをアップロードしない。パスワードもブラウザの外へ出さない。
 - pdf.jsの用途を表示以外へ広げない。広げる必要が出たら規約側で範囲を決め直す。
-- フロントのライブラリはCDNではなくアプリ内から配信する（Vueは `webjars`、pdf.jsは `static/vendor/`）。
+- フロントのライブラリはCDNではなくアプリ内から配信する（Vueは `webjars`、pdf.js / Pico CSS /
+  SortableJS / vuedraggable / Font Awesomeは `static/vendor/`）。
   pdf.jsは `build/` だけでは足りず、`cmaps/` と `standard_fonts/` も同じバージョンで要る。
   **CMapの指定漏れは例外を出さず、日本語PDFだけ文字が欠けて描画される。**
 

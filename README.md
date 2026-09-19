@@ -300,7 +300,8 @@ Markdown保存だけの段階では追加しませんでしたが、HTMLプレ�
 5. Testcontainers
    - DB / S3 など外部ミドルウェアを本物に近い形でテストする必要が出た場合に検討する。
 
-フロントエンドのライブラリは、CDNではなくアプリ内から配信します（Vueは `webjars`、pdf.jsは `static/vendor/`）。
+フロントエンドのライブラリは、CDNではなくアプリ内から配信します（Vueは `webjars`、pdf.js / Pico CSS /
+SortableJS / vuedraggable / Font Awesomeは `static/vendor/`）。
 ローカルのPDFを扱うアプリで、外部CDNが落ちると画面が使えなくなる状態を作らないためです。
 Markdownの描画ライブラリ（`marked` など）は**追加しません**。Markdown→HTMLは `MarkdownHtmlRenderer`
 （commonmark + jsoup）に一本化しており、画面プレビューとPDF出力で変換規則を分けないためです。
