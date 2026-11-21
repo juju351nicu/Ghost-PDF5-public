@@ -359,6 +359,23 @@ public class GhostPdfLogic {
 	}
 
 	/**
+	 * ローカル画像を指定順に1つのPDFへまとめる。入力画像は変更・削除しない。
+	 *
+	 * @param imagePaths 読み込む画像パス（並べる順）
+	 * @param outputPath PDFの出力先パス。作成途中のファイル管理は呼び出し元が担当する
+	 * @param pageSize   ページサイズの決め方
+	 * @param rotation   表示回転角。nullの場合は回転しない
+	 * @throws PdfImageInputException 画像として読めないファイルが含まれる場合
+	 * @throws PdfProcessingException PDFの組み立てまたは保存に失敗した場合
+	 */
+	public void createPdfFromImagePaths(List<Path> imagePaths, Path outputPath, PdfImagePageSize pageSize,
+			PdfRotation rotation) {
+		List<PdfImageSource> imageSources = CollectionUtils.emptyIfNull(imagePaths).stream()
+				.map(path -> new PdfImageSource(path, path.getFileName().toString())).toList();
+		imagesToPdfLogic.createPdfFromImages(imageSources, outputPath, pageSize, rotation);
+	}
+
+	/**
 	 * 一時保存された複数PDFを指定順に結合し、結合後PDFの一時保存先パスを返却する。
 	 *
 	 * @param inputPaths 結合対象PDFの一時保存先パス

@@ -219,6 +219,7 @@ temporaryDirectory から Paths.get(temporaryDirectory) で生成する。
 - service層でrequestからDTOへ変換する場合は、`private build〇〇` メソッドにデフォルト値や変換ルールを集約する。
 - ServiceImpl化は現場ルールや複数実装が必要な場合に検討する。単一実装だけの段階では、interface + implを機械的に増やさない。
 - LogicクラスはPDFBoxなど外部ライブラリ依存の詳細を閉じ込める層として扱い、分割する場合も既存public APIをFacadeとして維持する。
+- PDFのCLIは `pdfcontent.cli` に置き、Controllerと同じくServiceを入口にする。Logicを直接呼ばない。
 - request / form / DTO のフィールドに `Optional<T>` は原則使わない。
   - 特に `Optional<MultipartFile>` はSpring MVC bindingやOpenAPI schemaが分かりづらくなるため使わない。
   - 未指定を表す場合は `null` / `isEmpty()` をservice層で明示的に扱う。

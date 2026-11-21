@@ -192,6 +192,10 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <!-- CLIのmain追加後も、通常のjava -jarではWebアプリを起動する。 -->
+                    <mainClass>com.clip.ghost.Application</mainClass>
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

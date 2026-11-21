@@ -27,6 +27,34 @@ PDFの**加工**はサーバー側のPDFBox、画面の**表示**（ページ選
 - [セキュリティ方針](SECURITY.md)
 - [コントリビューションガイド](CONTRIBUTING.md)
 
+## 画像フォルダを一括PDF化する
+
+Java 25で次を実行すると、Webサーバーを起動せずに画像フォルダを1つのPDFへまとめられます。
+画面の画像→PDFと同じPDFBox処理を使い、外部サービスへの送信は行いません。
+
+```bash
+bash mvnw -B -ntp -DskipTests package
+bash scripts/images-to-pdf.sh "/path/to/images" "/path/to/output.pdf"
+```
+
+対象はフォルダ直下のPNG / JPEG / TIFF / BMP（拡張子の大文字小文字は区別しません）です。
+ファイル名の辞書順で並べるため、撮影日時付きのスクリーンショットは撮影順になります。
+連番の場合は `001.png`、`002.png` のように桁をそろえてください。サブフォルダは含めません。
+複数ページTIFFは全ページを収録します。
+
+既定は画像サイズに合わせる `FIT` です。画像は可逆圧縮で埋め込み、切り取りや解像度の削減は行いません。
+元画像は変更しません。既存の出力PDFは上書きせず、変換失敗時は作成途中のPDFを削除します。
+ローカル変換にはHTTPアップロードの20MB制限は適用されません。
+
+印刷向けの `A4`、または時計回りの表示回転角（`90` / `180` / `270`）も指定できます。
+例えば、横倒しの本文を反時計回り90度に回転して保存する場合:
+
+```bash
+bash scripts/images-to-pdf.sh "/path/to/images" "/path/to/output.pdf" FIT 270
+```
+
+`bash scripts/images-to-pdf.sh --help` で引数を確認できます。コードを更新した場合は再度ビルドしてください。
+
 ## テスト実行
 
 普段の軽量確認では、Spring Context起動やOpenAPI定義確認を除外する `fast-test` profile を使います。

@@ -24,6 +24,7 @@ import org.slf4j.LoggerFactory;
 
 import com.clip.ghost.pdfcontent.dto.PdfImageSource;
 import com.clip.ghost.pdfcontent.enums.PdfImagePageSize;
+import com.clip.ghost.pdfcontent.enums.PdfRotation;
 import com.clip.ghost.pdfcontent.exception.PdfImageInputException;
 import com.clip.ghost.pdfcontent.exception.PdfProcessingException;
 
@@ -52,12 +53,32 @@ final class ImagesToPdfLogic {
 	 * @throws PdfProcessingException PDFの組み立てまたは保存に失敗した場合
 	 */
 	void createPdfFromImages(List<PdfImageSource> imageSources, Path outputPath, PdfImagePageSize pageSize) {
+		createPdfFromImages(imageSources, outputPath, pageSize, null);
+	}
+
+	/**
+	 * 画像をPDFへまとめ、必要に応じて全ページの表示方向を回転する。
+	 * <p>
+	 * 画像自体を回転・再圧縮せず、PDFの表示回転だけを設定して元の画質を保つ。
+	 *
+	 * @param imageSources 画像の保存先と元ファイル名（並べる順）
+	 * @param outputPath   PDFの出力先パス
+	 * @param pageSize     ページサイズの決め方
+	 * @param rotation     表示回転角。nullの場合は回転しない
+	 */
+	void createPdfFromImages(List<PdfImageSource> imageSources, Path outputPath, PdfImagePageSize pageSize,
+			PdfRotation rotation) {
 		if (CollectionUtils.isEmpty(imageSources)) {
 			throw new IllegalArgumentException("PDF化する画像が指定されていません。");
 		}
 		try (PDDocument document = new PDDocument()) {
 			for (PdfImageSource imageSource : imageSources) {
 				addImageFileToDocument(document, imageSource, pageSize);
+			}
+			if (rotation != null) {
+				for (PDPage page : document.getPages()) {
+					page.setRotation(rotation.applyTo(page.getRotation()));
+				}
 			}
 			LOGGER.info("画像からPDFを生成しました。pageCount={}", document.getNumberOfPages());
 			document.save(outputPath.toFile());

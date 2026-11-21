@@ -566,13 +566,16 @@ class CodingConventionTest {
 	}
 
 	@Test
-	@DisplayName("PDF処理の依存方向をController → Service → Logicに保つ")
+	@DisplayName("PDF処理はController / CLI → Service → Logicの順に依存する")
 	void pdfControllerServiceLogicDependenciesKeepDirection() {
 		Architectures.layeredArchitecture().consideringAllDependencies().layer("Controller")
 				.definedBy("..pdfcontent.controller..").layer("Service").definedBy("..pdfcontent.service..")
+				.layer("CLI").definedBy("..pdfcontent.cli..")
 				.layer("Logic").definedBy("..pdfcontent.logic..").whereLayer("Controller").mayNotBeAccessedByAnyLayer()
-				.whereLayer("Service").mayOnlyBeAccessedByLayers("Controller").whereLayer("Logic")
-				.mayOnlyBeAccessedByLayers("Service").because("PDF処理はController -> Service -> Logicの順に依存させます。")
+				.whereLayer("CLI").mayNotBeAccessedByAnyLayer()
+				.whereLayer("Service").mayOnlyBeAccessedByLayers("Controller", "CLI").whereLayer("Logic")
+				.mayOnlyBeAccessedByLayers("Service")
+				.because("PDF処理はController / CLI -> Service -> Logicの順に依存させます。")
 				.check(PRODUCTION_CLASSES);
 	}
 
